@@ -1,0 +1,109 @@
+/**
+ * This program stresses method calls, memory sustainability
+ * and looping.
+ *
+ * Part of Promit Test Suit, location /test/Benchmark/BinaryTrees.Promit
+ * 
+ * Created by SD Asif Hossein in 21th June, 2022 (Tuesday) at 01:31 PM (UTC +06).
+ */
+
+/*
+
+old:
+==30109==     in use at exit: 0 bytes in 0 blocks
+==30109==   total heap usage: 44,920 allocs, 44,920 frees, 2,560,261 bytes allocated
+
+
+new:
+==30159==     in use at exit: 0 bytes in 0 blocks
+==30159==   total heap usage: 45,096 allocs, 45,096 frees, 2,891,245 bytes allocated
+
+*/
+
+
+
+
+class Tree
+{
+	Tree(value, depth) {
+		
+
+		self.depth = depth;
+		self.value = value;
+
+		if(depth > 0)
+        {
+            
+            self.left  = Tree(value - 1, depth - 1);
+            self.right = Tree(2 * value + 1, depth - 1);
+        }
+        else
+        {
+            self.left  = nil;
+            self.right = nil;
+        }
+    }
+
+	check()
+    {
+        
+        
+        if(!self.left)
+        {
+            return self.value;
+        }
+        return self.value + self.right.check() - self.left.check();
+    }
+}
+
+var mindepth = 4;
+var maxdepth = 14/1;
+
+var stretchdepth = maxdepth + 1;
+
+print("Min depth : ${mindepth}, max depth : ${maxdepth} and stretched depth : ${stretchdepth}\n");
+print("Starting benchmark...\n");
+
+
+print("Check 1 : ${Tree(0, stretchdepth).check()}\n");
+
+
+
+var ancient = Tree(0, maxdepth);
+
+
+
+var totaltrees = 1;
+var i = 0;
+while(i < maxdepth) 
+{
+	totaltrees *= 2;
+    i++;
+}
+var checkcnt = 2;
+i = mindepth;
+while(i < maxdepth)
+{
+    var checkval = 0;
+    var j = 0;
+    while(j < totaltrees)
+    {
+        checkval += Tree(j, i).check() + Tree(-j, i).check();
+        j++;
+    }
+    print("Number of trees : ${totaltrees * 2}\n");
+    print("Current running depth : ${i}\n");
+    checkcnt++;
+    var actualval = (checkval == nil) ? "(no value)" : checkval;
+    print("Check ${checkcnt} : ${actualval}\n");
+    totaltrees /= 4;
+    i += 2;
+}
+
+
+
+
+print("Long lived tree depth : ${maxdepth}\n");
+print("Check ${checkcnt} : ${ancient.check()}\n");
+
+print("Benchmarking finished!\n");

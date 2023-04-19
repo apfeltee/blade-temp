@@ -1,0 +1,196 @@
+Checking main.c ...
+main.c:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 34 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+Checking main.c: BIT_ZERO_ON_LEFT;DGUX;MIPSEB;_CRAY;_IBMR2;_MIPSEB;_M_PPC;__convex__;__hp9000;__hp9000s300;__hp9000s700;__hppa;__sparc;apollo;ibm032;ibm370;is68k;m68k;mc68000;pyr;sel;sparc;tahoe...
+main.c:18872:33: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                uint16_t offset = READ_SHORT();
+                                ^
+main.c:18878:33: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                uint16_t offset = READ_SHORT();
+                                ^
+main.c:18887:33: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                uint16_t offset = READ_SHORT();
+                                ^
+main.c:19004:31: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                uint16_t slot = READ_SHORT();
+                              ^
+main.c:19010:31: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                uint16_t slot = READ_SHORT();
+                              ^
+main.c:19304:31: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                    int index = READ_SHORT();
+                              ^
+main.c:19320:27: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                int index = READ_SHORT();
+                          ^
+main.c:19326:27: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                int index = READ_SHORT();
+                          ^
+main.c:19440:27: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                int count = READ_SHORT();
+                          ^
+main.c:19837:34: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                uint16_t address = READ_SHORT();
+                                 ^
+main.c:19838:42: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
+                uint16_t finally_address = READ_SHORT();
+                                         ^
+main.c:8916:5: error: Address of local auto-variable assigned to a function parameter. [autoVariables]
+    p->current_class = &class_compiler;
+    ^
+main.c:15793:22: warning: The address of local variable 'as_long' might be accessed at non-zero index. [objectIndex]
+        *output++ = v[map[i]];
+                     ^
+main.c:15789:22: note: Address of variable taken here.
+    char* v = (char*)&as_long;
+                     ^
+main.c:15793:22: note: The address of local variable 'as_long' might be accessed at non-zero index.
+        *output++ = v[map[i]];
+                     ^
+main.c:17137:26: error: Invalid calloc() argument nr 1. The value is 0 but the valid values are '1:'. [invalidFunctionArg]
+    char* trace = calloc(0, sizeof(char));
+                         ^
+main.c:14667:34: warning: Comparison is wrong. Result of 'output+length' can't be 0 unless there is pointer overflow, and pointer overflow is undefined behaviour. [pointerAdditionResultNotNull]
+            if((output + length) != NULL)
+                                 ^
+main.c:2524:9: portability: %d in format string (no. 1) requires 'int' but the argument type is 'size_t {aka unsigned long}'. [invalidPrintfArgType_sint]
+        fprintf(stderr, "free_objects: index %d of %d\n", i, vm->objectcount);
+        ^
+main.c:2524:9: portability: %d in format string (no. 2) requires 'int' but the argument type is 'size_t {aka unsigned long}'. [invalidPrintfArgType_sint]
+        fprintf(stderr, "free_objects: index %d of %d\n", i, vm->objectcount);
+        ^
+main.c:1877:29: warning: Either the condition 'b==NULL' is redundant or there is possible null pointer dereference: b. [nullPointerRedundantCheck]
+    int len_b = (int)strlen(b);
+                            ^
+main.c:1878:10: note: Assuming that condition 'b==NULL' is not redundant
+    if(b == NULL || len_b == 0)
+         ^
+main.c:1877:29: note: Null pointer dereference
+    int len_b = (int)strlen(b);
+                            ^
+main.c:10539:31: warning: Either the condition 'buffer!=NULL' is redundant or there is possible null pointer dereference: buffer. [nullPointerRedundantCheck]
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, file->file);
+                              ^
+main.c:10547:15: note: Assuming that condition 'buffer!=NULL' is not redundant
+    if(buffer != NULL)
+              ^
+main.c:10539:31: note: Null pointer dereference
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, file->file);
+                              ^
+main.c:10636:31: warning: Either the condition 'buffer!=NULL' is redundant or there is possible null pointer dereference: buffer. [nullPointerRedundantCheck]
+    size_t bytes_read = fread(buffer, sizeof(char), length, file->file);
+                              ^
+main.c:10644:15: note: Assuming that condition 'buffer!=NULL' is not redundant
+    if(buffer != NULL)
+              ^
+main.c:10636:31: note: Null pointer dereference
+    size_t bytes_read = fread(buffer, sizeof(char), length, file->file);
+                              ^
+main.c:15007:5: style: Statements following return, break, continue, goto or throw will never be executed. [unreachableCode]
+    RETURN;
+    ^
+main.c:17908:17: style: Consecutive return, break, continue, goto or throw statements are unnecessary. [duplicateBreak]
+                break;
+                ^
+main.c:2475:12: style: The scope of the variable 'object' can be reduced. [variableScope]
+    b_obj* object;
+           ^
+main.c:12084:9: style: The scope of the variable 'x' can be reduced. [variableScope]
+    int x;
+        ^
+main.c:14642:10: style: The scope of the variable 'buffer' can be reduced. [variableScope]
+    char buffer[256];
+         ^
+main.c:14643:12: style: The scope of the variable 'n_read' can be reduced. [variableScope]
+    size_t n_read;
+           ^
+main.c:14645:9: style: The scope of the variable 'length' can be reduced. [variableScope]
+    int length = 0;
+        ^
+main.c:16469:14: style: The scope of the variable 'c' can be reduced. [variableScope]
+        char c;
+             ^
+main.c:16686:37: style: Unsigned expression '--len' can't be negative so it is unnecessary to test it. [unsignedPositive]
+                        while(--len >= 0)
+                                    ^
+main.c:16960:29: style: Checking if unsigned expression 'inputpos' is less than zero. [unsignedLessThanZero]
+                if(inputpos < 0)
+                            ^
+main.c:12437:25: error: Expression 'vm,array->buffer,sizeof(int16_t)*array->length,sizeof(int16_t)*(array->length++)' depends on order of evaluation of side effects [unknownEvaluationOrder]
+        array->buffer = GROW_ARRAY(int16_t, array->buffer, array->length, array->length++);
+                        ^
+main.c:12657:25: error: Expression 'vm,array->buffer,sizeof(int32_t)*array->length,sizeof(int32_t)*(array->length++)' depends on order of evaluation of side effects [unknownEvaluationOrder]
+        array->buffer = GROW_ARRAY(int32_t, array->buffer, array->length, array->length++);
+                        ^
+main.c:12877:25: error: Expression 'vm,array->buffer,sizeof(int64_t)*array->length,sizeof(int64_t)*(array->length++)' depends on order of evaluation of side effects [unknownEvaluationOrder]
+        array->buffer = GROW_ARRAY(int64_t, array->buffer, array->length, array->length++);
+                        ^
+main.c:13097:25: error: Expression 'vm,array->buffer,sizeof(uint16_t)*array->length,sizeof(uint16_t)*(array->length++)' depends on order of evaluation of side effects [unknownEvaluationOrder]
+        array->buffer = GROW_ARRAY(uint16_t, array->buffer, array->length, array->length++);
+                        ^
+main.c:13317:25: error: Expression 'vm,array->buffer,sizeof(uint32_t)*array->length,sizeof(uint32_t)*(array->length++)' depends on order of evaluation of side effects [unknownEvaluationOrder]
+        array->buffer = GROW_ARRAY(uint32_t, array->buffer, array->length, array->length++);
+                        ^
+main.c:13537:25: error: Expression 'vm,array->buffer,sizeof(uint64_t)*array->length,sizeof(uint64_t)*(array->length++)' depends on order of evaluation of side effects [unknownEvaluationOrder]
+        array->buffer = GROW_ARRAY(uint64_t, array->buffer, array->length, array->length++);
+                        ^
+main.c:13745:21: portability: Behaviour of 'sizeof(void)' is not covered by the ISO C standard. [sizeofVoid]
+    array->buffer = GROW_ARRAY(void, array->buffer, array->length, array->length + array2->length);
+                    ^
+main.c:13747:26: portability: 'array->buffer' is of type 'void *'. When using void pointers in calculations, the behaviour is undefined. [arithOperationsOnVoidPointer]
+    memcpy(array->buffer + array->length, array2->buffer, array2->length);
+                         ^
+main.c:2990:16: style: Variable 'length' is assigned a value that is never used. [unreadVariable]
+    int length = 0;
+               ^
+Checking main.c: BIT_ZERO_ON_RIGHT;MIPSEL;_MIPSEL;_M_ARM;_M_IA64;_M_IX86;_M_X64;_WIN32;__alpha;__alpha__;__i386__;ns32000;sun386;vax...
+main.c:14808:9: style: The scope of the variable 'overwrite' can be reduced. [variableScope]
+    int overwrite = 1;
+        ^
+main.c:14808:19: style: Variable 'overwrite' is assigned a value that is never used. [unreadVariable]
+    int overwrite = 1;
+                  ^
+main.c:14812:19: style: Variable 'overwrite' is assigned a value that is never used. [unreadVariable]
+        overwrite = AS_BOOL(args[2]) ? 1 : 0;
+                  ^
+Checking main.c: WIN32;WIN64;_WIN32;_WIN64...
+Checking main.c: _DARWIN_C_SOURCE;_POSIX_C_SOURCE;_WIN32...
+Checking main.c: _WIN32...
+Checking main.c: _WIN32;__CYGWIN__...
+Checking main.c: __BYTE_ORDER...
+main.c:2070:0: style: The function 'allocate' is never used. [unusedFunction]
+
+^
+main.c:11331:0: style: The function 'bind_user_modules' is never used. [unusedFunction]
+
+^
+main.c:12533:0: style: The function 'native_module_array_int16_remove' is never used. [unusedFunction]
+
+^
+main.c:12753:0: style: The function 'native_module_array_int32_remove' is never used. [unusedFunction]
+
+^
+main.c:12973:0: style: The function 'native_module_array_int64_remove' is never used. [unusedFunction]
+
+^
+main.c:13193:0: style: The function 'native_module_array_uint16_remove' is never used. [unusedFunction]
+
+^
+main.c:13413:0: style: The function 'native_module_array_uint32_remove' is never used. [unusedFunction]
+
+^
+main.c:13633:0: style: The function 'native_module_array_uint64_remove' is never used. [unusedFunction]
+
+^
+main.c:15357:0: style: The function 'native_module_process_shared_islocked' is never used. [unusedFunction]
+
+^
+main.c:4425:0: style: The function 'table_print' is never used. [unusedFunction]
+
+^
+main.c:1674:0: style: The function 'utf8_decode_num_bytes' is never used. [unusedFunction]
+
+^
+nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
+
