@@ -2290,7 +2290,7 @@ void free_object(b_vm* vm, b_obj** pobject)
         {
             b_obj_module* module = (b_obj_module*)object;
             free_table(vm, &module->values);
-            //free(module->name);
+            free(module->name);
             free(module->file);
             if(module->unloader != NULL && module->imported)
             {
@@ -14364,10 +14364,15 @@ bool native_module_io_putc(b_vm* vm, int arg_count, b_value* args)
  */
 b_value io_module_stdin(b_vm* vm)
 {
-    b_obj_file* file = new_file(vm, copy_string(vm, "<stdin>", 7), copy_string(vm, "", 0));
+    b_obj_file* file;
+    b_obj_string* mode;
+    b_obj_string* name;
+    name = copy_string(vm, "<stdin>", 7);
+    mode = copy_string(vm, "rb", 2);
+    file = new_file(vm, name, mode);
     file->file = stdin;
     file->is_open = true;
-    file->mode = copy_string(vm, "", 0);
+    //file->mode = mode;
     return OBJ_VAL(file);
 }
 
@@ -14378,10 +14383,15 @@ b_value io_module_stdin(b_vm* vm)
  */
 b_value io_module_stdout(b_vm* vm)
 {
-    b_obj_file* file = new_file(vm, copy_string(vm, "<stdout>", 8), copy_string(vm, "", 0));
+    b_obj_file* file;
+    b_obj_string* mode;
+    b_obj_string* name;
+    name = copy_string(vm, "<stdout>", 8);
+    mode = copy_string(vm, "wb", 2);
+    file = new_file(vm, name, mode);
     file->file = stdout;
     file->is_open = true;
-    file->mode = copy_string(vm, "", 0);
+    //file->mode = copy_string(vm, "", 0);
     return OBJ_VAL(file);
 }
 
@@ -14392,10 +14402,15 @@ b_value io_module_stdout(b_vm* vm)
  */
 b_value io_module_stderr(b_vm* vm)
 {
-    b_obj_file* file = new_file(vm, copy_string(vm, "<stdout>", 8), copy_string(vm, "", 0));
+    b_obj_file* file;
+    b_obj_string* mode;
+    b_obj_string* name;
+    name = copy_string(vm, "<stderr>", 8);
+    mode = copy_string(vm, "wb", 2);
+    file = new_file(vm, name, mode);
     file->file = stderr;
     file->is_open = true;
-    file->mode = copy_string(vm, "", 0);
+    //file->mode = copy_string(vm, "", 0);
     return OBJ_VAL(file);
 }
 
