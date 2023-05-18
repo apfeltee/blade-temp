@@ -22,9 +22,6 @@
 #include <utime.h>
 #include <sys/utsname.h>
 #include <sys/param.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/time.h>
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -39,7 +36,7 @@
 #define LIBRARY_DIRECTORY_INDEX "index"
 #define PACKAGES_DIRECTORY "vendor"
 #define LOCAL_PACKAGES_DIRECTORY ".blade"
-
+#define LOCAL_EXT_DIRECTORY "/bin"
 #define LOCAL_SRC_DIRECTORY "/libs"
 
 // global debug mode flag
@@ -58,7 +55,7 @@
 
 #define GC_HEAP_GROWTH_FACTOR 1.25
 
-
+#define BLADE_PACKAGE_ROOT_ENV "BLADE_PKG_ROOT"
 
 #define HAVE_TERMIOS_H
 #define HAVE_SYS_UTSNAME_H
@@ -216,7 +213,7 @@
     }
 #define RETURN_ERROR(...) \
     { \
-        pop_n(vm, argcount); \
+        pop_n(vm, arg_count); \
         bl_vm_throwexception(vm, false, ##__VA_ARGS__); \
         args[-1] = FALSE_VAL; \
         return false; \
@@ -275,22 +272,22 @@
     }
 
 #define ENFORCE_ARG_COUNT(name, d) \
-    if(argcount != d) \
+    if(arg_count != d) \
     { \
-        RETURN_ERROR(#name "() expects %d arguments, %d given", d, argcount); \
+        RETURN_ERROR(#name "() expects %d arguments, %d given", d, arg_count); \
     }
 
 #define ENFORCE_MIN_ARG(name, d) \
-    if(argcount < d) \
+    if(arg_count < d) \
     { \
-        RETURN_ERROR(#name "() expects minimum of %d arguments, %d given", d, argcount); \
+        RETURN_ERROR(#name "() expects minimum of %d arguments, %d given", d, arg_count); \
     }
 
 
 #define ENFORCE_ARG_RANGE(name, low, up) \
-    if(argcount < (low) || argcount > (up)) \
+    if(arg_count < (low) || arg_count > (up)) \
     { \
-        RETURN_ERROR(#name "() expects between %d and %d arguments, %d given", low, up, argcount); \
+        RETURN_ERROR(#name "() expects between %d and %d arguments, %d given", low, up, arg_count); \
     }
 
 #define ENFORCE_ARG_TYPE(name, i, type) \
@@ -299,10 +296,10 @@
         RETURN_ERROR(#name "() expects argument %d as " NORMALIZE(type) ", %s given", (i) + 1, value_type(args[i])); \
     }
 
-#define EXCLUDE_ARG_TYPE(methodname, arg_type, index) \
+#define EXCLUDE_ARG_TYPE(method_name, arg_type, index) \
     if(arg_type(args[index])) \
     { \
-        RETURN_ERROR("invalid type %s() as argument %d in %s()", value_type(args[index]), (index) + 1, #methodname); \
+        RETURN_ERROR("invalid type %s() as argument %d in %s()", value_type(args[index]), (index) + 1, #method_name); \
     }
 
 #define METHOD_OVERRIDE(override, i) \
@@ -319,21 +316,21 @@
         } \
     } while(0);
 
-#define REGEX_COMPILATION_ERROR(re, errornumber, erroroffset) \
+#define REGEX_COMPILATION_ERROR(re, error_number, error_offset) \
     if((re) == NULL) \
     { \
         PCRE2_UCHAR8 buffer[256]; \
-        pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer)); \
-        RETURN_ERROR("regular expression compilation failed at offset %d: %s", (int)(erroroffset), buffer); \
+        pcre2_get_error_message_8(error_number, buffer, sizeof(buffer)); \
+        RETURN_ERROR("regular expression compilation failed at offset %d: %s", (int)(error_offset), buffer); \
     }
 
-#define REGEX_ASSERTION_ERROR(re, matchdata, ovector) \
+#define REGEX_ASSERTION_ERROR(re, match_data, ovector) \
     if((ovector)[0] > (ovector)[1]) \
     { \
         RETURN_ERROR("match aborted: regular expression used \\K in an assertion %.*s to " \
                      "set match start after its end.", \
                      (int)((ovector)[0] - (ovector)[1]), (char*)(subject + (ovector)[1])); \
-        pcre2_match_data_free(matchdata); \
+        pcre2_match_data_free(match_data); \
         pcre2_code_free(re); \
         RETURN_EMPTY; \
     }
@@ -351,15 +348,15 @@
 
 #define REGEX_RC_ERROR() REGEX_ERR("%d", rc);
 
-#define GET_REGEX_COMPILE_OPTIONS(string, regexshowerror) \
-    uint32_t compileoptions = is_regex(string); \
-    if((regexshowerror) && (int)compileoptions == -1) \
+#define GET_REGEX_COMPILE_OPTIONS(string, regex_show_error) \
+    uint32_t compile_options = is_regex(string); \
+    if((regex_show_error) && (int)compile_options == -1) \
     { \
         RETURN_ERROR("RegexError: Invalid regex"); \
     } \
-    else if((regexshowerror) && (int)compileoptions > 1000000) \
+    else if((regex_show_error) && (int)compile_options > 1000000) \
     { \
-        RETURN_ERROR("RegexError: invalid modifier '%c' ", (char)abs(1000000 - (int)compileoptions)); \
+        RETURN_ERROR("RegexError: invalid modifier '%c' ", (char)abs(1000000 - (int)compile_options)); \
     }
 
 // NOTE:
@@ -401,10 +398,9 @@
 
 #define GROW_CAPACITY(capacity) ((capacity) < 4 ? 4 : (capacity)*2)
 
+#define GROW_ARRAY(type, pointer, old_count, new_count) (type*)bl_mem_realloc(vm, pointer, sizeof(type) * (old_count), sizeof(type) * (new_count))
 
-#define GROW_ARRAY(type, pointer, oldcount, newcount) (type*)bl_mem_growarray(vm, pointer, sizeof(type), oldcount, newcount)
-
-#define FREE_ARRAY(type, pointer, oldcount) bl_mem_free(vm, pointer, sizeof(type) * (oldcount))
+#define FREE_ARRAY(type, pointer, old_count) bl_mem_free(vm, pointer, sizeof(type) * (old_count))
 
 #define FREE(type, pointer) bl_mem_free(vm, pointer, sizeof(type))
 
@@ -774,10 +770,10 @@ typedef struct BProcessShared BProcessShared;
 typedef Value (*ClassFieldFunc)(VMState*);
 typedef void (*ModLoaderFunc)(VMState*);
 typedef RegModule* (*ModInitFunc)(VMState*);
-typedef bool (*bnativefn)(VMState*, int, Value*);
-typedef void (*bptrfreefn)(void*);
-typedef void (*bparseprefixfn)(AstParser*, bool);
-typedef void (*bparseinfixfn)(AstParser*, AstToken, bool);
+typedef bool (*b_native_fn)(VMState*, int, Value*);
+typedef void (*b_ptr_free_fn)(void*);
+typedef void (*b_parse_prefix_fn)(AstParser*, bool);
+typedef void (*b_parse_infix_fn)(AstParser*, AstToken, bool);
 
 
 struct Value
@@ -796,14 +792,14 @@ struct Value
 struct RegFunc
 {
     const char* name;
-    bool isstatic;
-    bnativefn natfn;
+    bool is_static;
+    b_native_fn natfn;
 };
 
 struct RegField
 {
     const char* name;
-    bool isstatic;
+    bool is_static;
     ClassFieldFunc fieldfunc;
 };
 
@@ -872,8 +868,8 @@ struct ObjString
 {
     Object obj;
     int length;
-    int utf8length;
-    bool isascii;
+    int utf8_length;
+    bool is_ascii;
     uint32_t hash;
     char* chars;
 };
@@ -903,8 +899,8 @@ struct ObjFunction
     Object obj;
     FuncType type;
     int arity;
-    int upvaluecount;
-    bool isvariadic;
+    int up_value_count;
+    bool is_variadic;
     BinaryBlob blob;
     ObjString* name;
     ObjModule* module;
@@ -913,9 +909,9 @@ struct ObjFunction
 struct ObjClosure
 {
     Object obj;
-    int upvaluecount;
+    int up_value_count;
     ObjFunction* fnptr;
-    ObjUpvalue** upvalues;
+    ObjUpvalue** up_values;
 };
 
 struct ObjClass
@@ -923,7 +919,7 @@ struct ObjClass
     Object obj;
     Value initializer;
     HashTable properties;
-    HashTable staticproperties;
+    HashTable static_properties;
     HashTable methods;
     ObjString* name;
     ObjClass* superclass;
@@ -948,7 +944,7 @@ struct ObjNativeFunction
     Object obj;
     FuncType type;
     const char* name;
-    bnativefn natfn;
+    b_native_fn natfn;
 };
 
 struct ObjList
@@ -981,7 +977,7 @@ struct ObjDict
 struct ObjFile
 {
     Object obj;
-    bool isopen;
+    bool is_open;
     FILE* file;
     ObjString* mode;
     ObjString* path;
@@ -990,8 +986,8 @@ struct ObjFile
 struct ObjSwitch
 {
     Object obj;
-    int defaultjump;
-    int exitjump;
+    int default_jump;
+    int exit_jump;
     HashTable table;
 };
 
@@ -1000,13 +996,13 @@ struct ObjPointer
     Object obj;
     void* pointer;
     char* name;
-    bptrfreefn fnptrfree;
+    b_ptr_free_fn free_fn;
 };
 
 struct ExceptionFrame
 {
     uint16_t address;
-    uint16_t finallyaddress;
+    uint16_t finally_address;
     ObjClass* klass;
 };
 
@@ -1015,7 +1011,7 @@ struct CallFrame
     ObjClosure* closure;
     uint8_t* ip;
     Value* slots;
-    int handlerscount;
+    int handlers_count;
     ExceptionFrame handlers[MAX_EXCEPTION_HANDLERS];
 };
 
@@ -1023,26 +1019,26 @@ struct VMState
 {
     bool allowgc;
     CallFrame frames[FRAMES_MAX];
-    int framecount;
+    int frame_count;
 
     BinaryBlob* blob;
     uint8_t* ip;
     Value stack[STACK_MAX];
-    Value* stacktop;
-    ObjUpvalue* openupvalues;
+    Value* stack_top;
+    ObjUpvalue* open_up_values;
 
     size_t objectcount;
     Object* objectlinks;
     AstCompiler* compiler;
-    ObjClass* exceptionclass;
+    ObjClass* exception_class;
 
     // gc
-    int graycount;
-    int graycapacity;
-    int gcprotected;
-    Object** graystack;
-    size_t bytesallocated;
-    size_t nextgc;
+    int gray_count;
+    int gray_capacity;
+    int gc_protected;
+    Object** gray_stack;
+    size_t bytes_allocated;
+    size_t next_gc;
 
     // objects tracker
     HashTable modules;
@@ -1050,21 +1046,21 @@ struct VMState
     HashTable globals;
 
     // object public methods
-    HashTable methodsstring;
-    HashTable methodslist;
-    HashTable methodsdict;
-    HashTable methodsfile;
-    HashTable methodsbytes;
-    HashTable methodsrange;
+    HashTable methods_string;
+    HashTable methods_list;
+    HashTable methods_dict;
+    HashTable methods_file;
+    HashTable methods_bytes;
+    HashTable methods_range;
 
-    char** stdargs;
-    int stdargscount;
+    char** std_args;
+    int std_args_count;
 
     // boolean flags
-    bool isrepl;
+    bool is_repl;
     // for switching through the command line args...
-    bool shoulddebugstack;
-    bool shouldprintbytecode;
+    bool should_debug_stack;
+    bool should_print_bytecode;
 };
 
 
@@ -1088,7 +1084,7 @@ struct AstScanner
     const char* start;
     const char* current;
     int line;
-    int interpolatingcount;
+    int interpolating_count;
     int interpolating[MAX_INTERPOLATION_NESTING];
 };
 
@@ -1120,13 +1116,13 @@ struct AstLocal
 {
     AstToken name;
     int depth;
-    bool iscaptured;
+    bool is_captured;
 };
 
 struct Upvalue
 {
     uint16_t index;
-    bool islocal;
+    bool is_local;
 };
 
 struct AstCompiler
@@ -1138,17 +1134,17 @@ struct AstCompiler
     FuncType type;
 
     AstLocal locals[UINT8_COUNT];
-    int localcount;
-    Upvalue upvalues[UINT8_COUNT];
-    int scopedepth;
-    int handlercount;
+    int local_count;
+    Upvalue up_values[UINT8_COUNT];
+    int scope_depth;
+    int handler_count;
 };
 
 struct AstClassCompiler
 {
     AstClassCompiler* enclosing;
     AstToken name;
-    bool hassuperclass;
+    bool has_superclass;
 };
 
 struct AstParser
@@ -1158,18 +1154,18 @@ struct AstParser
 
     AstToken current;
     AstToken previous;
-    bool haderror;
-    bool panicmode;
-    int blockcount;
-    bool isreturning;
-    bool istrying;
-    bool replcanecho;
-    AstClassCompiler* currentclass;
-    const char* currentfile;
+    bool had_error;
+    bool panic_mode;
+    int block_count;
+    bool is_returning;
+    bool is_trying;
+    bool repl_can_echo;
+    AstClassCompiler* current_class;
+    const char* current_file;
 
     // used for tracking loops for the continue statement...
-    int innermostloopstart;
-    int innermostloopscopedepth;
+    int innermost_loop_start;
+    int innermost_loop_scope_depth;
     ObjModule* module;
 } ;
 
@@ -1177,8 +1173,8 @@ struct AstParser
 
 struct AstRule
 {
-    bparseprefixfn prefix;
-    bparseinfixfn infix;
+    b_parse_prefix_fn prefix;
+    b_parse_infix_fn infix;
     AstPrecedence precedence;
 };
 
@@ -1196,10 +1192,10 @@ struct BProcess
 struct BProcessShared
 {
     char* format;
-    char* getformat;
+    char* get_format;
     unsigned char* bytes;
-    int formatlength;
-    int getformatlength;
+    int format_length;
+    int get_format_length;
     int length;
     bool locked;
 };
@@ -1209,7 +1205,7 @@ int utf8_number_bytes(int value);
 char *utf8_encode(unsigned int code);
 int utf8_decode_num_bytes(uint8_t byte);
 int utf8_decode(const uint8_t *bytes, uint32_t length);
-char *append_strings(char *old, char *newstr);
+char *append_strings(char *old, char *new_str);
 int utf8len(char *s);
 char *utf8index(char *s, int pos);
 void utf8slice(char *s, int *start, int *end);
@@ -1219,10 +1215,10 @@ char *get_exe_dir(void);
 char *merge_paths(char *a, char *b);
 bool file_exists(char *filepath);
 char *get_blade_filename(char *filename);
-char *resolve_import_path(char *modulename, const char *currentfile, bool isrelative);
+char *resolve_import_path(char *module_name, const char *current_file, bool is_relative);
 char *get_real_file_name(char *path);
 void *allocate(VMState *vm, size_t size);
-void *bl_mem_realloc(VMState *vm, void *pointer, size_t oldsize, size_t newsize);
+void *bl_mem_realloc(VMState *vm, void *pointer, size_t old_size, size_t new_size);
 void mark_object(VMState *vm, Object *object);
 void mark_value(VMState *vm, Value value);
 void blacken_object(VMState *vm, Object *object);
@@ -1235,58 +1231,58 @@ void free_blob(VMState *vm, BinaryBlob *blob);
 int add_constant(VMState *vm, BinaryBlob *blob, Value value);
 uint32_t is_regex(ObjString *string);
 char *remove_regex_delimiter(VMState *vm, ObjString *string);
-bool objfn_string_length(VMState *vm, int argcount, Value *args);
-bool objfn_string_upper(VMState *vm, int argcount, Value *args);
-bool objfn_string_lower(VMState *vm, int argcount, Value *args);
-bool objfn_string_isalpha(VMState *vm, int argcount, Value *args);
-bool objfn_string_isalnum(VMState *vm, int argcount, Value *args);
-bool objfn_string_isnumber(VMState *vm, int argcount, Value *args);
-bool objfn_string_islower(VMState *vm, int argcount, Value *args);
-bool objfn_string_isupper(VMState *vm, int argcount, Value *args);
-bool objfn_string_isspace(VMState *vm, int argcount, Value *args);
-bool objfn_string_trim(VMState *vm, int argcount, Value *args);
-bool objfn_string_ltrim(VMState *vm, int argcount, Value *args);
-bool objfn_string_rtrim(VMState *vm, int argcount, Value *args);
-bool objfn_string_join(VMState *vm, int argcount, Value *args);
-bool objfn_string_split(VMState *vm, int argcount, Value *args);
-bool objfn_string_indexof(VMState *vm, int argcount, Value *args);
-bool objfn_string_startswith(VMState *vm, int argcount, Value *args);
-bool objfn_string_endswith(VMState *vm, int argcount, Value *args);
-bool objfn_string_count(VMState *vm, int argcount, Value *args);
-bool objfn_string_tonumber(VMState *vm, int argcount, Value *args);
-bool objfn_string_ascii(VMState *vm, int argcount, Value *args);
-bool objfn_string_tolist(VMState *vm, int argcount, Value *args);
-bool objfn_string_lpad(VMState *vm, int argcount, Value *args);
-bool objfn_string_rpad(VMState *vm, int argcount, Value *args);
-bool objfn_string_match(VMState *vm, int argcount, Value *args);
-bool objfn_string_matches(VMState *vm, int argcount, Value *args);
-bool objfn_string_replace(VMState *vm, int argcount, Value *args);
-bool objfn_string_tobytes(VMState *vm, int argcount, Value *args);
-bool objfn_string_iter(VMState *vm, int argcount, Value *args);
-bool objfn_string_itern(VMState *vm, int argcount, Value *args);
-bool cfn_bytes(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_length(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_append(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_clone(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_extend(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_pop(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_remove(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_reverse(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_split(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_first(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_last(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_get(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_isalpha(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_isalnum(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_isnumber(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_islower(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_isupper(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_isspace(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_dispose(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_tolist(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_tostring(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_iter(VMState *vm, int argcount, Value *args);
-bool objfn_bytes_itern(VMState *vm, int argcount, Value *args);
+bool objfn_string_length(VMState *vm, int arg_count, Value *args);
+bool objfn_string_upper(VMState *vm, int arg_count, Value *args);
+bool objfn_string_lower(VMState *vm, int arg_count, Value *args);
+bool objfn_string_isalpha(VMState *vm, int arg_count, Value *args);
+bool objfn_string_isalnum(VMState *vm, int arg_count, Value *args);
+bool objfn_string_isnumber(VMState *vm, int arg_count, Value *args);
+bool objfn_string_islower(VMState *vm, int arg_count, Value *args);
+bool objfn_string_isupper(VMState *vm, int arg_count, Value *args);
+bool objfn_string_isspace(VMState *vm, int arg_count, Value *args);
+bool objfn_string_trim(VMState *vm, int arg_count, Value *args);
+bool objfn_string_ltrim(VMState *vm, int arg_count, Value *args);
+bool objfn_string_rtrim(VMState *vm, int arg_count, Value *args);
+bool objfn_string_join(VMState *vm, int arg_count, Value *args);
+bool objfn_string_split(VMState *vm, int arg_count, Value *args);
+bool objfn_string_indexof(VMState *vm, int arg_count, Value *args);
+bool objfn_string_startswith(VMState *vm, int arg_count, Value *args);
+bool objfn_string_endswith(VMState *vm, int arg_count, Value *args);
+bool objfn_string_count(VMState *vm, int arg_count, Value *args);
+bool objfn_string_tonumber(VMState *vm, int arg_count, Value *args);
+bool objfn_string_ascii(VMState *vm, int arg_count, Value *args);
+bool objfn_string_tolist(VMState *vm, int arg_count, Value *args);
+bool objfn_string_lpad(VMState *vm, int arg_count, Value *args);
+bool objfn_string_rpad(VMState *vm, int arg_count, Value *args);
+bool objfn_string_match(VMState *vm, int arg_count, Value *args);
+bool objfn_string_matches(VMState *vm, int arg_count, Value *args);
+bool objfn_string_replace(VMState *vm, int arg_count, Value *args);
+bool objfn_string_tobytes(VMState *vm, int arg_count, Value *args);
+bool objfn_string_iter(VMState *vm, int arg_count, Value *args);
+bool objfn_string_itern(VMState *vm, int arg_count, Value *args);
+bool cfn_bytes(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_length(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_append(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_clone(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_extend(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_pop(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_remove(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_reverse(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_split(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_first(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_last(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_get(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_isalpha(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_isalnum(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_isnumber(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_islower(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_isupper(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_isspace(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_dispose(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_tolist(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_tostring(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_iter(VMState *vm, int arg_count, Value *args);
+bool objfn_bytes_itern(VMState *vm, int arg_count, Value *args);
 void init_table(HashTable *table);
 void free_table(VMState *vm, HashTable *table);
 void clean_free_table(VMState *vm, HashTable *table);
@@ -1303,54 +1299,54 @@ void table_remove_whites(VMState *vm, HashTable *table);
 void dict_add_entry(VMState *vm, ObjDict *dict, Value key, Value value);
 bool dict_get_entry(ObjDict *dict, Value key, Value *value);
 bool dict_set_entry(VMState *vm, ObjDict *dict, Value key, Value value);
-bool bl_vmdo_dictgetindex(VMState *vm, ObjDict *dict, bool willassign);
+bool bl_vmdo_dictgetindex(VMState *vm, ObjDict *dict, bool will_assign);
 void bl_vmdo_dictsetindex(VMState *vm, ObjDict *dict, Value index, Value value);
-bool objfn_dict_length(VMState *vm, int argcount, Value *args);
-bool objfn_dict_add(VMState *vm, int argcount, Value *args);
-bool objfn_dict_set(VMState *vm, int argcount, Value *args);
-bool objfn_dict_clear(VMState *vm, int argcount, Value *args);
-bool objfn_dict_clone(VMState *vm, int argcount, Value *args);
-bool objfn_dict_compact(VMState *vm, int argcount, Value *args);
-bool objfn_dict_contains(VMState *vm, int argcount, Value *args);
-bool objfn_dict_extend(VMState *vm, int argcount, Value *args);
-bool objfn_dict_get(VMState *vm, int argcount, Value *args);
-bool objfn_dict_keys(VMState *vm, int argcount, Value *args);
-bool objfn_dict_values(VMState *vm, int argcount, Value *args);
-bool objfn_dict_remove(VMState *vm, int argcount, Value *args);
-bool objfn_dict_isempty(VMState *vm, int argcount, Value *args);
-bool objfn_dict_findkey(VMState *vm, int argcount, Value *args);
-bool objfn_dict_tolist(VMState *vm, int argcount, Value *args);
-bool objfn_dict_iter(VMState *vm, int argcount, Value *args);
-bool objfn_dict_itern(VMState *vm, int argcount, Value *args);
+bool objfn_dict_length(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_add(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_set(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_clear(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_clone(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_compact(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_contains(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_extend(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_get(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_keys(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_values(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_remove(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_isempty(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_findkey(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_tolist(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_iter(VMState *vm, int arg_count, Value *args);
+bool objfn_dict_itern(VMState *vm, int arg_count, Value *args);
 void write_list(VMState *vm, ObjList *list, Value value);
 ObjList *copy_list(VMState *vm, ObjList *list, int start, int length);
-bool objfn_list_length(VMState *vm, int argcount, Value *args);
-bool objfn_list_append(VMState *vm, int argcount, Value *args);
-bool objfn_list_clear(VMState *vm, int argcount, Value *args);
-bool objfn_list_clone(VMState *vm, int argcount, Value *args);
-bool objfn_list_count(VMState *vm, int argcount, Value *args);
-bool objfn_list_extend(VMState *vm, int argcount, Value *args);
-bool objfn_list_indexof(VMState *vm, int argcount, Value *args);
-bool objfn_list_insert(VMState *vm, int argcount, Value *args);
-bool objfn_list_pop(VMState *vm, int argcount, Value *args);
-bool objfn_list_shift(VMState *vm, int argcount, Value *args);
-bool objfn_list_removeat(VMState *vm, int argcount, Value *args);
-bool objfn_list_remove(VMState *vm, int argcount, Value *args);
-bool objfn_list_reverse(VMState *vm, int argcount, Value *args);
-bool objfn_list_sort(VMState *vm, int argcount, Value *args);
-bool objfn_list_contains(VMState *vm, int argcount, Value *args);
-bool objfn_list_delete(VMState *vm, int argcount, Value *args);
-bool objfn_list_first(VMState *vm, int argcount, Value *args);
-bool objfn_list_last(VMState *vm, int argcount, Value *args);
-bool objfn_list_isempty(VMState *vm, int argcount, Value *args);
-bool objfn_list_take(VMState *vm, int argcount, Value *args);
-bool objfn_list_get(VMState *vm, int argcount, Value *args);
-bool objfn_list_compact(VMState *vm, int argcount, Value *args);
-bool objfn_list_unique(VMState *vm, int argcount, Value *args);
-bool objfn_list_zip(VMState *vm, int argcount, Value *args);
-bool objfn_list_todict(VMState *vm, int argcount, Value *args);
-bool objfn_list_iter(VMState *vm, int argcount, Value *args);
-bool objfn_list_itern(VMState *vm, int argcount, Value *args);
+bool objfn_list_length(VMState *vm, int arg_count, Value *args);
+bool objfn_list_append(VMState *vm, int arg_count, Value *args);
+bool objfn_list_clear(VMState *vm, int arg_count, Value *args);
+bool objfn_list_clone(VMState *vm, int arg_count, Value *args);
+bool objfn_list_count(VMState *vm, int arg_count, Value *args);
+bool objfn_list_extend(VMState *vm, int arg_count, Value *args);
+bool objfn_list_indexof(VMState *vm, int arg_count, Value *args);
+bool objfn_list_insert(VMState *vm, int arg_count, Value *args);
+bool objfn_list_pop(VMState *vm, int arg_count, Value *args);
+bool objfn_list_shift(VMState *vm, int arg_count, Value *args);
+bool objfn_list_removeat(VMState *vm, int arg_count, Value *args);
+bool objfn_list_remove(VMState *vm, int arg_count, Value *args);
+bool objfn_list_reverse(VMState *vm, int arg_count, Value *args);
+bool objfn_list_sort(VMState *vm, int arg_count, Value *args);
+bool objfn_list_contains(VMState *vm, int arg_count, Value *args);
+bool objfn_list_delete(VMState *vm, int arg_count, Value *args);
+bool objfn_list_first(VMState *vm, int arg_count, Value *args);
+bool objfn_list_last(VMState *vm, int arg_count, Value *args);
+bool objfn_list_isempty(VMState *vm, int arg_count, Value *args);
+bool objfn_list_take(VMState *vm, int arg_count, Value *args);
+bool objfn_list_get(VMState *vm, int arg_count, Value *args);
+bool objfn_list_compact(VMState *vm, int arg_count, Value *args);
+bool objfn_list_unique(VMState *vm, int arg_count, Value *args);
+bool objfn_list_zip(VMState *vm, int arg_count, Value *args);
+bool objfn_list_todict(VMState *vm, int arg_count, Value *args);
+bool objfn_list_iter(VMState *vm, int arg_count, Value *args);
+bool objfn_list_itern(VMState *vm, int arg_count, Value *args);
 void init_value_arr(ValArray *array);
 void init_byte_arr(VMState *vm, ByteArray *array, int length);
 void write_value_arr(VMState *vm, ValArray *array, Value value);
@@ -1380,13 +1376,13 @@ ObjBoundMethod *new_bound_method(VMState *vm, Value receiver, ObjClosure *method
 ObjClass *new_class(VMState *vm, ObjString *name);
 ObjFunction *new_function(VMState *vm, ObjModule *module, FuncType type);
 ObjInstance *new_instance(VMState *vm, ObjClass *klass);
-ObjNativeFunction *new_native(VMState *vm, bnativefn function, const char *name);
+ObjNativeFunction *new_native(VMState *vm, b_native_fn function, const char *name);
 ObjClosure *new_closure(VMState *vm, ObjFunction *function);
 ObjString *bl_string_fromallocated(VMState *vm, char *chars, int length, uint32_t hash);
 ObjString *take_string(VMState *vm, char *chars, int length);
 ObjString *copy_string(VMState *vm, const char *chars, int length);
 ObjUpvalue *new_up_value(VMState *vm, Value *slot);
-void print_object(Value value, bool fixstring);
+void print_object(Value value, bool fix_string);
 ObjBytes *copy_bytes(VMState *vm, unsigned char *b, int length);
 ObjBytes *take_bytes(VMState *vm, unsigned char *b, int length);
 char *object_to_string(VMState *vm, Value value);
@@ -1404,9 +1400,9 @@ int constant_instruction(const char *name, BinaryBlob *blob, int offset);
 int short_instruction(const char *name, BinaryBlob *blob, int offset);
 int disassemble_instruction(BinaryBlob *blob, int offset);
 
-bool load_module(VMState *vm, ModInitFunc init_fn, char *importname, char *source, void *handle);
+bool load_module(VMState *vm, ModInitFunc init_fn, char *import_name, char *source, void *handle);
 void add_native_module(VMState *vm, ObjModule *module, const char *as);
-void bind_user_modules(VMState *vm, char *pkgroot);
+void bind_user_modules(VMState *vm, char *pkg_root);
 void bind_native_modules(VMState *vm);
 char *load_user_module(VMState *vm, const char *path, char *name);
 void close_dl_module(void *handle);
@@ -1427,8 +1423,8 @@ DynArray *new_uint32_array(VMState *vm, int length);
 DynArray *new_uint64_array(VMState *vm, int length);
 
 
-RegModule *bl_modload_array(VMState *vm);
-RegModule *bl_modload_date(VMState *vm);
+RegModule *blade_module_loader_array(VMState *vm);
+RegModule *blade_module_loader_date(VMState *vm);
 void disable_raw_mode(void);
 int getch(void);
 
@@ -1436,10 +1432,10 @@ Value io_module_stdin(VMState *vm);
 Value io_module_stdout(VMState *vm);
 Value io_module_stderr(VMState *vm);
 
-void modfn_io_unload(VMState *vm);
+void __io_module_unload(VMState *vm);
 
-RegModule *bl_modload_io(VMState *vm);
-RegModule *bl_modload_math(VMState *vm);
+RegModule *blade_module_loader_io(VMState *vm);
+RegModule *blade_module_loader_math(VMState *vm);
 Value get_os_platform(VMState *vm);
 Value get_blade_os_args(VMState *vm);
 Value get_blade_os_path_separator(VMState *vm);
@@ -1454,55 +1450,55 @@ Value modfield_os_dtblk(VMState *vm);
 Value modfield_os_dtlnk(VMState *vm);
 Value modfield_os_dtwht(VMState *vm);
 void __os_module_preloader(VMState *vm);
-RegModule *bl_modload_os(VMState *vm);
+RegModule *blade_module_loader_os(VMState *vm);
 Value modfield_process_cpucount(VMState *vm);
 void b__free_shared_memory(void *data);
-bool modfn_process_process(VMState *vm, int argcount, Value *args);
-bool modfn_process_create(VMState *vm, int argcount, Value *args);
-bool modfn_process_isalive(VMState *vm, int argcount, Value *args);
-bool modfn_process_kill(VMState *vm, int argcount, Value *args);
-bool modfn_process_wait(VMState *vm, int argcount, Value *args);
-bool modfn_process_id(VMState *vm, int argcount, Value *args);
-bool modfn_process_newshared(VMState *vm, int argcount, Value *args);
-bool modfn_process_sharedwrite(VMState *vm, int argcount, Value *args);
-bool modfn_process_sharedread(VMState *vm, int argcount, Value *args);
-bool modfn_process_sharedlock(VMState *vm, int argcount, Value *args);
-bool modfn_process_sharedunlock(VMState *vm, int argcount, Value *args);
-bool modfn_process_sharedislocked(VMState *vm, int argcount, Value *args);
-RegModule *bl_modload_process(VMState *vm);
-bool modfn_reflect_hasprop(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_getprop(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_setprop(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_delprop(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_hasmethod(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_getmethod(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_callmethod(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_bindmethod(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_getboundmethod(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_gettype(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_isptr(VMState *vm, int argcount, Value *args);
-bool modfn_reflect_getfunctionmetadata(VMState *vm, int argcount, Value *args);
-RegModule *bl_modload_reflect(VMState *vm);
-bool modfn_struct_pack(VMState *vm, int argcount, Value *args);
-bool modfn_struct_unpack(VMState *vm, int argcount, Value *args);
+bool modfn_process_process(VMState *vm, int arg_count, Value *args);
+bool modfn_process_create(VMState *vm, int arg_count, Value *args);
+bool modfn_process_isalive(VMState *vm, int arg_count, Value *args);
+bool modfn_process_kill(VMState *vm, int arg_count, Value *args);
+bool modfn_process_wait(VMState *vm, int arg_count, Value *args);
+bool modfn_process_id(VMState *vm, int arg_count, Value *args);
+bool modfn_process_newshared(VMState *vm, int arg_count, Value *args);
+bool modfn_process_sharedwrite(VMState *vm, int arg_count, Value *args);
+bool modfn_process_sharedread(VMState *vm, int arg_count, Value *args);
+bool modfn_process_sharedlock(VMState *vm, int arg_count, Value *args);
+bool modfn_process_sharedunlock(VMState *vm, int arg_count, Value *args);
+bool modfn_process_sharedislocked(VMState *vm, int arg_count, Value *args);
+RegModule *blade_module_loader_process(VMState *vm);
+bool modfn_reflect_hasprop(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_getprop(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_setprop(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_delprop(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_hasmethod(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_getmethod(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_callmethod(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_bindmethod(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_getboundmethod(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_gettype(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_isptr(VMState *vm, int arg_count, Value *args);
+bool modfn_reflect_getfunctionmetadata(VMState *vm, int arg_count, Value *args);
+RegModule *blade_module_loader_reflect(VMState *vm);
+bool modfn_struct_pack(VMState *vm, int arg_count, Value *args);
+bool modfn_struct_unpack(VMState *vm, int arg_count, Value *args);
 void __struct_module_preloader(VMState *vm);
-RegModule *bl_modload_struct(VMState *vm);
-bool bl_vm_propagateexception(VMState *vm, bool isassert);
-bool bl_vm_pushexceptionhandler(VMState *vm, ObjClass *type, int address, int finallyaddress);
-bool bl_vm_throwexception(VMState *vm, bool isassert, const char *format, ...);
+RegModule *blade_module_loader_struct(VMState *vm);
+bool bl_vm_propagateexception(VMState *vm, bool is_assert);
+bool bl_vm_pushexceptionhandler(VMState *vm, ObjClass *type, int address, int finally_address);
+bool bl_vm_throwexception(VMState *vm, bool is_assert, const char *format, ...);
 ObjInstance *create_exception(VMState *vm, ObjString *message);
 void bl_vm_runtimeerror(VMState *vm, const char *format, ...);
 void push(VMState *vm, Value value);
 Value pop(VMState *vm);
 Value pop_n(VMState *vm, int n);
 Value peek(VMState *vm, int distance);
-void define_native_method(VMState *vm, HashTable *table, const char *name, bnativefn function);
+void define_native_method(VMState *vm, HashTable *table, const char *name, b_native_fn function);
 void init_vm(VMState *vm);
 void free_vm(VMState *vm);
-bool call_value(VMState *vm, Value callee, int argcount);
-bool invoke_from_class(VMState *vm, ObjClass *klass, ObjString *name, int argcount);
+bool call_value(VMState *vm, Value callee, int arg_count);
+bool invoke_from_class(VMState *vm, ObjClass *klass, ObjString *name, int arg_count);
 bool is_false(Value value);
-bool bl_class_isinstanceof(ObjClass *klass1, char *klass2name);
+bool bl_class_isinstanceof(ObjClass *klass1, char *klass2_name);
 PtrResult bl_vm_run(VMState *vm);
 PtrResult bl_vm_interpsource(VMState *vm, ObjModule *module, const char *source);
 void show_usage(char *argv[], bool fail);
@@ -1527,47 +1523,47 @@ static void add_module(VMState* vm, ObjModule* module)
     cs = module->file;
     len = strlen(cs);
     table_set(vm, &vm->modules, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
-    if(vm->framecount == 0)
+    if(vm->frame_count == 0)
     {
         table_set(vm, &vm->globals, STRING_VAL(module->name), OBJ_VAL(module));
     }
     else
     {
         cs = module->name;
-        table_set(vm, &vm->frames[vm->framecount - 1].closure->fnptr->module->values, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
+        table_set(vm, &vm->frames[vm->frame_count - 1].closure->fnptr->module->values, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
     }
 }
 
 static Object* gc_protect(VMState* vm, Object* object)
 {
     push(vm, OBJ_VAL(object));
-    vm->gcprotected++;
+    vm->gc_protected++;
     return object;
 }
 
 static void gc_clear_protection(VMState* vm)
 {
-    if(vm->gcprotected > 0)
+    if(vm->gc_protected > 0)
     {
-        vm->stacktop -= vm->gcprotected;
+        vm->stack_top -= vm->gc_protected;
     }
-    vm->gcprotected = 0;
+    vm->gc_protected = 0;
 }
 
 
-extern RegModule* bl_modload_base64(VMState* vm);
-extern RegModule* bl_modload_date(VMState* vm);
-extern RegModule* bl_modload_io(VMState* vm);
-extern RegModule* bl_modload_math(VMState* vm);
-extern RegModule* bl_modload_os(VMState* vm);
-extern RegModule* bl_modload_socket(VMState* vm);
-extern RegModule* bl_modload_hash(VMState* vm);
-extern RegModule* bl_modload_json(VMState* vm);
-extern RegModule* bl_modload_sqlite(VMState* vm);
-extern RegModule* bl_modload_reflect(VMState* vm);
-extern RegModule* bl_modload_array(VMState* vm);
-extern RegModule* bl_modload_process(VMState* vm);
-extern RegModule* bl_modload_struct(VMState* vm);
+extern RegModule* blade_module_loader_base64(VMState* vm);
+extern RegModule* blade_module_loader_date(VMState* vm);
+extern RegModule* blade_module_loader_io(VMState* vm);
+extern RegModule* blade_module_loader_math(VMState* vm);
+extern RegModule* blade_module_loader_os(VMState* vm);
+extern RegModule* blade_module_loader_socket(VMState* vm);
+extern RegModule* blade_module_loader_hash(VMState* vm);
+extern RegModule* blade_module_loader_json(VMState* vm);
+extern RegModule* blade_module_loader_sqlite(VMState* vm);
+extern RegModule* blade_module_loader_reflect(VMState* vm);
+extern RegModule* blade_module_loader_array(VMState* vm);
+extern RegModule* blade_module_loader_process(VMState* vm);
+extern RegModule* blade_module_loader_struct(VMState* vm);
 
 
 
@@ -1676,24 +1672,24 @@ int utf8_decode(const uint8_t* bytes, uint32_t length)
         return *bytes;
 
     int value;
-    uint32_t remainingbytes;
+    uint32_t remaining_bytes;
     if((*bytes & 0xe0) == 0xc0)
     {
         // Two byte sequence: 110xxxxx 10xxxxxx.
         value = *bytes & 0x1f;
-        remainingbytes = 1;
+        remaining_bytes = 1;
     }
     else if((*bytes & 0xf0) == 0xe0)
     {
         // Three byte sequence: 1110xxxx	 10xxxxxx 10xxxxxx.
         value = *bytes & 0x0f;
-        remainingbytes = 2;
+        remaining_bytes = 2;
     }
     else if((*bytes & 0xf8) == 0xf0)
     {
         // Four byte sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx.
         value = *bytes & 0x07;
-        remainingbytes = 3;
+        remaining_bytes = 3;
     }
     else
     {
@@ -1702,13 +1698,13 @@ int utf8_decode(const uint8_t* bytes, uint32_t length)
     }
 
     // Don't read past the end of the buffer on truncated UTF-8.
-    if(remainingbytes > length - 1)
+    if(remaining_bytes > length - 1)
         return -1;
 
-    while(remainingbytes > 0)
+    while(remaining_bytes > 0)
     {
         bytes++;
-        remainingbytes--;
+        remaining_bytes--;
 
         // Remaining bytes must be of form 10xxxxxx.
         if((*bytes & 0xc0) != 0x80)
@@ -1720,40 +1716,40 @@ int utf8_decode(const uint8_t* bytes, uint32_t length)
     return value;
 }
 
-char* append_strings(char* old, char* newstr)
+char* append_strings(char* old, char* new_str)
 {
     // quick exit...
-    if(newstr == NULL)
+    if(new_str == NULL)
     {
         return old;
     }
 
     // find the size of the string to allocate
-    const size_t oldlen = strlen(old), newlen = strlen(newstr);
-    const size_t outlen = oldlen + newlen;
+    const size_t old_len = strlen(old), new_len = strlen(new_str);
+    const size_t out_len = old_len + new_len;
 
     // allocate a pointer to the new string
-    char* out = (char*)realloc((void*)old, outlen + 1);
+    char* out = (char*)realloc((void*)old, out_len + 1);
 
     // concat both strings and return
     if(out != NULL)
     {
-        memcpy(out + oldlen, newstr, newlen);
-        out[outlen] = '\0';
+        memcpy(out + old_len, new_str, new_len);
+        out[out_len] = '\0';
         return out;
     }
 
     return old;
 }
 
-/*char *append_strings(char *old, char *newstr) {
+/*char *append_strings(char *old, char *new_str) {
   // find the size of the string to allocate
-  const size_t outlen = strlen(old) + strlen(newstr);
-  char *result = realloc(old, outlen + 1);
+  const size_t out_len = strlen(old) + strlen(new_str);
+  char *result = realloc(old, out_len + 1);
 
   if (result != NULL) {
-    strcat(result, newstr);
-    result[outlen] = '\0'; // enforce string termination
+    strcat(result, new_str);
+    result[out_len] = '\0'; // enforce string termination
   }
 
   return result;
@@ -1803,10 +1799,10 @@ char* read_file(const char* path)
     }
 
     fseek(fp, 0L, SEEK_END);
-    size_t filesize = ftell(fp);
+    size_t file_size = ftell(fp);
     rewind(fp);
 
-    char* buffer = (char*)malloc(filesize + 1);
+    char* buffer = (char*)malloc(file_size + 1);
 
     // the system might not have enough memory to read the file.
     if(buffer == NULL)
@@ -1815,17 +1811,17 @@ char* read_file(const char* path)
         return NULL;
     }
 
-    size_t bytesread = fread(buffer, sizeof(char), filesize, fp);
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, fp);
 
     // if we couldn't read the entire file
-    if(bytesread < filesize)
+    if(bytes_read < file_size)
     {
         fclose(fp);
         free(buffer);
         return NULL;
     }
 
-    buffer[bytesread] = '\0';
+    buffer[bytes_read] = '\0';
 
     fclose(fp);
     return buffer;
@@ -1833,11 +1829,11 @@ char* read_file(const char* path)
 
 char* get_exe_path()
 {
-    char rawpath[PATH_MAX];
-    ssize_t readlength;
-    if((readlength = readlink(PROC_SELF_EXE, rawpath, sizeof(rawpath))) > -1 && readlength < PATH_MAX)
+    char raw_path[PATH_MAX];
+    ssize_t read_length;
+    if((read_length = readlink(PROC_SELF_EXE, raw_path, sizeof(raw_path))) > -1 && read_length < PATH_MAX)
     {
-        return strdup(rawpath);
+        return strdup(raw_path);
     }
     return "";
 }
@@ -1849,31 +1845,31 @@ char* get_exe_dir()
 
 char* merge_paths(char* a, char* b)
 {
-    char* finalpath = (char*)calloc(1, sizeof(char));
+    char* final_path = (char*)calloc(1, sizeof(char));
 
     // by checking b first, we guarantee that b is neither NULL nor
     // empty by the time we are checking a so that we can return a
     // duplicate of b
-    int lenb = (int)strlen(b);
-    if(b == NULL || lenb == 0)
+    int len_b = (int)strlen(b);
+    if(b == NULL || len_b == 0)
     {
-        free(finalpath);
+        free(final_path);
         return strdup(a);// just in case a is const char*
     }
     if(a == NULL || strlen(a) == 0)
     {
-        free(finalpath);
+        free(final_path);
         return strdup(b);// just in case b is const char*
     }
 
-    finalpath = append_strings(finalpath, a);
+    final_path = append_strings(final_path, a);
 
-    if(!(lenb == 2 && b[0] == '.' && b[1] == 'b'))
+    if(!(len_b == 2 && b[0] == '.' && b[1] == 'b'))
     {
-        finalpath = append_strings(finalpath, BLADE_PATH_SEPARATOR);
+        final_path = append_strings(final_path, BLADE_PATH_SEPARATOR);
     }
-    finalpath = append_strings(finalpath, b);
-    return finalpath;
+    final_path = append_strings(final_path, b);
+    return final_path;
 }
 
 bool file_exists(char* filepath)
@@ -1886,38 +1882,38 @@ char* get_blade_filename(char* filename)
     return merge_paths(filename, BLADE_EXTENSION);
 }
 
-char* resolve_import_path(char* modulename, const char* currentfile, bool isrelative)
+char* resolve_import_path(char* module_name, const char* current_file, bool is_relative)
 {
-    char* bladefilename = get_blade_filename(modulename);
+    char* blade_file_name = get_blade_filename(module_name);
 
     // check relative to the current file...
-    char* filedirectory = dirname((char*)strdup(currentfile));
+    char* file_directory = dirname((char*)strdup(current_file));
 
     // fixing last path / if exists (looking at windows)...
-    int filedirectorylength = (int)strlen(filedirectory);
-    if(filedirectory[filedirectorylength - 1] == '\\')
+    int file_directory_length = (int)strlen(file_directory);
+    if(file_directory[file_directory_length - 1] == '\\')
     {
-        filedirectory[filedirectorylength - 1] = '\0';
+        file_directory[file_directory_length - 1] = '\0';
     }
 
     // search system library if we are not looking for a relative module.
-    if(!isrelative)
+    if(!is_relative)
     {
         // firstly, search the local vendor directory for a matching module
-        char* rootdir = getcwd(NULL, 0);
+        char* root_dir = getcwd(NULL, 0);
         // fixing last path / if exists (looking at windows)...
-        int rootdirlength = (int)strlen(rootdir);
-        if(rootdir[rootdirlength - 1] == '\\')
+        int root_dir_length = (int)strlen(root_dir);
+        if(root_dir[root_dir_length - 1] == '\\')
         {
-            rootdir[rootdirlength - 1] = '\0';
+            root_dir[root_dir_length - 1] = '\0';
         }
 
-        char* vendorfile = merge_paths(merge_paths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), bladefilename);
-        if(file_exists(vendorfile))
+        char* vendor_file = merge_paths(merge_paths(root_dir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), blade_file_name);
+        if(file_exists(vendor_file))
         {
             // stop a core library from importing itself
-            char* path1 = realpath(vendorfile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(vendor_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -1927,13 +1923,13 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         }
 
         // or a matching package
-        char* vendorindexfile
-        = merge_paths(merge_paths(merge_paths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
-        if(file_exists(vendorindexfile))
+        char* vendor_index_file
+        = merge_paths(merge_paths(merge_paths(root_dir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), module_name), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+        if(file_exists(vendor_index_file))
         {
             // stop a core library from importing itself
-            char* path1 = realpath(vendorindexfile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(vendor_index_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -1943,16 +1939,16 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         }
 
         // then, check in blade's default locations
-        char* exedir = get_exe_dir();
-        char* bladedirectory = merge_paths(exedir, LIBRARY_DIRECTORY);
+        char* exe_dir = get_exe_dir();
+        char* blade_directory = merge_paths(exe_dir, LIBRARY_DIRECTORY);
 
         // check blade libs directory for a matching module...
-        char* libraryfile = merge_paths(bladedirectory, bladefilename);
-        if(file_exists(libraryfile))
+        char* library_file = merge_paths(blade_directory, blade_file_name);
+        if(file_exists(library_file))
         {
             // stop a core library from importing itself
-            char* path1 = realpath(libraryfile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(library_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -1962,11 +1958,11 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         }
 
         // check blade libs directory for a matching package...
-        char* libraryindexfile = merge_paths(merge_paths(bladedirectory, modulename), get_blade_filename(LIBRARY_DIRECTORY_INDEX));
-        if(file_exists(libraryindexfile))
+        char* library_index_file = merge_paths(merge_paths(blade_directory, module_name), get_blade_filename(LIBRARY_DIRECTORY_INDEX));
+        if(file_exists(library_index_file))
         {
-            char* path1 = realpath(libraryindexfile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(library_index_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -1976,12 +1972,12 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         }
 
         // check blade vendor directory installed module...
-        char* bladepackagedirectory = merge_paths(exedir, PACKAGES_DIRECTORY);
-        char* packagefile = merge_paths(bladepackagedirectory, bladefilename);
-        if(file_exists(packagefile))
+        char* blade_package_directory = merge_paths(exe_dir, PACKAGES_DIRECTORY);
+        char* package_file = merge_paths(blade_package_directory, blade_file_name);
+        if(file_exists(package_file))
         {
-            char* path1 = realpath(packagefile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(package_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -1991,11 +1987,11 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         }
 
         // check blade vendor directory installed package...
-        char* packageindexfile = merge_paths(merge_paths(bladepackagedirectory, modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
-        if(file_exists(packageindexfile))
+        char* package_index_file = merge_paths(merge_paths(blade_package_directory, module_name), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+        if(file_exists(package_index_file))
         {
-            char* path1 = realpath(packageindexfile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(package_index_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -2007,12 +2003,12 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
     else
     {
         // otherwise, search the relative path for a matching module
-        char* relativefile = merge_paths(filedirectory, bladefilename);
-        if(file_exists(relativefile))
+        char* relative_file = merge_paths(file_directory, blade_file_name);
+        if(file_exists(relative_file))
         {
             // stop a user module from importing itself
-            char* path1 = realpath(relativefile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(relative_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -2022,11 +2018,11 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         }
 
         // or a matching package
-        char* relativeindexfile = merge_paths(merge_paths(filedirectory, modulename), get_blade_filename(LIBRARY_DIRECTORY_INDEX));
-        if(file_exists(relativeindexfile))
+        char* relative_index_file = merge_paths(merge_paths(file_directory, module_name), get_blade_filename(LIBRARY_DIRECTORY_INDEX));
+        if(file_exists(relative_index_file))
         {
-            char* path1 = realpath(relativeindexfile, NULL);
-            char* path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(relative_index_file, NULL);
+            char* path2 = realpath(current_file, NULL);
 
             if(path1 != NULL)
             {
@@ -2047,19 +2043,19 @@ char* get_real_file_name(char* path)
 
 void bl_mem_free(VMState* vm, void* pointer, size_t sz)
 {
-    vm->bytesallocated -= sz;
+    vm->bytes_allocated -= sz;
     free(pointer);    
 }
 
-void* bl_mem_realloc(VMState* vm, void* pointer, size_t oldsize, size_t newsize)
+void* bl_mem_realloc(VMState* vm, void* pointer, size_t old_size, size_t new_size)
 {
-    vm->bytesallocated += newsize - oldsize;
+    vm->bytes_allocated += new_size - old_size;
 
-    if(newsize > oldsize && vm->bytesallocated > vm->nextgc)
+    if(new_size > old_size && vm->bytes_allocated > vm->next_gc)
     {
         collect_garbage(vm);
     }
-    void* result = realloc(pointer, newsize);
+    void* result = realloc(pointer, new_size);
     // just in case reallocation fails... computers ain't infinite!
     if(result == NULL)
     {
@@ -2069,13 +2065,6 @@ void* bl_mem_realloc(VMState* vm, void* pointer, size_t oldsize, size_t newsize)
     }
     return result;
 }
-
-
-void* bl_mem_growarray(VMState* vm, void* ptr, size_t tsz, size_t oldcount, size_t newcount)
-{
-    return bl_mem_realloc(vm, ptr, tsz * (oldcount), tsz * (newcount));
-}
-
 
 void mark_object(VMState* vm, Object* object)
 {
@@ -2096,19 +2085,19 @@ void mark_object(VMState* vm, Object* object)
 
     object->mark = true;
 
-    if(vm->graycapacity < vm->graycount + 1)
+    if(vm->gray_capacity < vm->gray_count + 1)
     {
-        vm->graycapacity = GROW_CAPACITY(vm->graycapacity);
-        vm->graystack = (Object**)realloc(vm->graystack, sizeof(Object*) * vm->graycapacity);
+        vm->gray_capacity = GROW_CAPACITY(vm->gray_capacity);
+        vm->gray_stack = (Object**)realloc(vm->gray_stack, sizeof(Object*) * vm->gray_capacity);
 
-        if(vm->graystack == NULL)
+        if(vm->gray_stack == NULL)
         {
             fflush(stdout);// flush out anything on stdout first
             fprintf(stderr, "GC encountered an error");
             exit(1);
         }
     }
-    vm->graystack[vm->graycount++] = object;
+    vm->gray_stack[vm->gray_count++] = object;
 }
 
 void mark_value(VMState* vm, Value value)
@@ -2181,7 +2170,7 @@ void blacken_object(VMState* vm, Object* object)
             mark_object(vm, (Object*)klass->name);
             mark_table(vm, &klass->methods);
             mark_table(vm, &klass->properties);
-            mark_table(vm, &klass->staticproperties);
+            mark_table(vm, &klass->static_properties);
             mark_value(vm, klass->initializer);
             if(klass->superclass != NULL)
             {
@@ -2193,9 +2182,9 @@ void blacken_object(VMState* vm, Object* object)
         {
             ObjClosure* closure = (ObjClosure*)object;
             mark_object(vm, (Object*)closure->fnptr);
-            for(int i = 0; i < closure->upvaluecount; i++)
+            for(int i = 0; i < closure->up_value_count; i++)
             {
-                mark_object(vm, (Object*)closure->upvalues[i]);
+                mark_object(vm, (Object*)closure->up_values[i]);
             }
             break;
         }
@@ -2315,7 +2304,7 @@ void free_object(VMState* vm, Object** pobject)
             //free_object(vm, (Object**)&klass->name);
             free_table(vm, &klass->methods);
             free_table(vm, &klass->properties);
-            free_table(vm, &klass->staticproperties);
+            free_table(vm, &klass->static_properties);
             if(!IS_EMPTY(klass->initializer))
             {
                 // FIXME: uninitialized
@@ -2327,7 +2316,7 @@ void free_object(VMState* vm, Object** pobject)
         case OBJ_CLOSURE:
         {
             ObjClosure* closure = (ObjClosure*)object;
-            FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvaluecount);
+            FREE_ARRAY(ObjUpvalue*, closure->up_values, closure->up_value_count);
             // there may be multiple closures that all reference the same function
             // for this reason, we do not free functions when freeing closures
             FREE(ObjClosure, object);
@@ -2388,9 +2377,9 @@ void free_object(VMState* vm, Object** pobject)
         case OBJ_PTR:
         {
             ObjPointer* ptr = (ObjPointer*)object;
-            if(ptr->fnptrfree)
+            if(ptr->free_fn)
             {
-                ptr->fnptrfree(ptr->pointer);
+                ptr->free_fn(ptr->pointer);
             }
             FREE(ObjPointer, object);
             break;
@@ -2407,43 +2396,43 @@ static void mark_roots(VMState* vm)
     int i;
     int j;
     ExceptionFrame* handler;
-    ObjUpvalue* upvalue;
+    ObjUpvalue* up_value;
     Value* slot;
-    for(slot = vm->stack; slot < vm->stacktop; slot++)
+    for(slot = vm->stack; slot < vm->stack_top; slot++)
     {
         mark_value(vm, *slot);
     }
-    for(i = 0; i < vm->framecount; i++)
+    for(i = 0; i < vm->frame_count; i++)
     {
         mark_object(vm, (Object*)vm->frames[i].closure);
-        for(j = 0; j < vm->frames[i].handlerscount; j++)
+        for(j = 0; j < vm->frames[i].handlers_count; j++)
         {
             handler = &vm->frames[i].handlers[j];
             mark_object(vm, (Object*)handler->klass);
         }
     }
-    for(upvalue = vm->openupvalues; upvalue != NULL; upvalue = upvalue->next)
+    for(up_value = vm->open_up_values; up_value != NULL; up_value = up_value->next)
     {
-        mark_object(vm, (Object*)upvalue);
+        mark_object(vm, (Object*)up_value);
     }
     mark_table(vm, &vm->globals);
     mark_table(vm, &vm->modules);
-    mark_table(vm, &vm->methodsstring);
-    mark_table(vm, &vm->methodsbytes);
-    mark_table(vm, &vm->methodsfile);
-    mark_table(vm, &vm->methodslist);
-    mark_table(vm, &vm->methodsdict);
-    mark_table(vm, &vm->methodsrange);
-    mark_object(vm, (Object*)vm->exceptionclass);
+    mark_table(vm, &vm->methods_string);
+    mark_table(vm, &vm->methods_bytes);
+    mark_table(vm, &vm->methods_file);
+    mark_table(vm, &vm->methods_list);
+    mark_table(vm, &vm->methods_dict);
+    mark_table(vm, &vm->methods_range);
+    mark_object(vm, (Object*)vm->exception_class);
     mark_compiler_roots(vm);
 }
 
 static void trace_references(VMState* vm)
 {
     Object* object;
-    while(vm->graycount > 0)
+    while(vm->gray_count > 0)
     {
-        object = vm->graystack[--vm->graycount];
+        object = vm->gray_stack[--vm->gray_count];
         blacken_object(vm, object);
     }
 }
@@ -2495,8 +2484,8 @@ void free_objects(VMState* vm)
         free_object(vm, &object);
         object = next;
     }
-    free(vm->graystack);
-    vm->graystack = NULL;
+    free(vm->gray_stack);
+    vm->gray_stack = NULL;
 }
 
 void collect_garbage(VMState* vm)
@@ -2507,7 +2496,7 @@ void collect_garbage(VMState* vm)
     }
 #if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
     printf("-- gc begins\n");
-    size_t before = vm->bytesallocated;
+    size_t before = vm->bytes_allocated;
 #endif
     vm->allowgc = false;
 
@@ -2525,11 +2514,11 @@ void collect_garbage(VMState* vm)
     table_remove_whites(vm, &vm->modules);
     sweep(vm);
 
-    vm->nextgc = vm->bytesallocated * GC_HEAP_GROWTH_FACTOR;
+    vm->next_gc = vm->bytes_allocated * GC_HEAP_GROWTH_FACTOR;
     vm->allowgc = true;
 #if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
     printf("-- gc ends\n");
-    printf("   collected %zu bytes (from %zu to %zu), next at %zu\n", before - vm->bytesallocated, before, vm->bytesallocated, vm->nextgc);
+    printf("   collected %zu bytes (from %zu to %zu), next at %zu\n", before - vm->bytes_allocated, before, vm->bytes_allocated, vm->next_gc);
 #endif
 }
 
@@ -2548,10 +2537,10 @@ void write_blob(VMState* vm, BinaryBlob* blob, uint8_t byte, int line)
 {
     if(blob->capacity < blob->count + 1)
     {
-        int oldcapacity = blob->capacity;
-        blob->capacity = GROW_CAPACITY(oldcapacity);
-        blob->code = GROW_ARRAY(uint8_t, blob->code, oldcapacity, blob->capacity);
-        blob->lines = GROW_ARRAY(int, blob->lines, oldcapacity, blob->capacity);
+        int old_capacity = blob->capacity;
+        blob->capacity = GROW_CAPACITY(old_capacity);
+        blob->code = GROW_ARRAY(uint8_t, blob->code, old_capacity, blob->capacity);
+        blob->lines = GROW_ARRAY(int, blob->lines, old_capacity, blob->capacity);
     }
 
     blob->code[blob->count] = byte;
@@ -2608,58 +2597,58 @@ int add_constant(VMState* vm, BinaryBlob* blob, Value value)
 uint32_t is_regex(ObjString* string)
 {
     char start = string->chars[0];
-    bool matchfound = false;
+    bool match_found = false;
 
-    uint32_t coptions = 0;// pcre2 options
+    uint32_t c_options = 0;// pcre2 options
 
     for(int i = 1; i < string->length; i++)
     {
         if(string->chars[i] == start)
         {
-            matchfound = i > 0 && string->chars[i - 1] == '\\' ? false : true;
+            match_found = i > 0 && string->chars[i - 1] == '\\' ? false : true;
             continue;
         }
 
-        if(matchfound)
+        if(match_found)
         {
             // compile the delimiters
             switch(string->chars[i])
             {
                 /* Perl compatible options */
                 case 'i':
-                    coptions |= PCRE2_CASELESS;
+                    c_options |= PCRE2_CASELESS;
                     break;
                 case 'm':
-                    coptions |= PCRE2_MULTILINE;
+                    c_options |= PCRE2_MULTILINE;
                     break;
                 case 's':
-                    coptions |= PCRE2_DOTALL;
+                    c_options |= PCRE2_DOTALL;
                     break;
                 case 'x':
-                    coptions |= PCRE2_EXTENDED;
+                    c_options |= PCRE2_EXTENDED;
                     break;
 
                     /* PCRE specific options */
                 case 'A':
-                    coptions |= PCRE2_ANCHORED;
+                    c_options |= PCRE2_ANCHORED;
                     break;
                 case 'D':
-                    coptions |= PCRE2_DOLLAR_ENDONLY;
+                    c_options |= PCRE2_DOLLAR_ENDONLY;
                     break;
                 case 'U':
-                    coptions |= PCRE2_UNGREEDY;
+                    c_options |= PCRE2_UNGREEDY;
                     break;
                 case 'u':
-                    coptions |= PCRE2_UTF;
+                    c_options |= PCRE2_UTF;
                     /* In  PCRE,  by  default, \d, \D, \s, \S, \w, and \W recognize only
          ASCII characters, even in UTF-8 mode. However, this can be changed by
          setting the PCRE2_UCP option. */
 #ifdef PCRE2_UCP
-                    coptions |= PCRE2_UCP;
+                    c_options |= PCRE2_UCP;
 #endif
                     break;
                 case 'J':
-                    coptions |= PCRE2_DUPNAMES;
+                    c_options |= PCRE2_DUPNAMES;
                     break;
 
                 case ' ':
@@ -2668,15 +2657,15 @@ uint32_t is_regex(ObjString* string)
                     break;
 
                 default:
-                    return coptions = (uint32_t)string->chars[i] + 1000000;
+                    return c_options = (uint32_t)string->chars[i] + 1000000;
             }
         }
     }
 
-    if(!matchfound)
+    if(!match_found)
         return -1;
     else
-        return coptions;
+        return c_options;
 }
 
 char* remove_regex_delimiter(VMState* vm, ObjString* string)
@@ -2699,14 +2688,14 @@ char* remove_regex_delimiter(VMState* vm, ObjString* string)
     return str;
 }
 
-bool objfn_string_length(VMState* vm, int argcount, Value* args)
+bool objfn_string_length(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(length, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    RETURN_NUMBER(string->isascii ? string->length : string->utf8length);
+    RETURN_NUMBER(string->is_ascii ? string->length : string->utf8_length);
 }
 
-bool objfn_string_upper(VMState* vm, int argcount, Value* args)
+bool objfn_string_upper(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(upper, 0);
     char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
@@ -2715,7 +2704,7 @@ bool objfn_string_upper(VMState* vm, int argcount, Value* args)
     RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
 }
 
-bool objfn_string_lower(VMState* vm, int argcount, Value* args)
+bool objfn_string_lower(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(lower, 0);
     char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
@@ -2724,7 +2713,7 @@ bool objfn_string_lower(VMState* vm, int argcount, Value* args)
     RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
 }
 
-bool objfn_string_isalpha(VMState* vm, int argcount, Value* args)
+bool objfn_string_isalpha(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_alpha, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
@@ -2738,9 +2727,9 @@ bool objfn_string_isalpha(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(string->length != 0);
 }
 
-bool objfn_string_isalnum(VMState* vm, int argcount, Value* args)
+bool objfn_string_isalnum(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isalnum, 0);
+    ENFORCE_ARG_COUNT(is_alnum, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     for(int i = 0; i < string->length; i++)
     {
@@ -2752,7 +2741,7 @@ bool objfn_string_isalnum(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(string->length != 0);
 }
 
-bool objfn_string_isnumber(VMState* vm, int argcount, Value* args)
+bool objfn_string_isnumber(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_number, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
@@ -2766,49 +2755,49 @@ bool objfn_string_isnumber(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(string->length != 0);
 }
 
-bool objfn_string_islower(VMState* vm, int argcount, Value* args)
+bool objfn_string_islower(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(islower, 0);
+    ENFORCE_ARG_COUNT(is_lower, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    bool hasalpha;
+    bool has_alpha;
     for(int i = 0; i < string->length; i++)
     {
         bool isal = isalpha((unsigned char)string->chars[i]);
-        if(!hasalpha)
+        if(!has_alpha)
         {
-            hasalpha = isal;
+            has_alpha = isal;
         }
         if(isal && !islower((unsigned char)string->chars[i]))
         {
             RETURN_FALSE;
         }
     }
-    RETURN_BOOL(string->length != 0 && hasalpha);
+    RETURN_BOOL(string->length != 0 && has_alpha);
 }
 
-bool objfn_string_isupper(VMState* vm, int argcount, Value* args)
+bool objfn_string_isupper(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isupper, 0);
+    ENFORCE_ARG_COUNT(is_upper, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    bool hasalpha;
+    bool has_alpha;
     for(int i = 0; i < string->length; i++)
     {
         bool isal = isalpha((unsigned char)string->chars[i]);
-        if(!hasalpha)
+        if(!has_alpha)
         {
-            hasalpha = isal;
+            has_alpha = isal;
         }
         if(isal && !isupper((unsigned char)string->chars[i]))
         {
             RETURN_FALSE;
         }
     }
-    RETURN_BOOL(string->length != 0 && hasalpha);
+    RETURN_BOOL(string->length != 0 && has_alpha);
 }
 
-bool objfn_string_isspace(VMState* vm, int argcount, Value* args)
+bool objfn_string_isspace(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isspace, 0);
+    ENFORCE_ARG_COUNT(is_space, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     for(int i = 0; i < string->length; i++)
     {
@@ -2820,13 +2809,13 @@ bool objfn_string_isspace(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(string->length != 0);
 }
 
-bool objfn_string_trim(VMState* vm, int argcount, Value* args)
+bool objfn_string_trim(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(trim, 0, 1);
 
     char trimmer = '\0';
 
-    if(argcount == 1)
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(trim, 0, IS_CHAR);
         trimmer = (char)AS_STRING(args[0])->chars[0];
@@ -2872,13 +2861,13 @@ bool objfn_string_trim(VMState* vm, int argcount, Value* args)
     RETURN_STRING(string);
 }
 
-bool objfn_string_ltrim(VMState* vm, int argcount, Value* args)
+bool objfn_string_ltrim(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(ltrim, 0, 1);
 
     char trimmer = '\0';
 
-    if(argcount == 1)
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(ltrim, 0, IS_CHAR);
         trimmer = (char)AS_STRING(args[0])->chars[0];
@@ -2913,13 +2902,13 @@ bool objfn_string_ltrim(VMState* vm, int argcount, Value* args)
     RETURN_STRING(string);
 }
 
-bool objfn_string_rtrim(VMState* vm, int argcount, Value* args)
+bool objfn_string_rtrim(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(rtrim, 0, 1);
 
     char trimmer = '\0';
 
-    if(argcount == 1)
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(rtrim, 0, IS_CHAR);
         trimmer = (char)AS_STRING(args[0])->chars[0];
@@ -2952,12 +2941,12 @@ bool objfn_string_rtrim(VMState* vm, int argcount, Value* args)
     RETURN_STRING(string);
 }
 
-bool objfn_string_join(VMState* vm, int argcount, Value* args)
+bool objfn_string_join(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(join, 1);
     ENFORCE_ARG_TYPE(join, 0, IS_OBJ);
 
-    ObjString* methodobj = AS_STRING(METHOD_OBJECT);
+    ObjString* method_obj = AS_STRING(METHOD_OBJECT);
     Value argument = args[0];
 
 
@@ -2965,7 +2954,7 @@ bool objfn_string_join(VMState* vm, int argcount, Value* args)
     if(IS_STRING(argument))
     {
         // empty argument
-        if(methodobj->length == 0)
+        if(method_obj->length == 0)
         {
             RETURN_VALUE(argument);
         }
@@ -2982,9 +2971,9 @@ bool objfn_string_join(VMState* vm, int argcount, Value* args)
 
         for(int i = 1; i < string->length; i++)
         {
-            if(methodobj->length > 0)
+            if(method_obj->length > 0)
             {
-                result = append_strings(result, methodobj->chars);
+                result = append_strings(result, method_obj->chars);
             }
 
             char* chr = (char*)calloc(2, sizeof(char));
@@ -3021,9 +3010,9 @@ bool objfn_string_join(VMState* vm, int argcount, Value* args)
 
         for(int i = 1; i < count; i++)
         {
-            if(methodobj->length > 0)
+            if(method_obj->length > 0)
             {
-                result = append_strings(result, methodobj->chars);
+                result = append_strings(result, method_obj->chars);
             }
 
             char* str = value_to_string(vm, list[i]);
@@ -3037,7 +3026,7 @@ bool objfn_string_join(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("join() does not support object of type %s", value_type(argument));
 }
 
-bool objfn_string_split(VMState* vm, int argcount, Value* args)
+bool objfn_string_split(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(split, 1);
     ENFORCE_ARG_TYPE(split, 0, IS_STRING);
@@ -3067,11 +3056,11 @@ bool objfn_string_split(VMState* vm, int argcount, Value* args)
     }
     else
     {
-        int length = object->isascii ? object->length : object->utf8length;
+        int length = object->is_ascii ? object->length : object->utf8_length;
         for(int i = 0; i < length; i++)
         {
             int start = i, end = i + 1;
-            if(!object->isascii)
+            if(!object->is_ascii)
             {
                 utf8slice(object->chars, &start, &end);
             }
@@ -3083,10 +3072,10 @@ bool objfn_string_split(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool objfn_string_indexof(VMState* vm, int argcount, Value* args)
+bool objfn_string_indexof(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(indexof, 1);
-    ENFORCE_ARG_TYPE(indexof, 0, IS_STRING);
+    ENFORCE_ARG_COUNT(index_of, 1);
+    ENFORCE_ARG_TYPE(index_of, 0, IS_STRING);
 
     char* str = AS_C_STRING(METHOD_OBJECT);
     char* result = strstr(str, AS_C_STRING(args[0]));
@@ -3096,10 +3085,10 @@ bool objfn_string_indexof(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(-1);
 }
 
-bool objfn_string_startswith(VMState* vm, int argcount, Value* args)
+bool objfn_string_startswith(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(startswith, 1);
-    ENFORCE_ARG_TYPE(startswith, 0, IS_STRING);
+    ENFORCE_ARG_COUNT(starts_with, 1);
+    ENFORCE_ARG_TYPE(starts_with, 0, IS_STRING);
 
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
@@ -3110,10 +3099,10 @@ bool objfn_string_startswith(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(memcmp(substr->chars, string->chars, substr->length) == 0);
 }
 
-bool objfn_string_endswith(VMState* vm, int argcount, Value* args)
+bool objfn_string_endswith(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(endswith, 1);
-    ENFORCE_ARG_TYPE(endswith, 0, IS_STRING);
+    ENFORCE_ARG_COUNT(ends_with, 1);
+    ENFORCE_ARG_TYPE(ends_with, 0, IS_STRING);
 
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
@@ -3126,7 +3115,7 @@ bool objfn_string_endswith(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(memcmp(substr->chars, string->chars + difference, substr->length) == 0);
 }
 
-bool objfn_string_count(VMState* vm, int argcount, Value* args)
+bool objfn_string_count(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(count, 1);
     ENFORCE_ARG_TYPE(count, 0, IS_STRING);
@@ -3148,33 +3137,33 @@ bool objfn_string_count(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(count);
 }
 
-bool objfn_string_tonumber(VMState* vm, int argcount, Value* args)
+bool objfn_string_tonumber(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_number, 0);
     RETURN_NUMBER(strtod(AS_C_STRING(METHOD_OBJECT), NULL));
 }
 
-bool objfn_string_ascii(VMState* vm, int argcount, Value* args)
+bool objfn_string_ascii(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(ascii, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    string->isascii = true;
+    string->is_ascii = true;
     RETURN_OBJ(string);
 }
 
-bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
+bool objfn_string_tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    int length = string->isascii ? string->length : string->utf8length;
+    int length = string->is_ascii ? string->length : string->utf8_length;
 
     if(length > 0)
     {
         for(int i = 0; i < length; i++)
         {
             int start = i, end = i + 1;
-            if(!string->isascii)
+            if(!string->is_ascii)
             {
                 utf8slice(string->chars, &start, &end);
             }
@@ -3185,83 +3174,83 @@ bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool objfn_string_lpad(VMState* vm, int argcount, Value* args)
+bool objfn_string_lpad(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(lpad, 1, 2);
     ENFORCE_ARG_TYPE(lpad, 0, IS_NUMBER);
 
     ObjString* string = AS_STRING(METHOD_OBJECT);
     int width = AS_NUMBER(args[0]);
-    char fillchar = ' ';
+    char fill_char = ' ';
 
-    if(argcount == 2)
+    if(arg_count == 2)
     {
         ENFORCE_ARG_TYPE(lpad, 1, IS_CHAR);
-        fillchar = AS_C_STRING(args[1])[0];
+        fill_char = AS_C_STRING(args[1])[0];
     }
 
-    if(width <= string->utf8length)
+    if(width <= string->utf8_length)
         RETURN_VALUE(METHOD_OBJECT);
 
-    int fillsize = width - string->utf8length;
-    char* fill = ALLOCATE(char, (size_t)fillsize + 1);
+    int fill_size = width - string->utf8_length;
+    char* fill = ALLOCATE(char, (size_t)fill_size + 1);
 
-    int finalsize = string->length + fillsize;
-    int finalutf8size = string->utf8length + fillsize;
+    int final_size = string->length + fill_size;
+    int final_utf8_size = string->utf8_length + fill_size;
 
-    for(int i = 0; i < fillsize; i++)
-        fill[i] = fillchar;
+    for(int i = 0; i < fill_size; i++)
+        fill[i] = fill_char;
 
-    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
-    memcpy(str, fill, fillsize);
-    memcpy(str + fillsize, string->chars, string->length);
-    str[finalsize] = '\0';
+    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fill_size + 1);
+    memcpy(str, fill, fill_size);
+    memcpy(str + fill_size, string->chars, string->length);
+    str[final_size] = '\0';
 
-    ObjString* result = take_string(vm, str, finalsize);
-    result->utf8length = finalutf8size;
-    result->length = finalsize;
+    ObjString* result = take_string(vm, str, final_size);
+    result->utf8_length = final_utf8_size;
+    result->length = final_size;
     RETURN_OBJ(result);
 }
 
-bool objfn_string_rpad(VMState* vm, int argcount, Value* args)
+bool objfn_string_rpad(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(rpad, 1, 2);
     ENFORCE_ARG_TYPE(rpad, 0, IS_NUMBER);
 
     ObjString* string = AS_STRING(METHOD_OBJECT);
     int width = AS_NUMBER(args[0]);
-    char fillchar = ' ';
+    char fill_char = ' ';
 
-    if(argcount == 2)
+    if(arg_count == 2)
     {
         ENFORCE_ARG_TYPE(rpad, 1, IS_CHAR);
-        fillchar = AS_C_STRING(args[1])[0];
+        fill_char = AS_C_STRING(args[1])[0];
     }
 
-    if(width <= string->utf8length)
+    if(width <= string->utf8_length)
         RETURN_VALUE(METHOD_OBJECT);
 
-    int fillsize = width - string->utf8length;
-    char* fill = ALLOCATE(char, (size_t)fillsize + 1);
+    int fill_size = width - string->utf8_length;
+    char* fill = ALLOCATE(char, (size_t)fill_size + 1);
 
-    int finalsize = string->length + fillsize;
-    int finalutf8size = string->utf8length + fillsize;
+    int final_size = string->length + fill_size;
+    int final_utf8_size = string->utf8_length + fill_size;
 
-    for(int i = 0; i < fillsize; i++)
-        fill[i] = fillchar;
+    for(int i = 0; i < fill_size; i++)
+        fill[i] = fill_char;
 
-    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
+    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fill_size + 1);
     memcpy(str, string->chars, string->length);
-    memcpy(str + string->length, fill, fillsize);
-    str[finalsize] = '\0';
+    memcpy(str + string->length, fill, fill_size);
+    str[final_size] = '\0';
 
-    ObjString* result = take_string(vm, str, finalsize);
-    result->utf8length = finalutf8size;
-    result->length = finalsize;
+    ObjString* result = take_string(vm, str, final_size);
+    result->utf8_length = final_utf8_size;
+    result->length = final_size;
     RETURN_OBJ(result);
 }
 
-bool objfn_string_match(VMState* vm, int argcount, Value* args)
+bool objfn_string_match(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(match, 1);
     ENFORCE_ARG_TYPE(match, 0, IS_STRING);
@@ -3280,28 +3269,28 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
 
     GET_REGEX_COMPILE_OPTIONS(substr, false);
 
-    if((int)compileoptions < 0)
+    if((int)compile_options < 0)
     {
         RETURN_BOOL(strstr(string->chars, substr->chars) - string->chars > -1);
     }
 
-    char* realregex = remove_regex_delimiter(vm, substr);
+    char* real_regex = remove_regex_delimiter(vm, substr);
 
-    int errornumber;
-    PCRE2_SIZE erroroffset;
+    int error_number;
+    PCRE2_SIZE error_offset;
 
-    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
+    PCRE2_SPTR pattern = (PCRE2_SPTR)real_regex;
     PCRE2_SPTR subject = (PCRE2_SPTR)string->chars;
-    PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
+    PCRE2_SIZE subject_length = (PCRE2_SIZE)string->length;
 
-    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
-    free(realregex);
+    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compile_options, &error_number, &error_offset, NULL);
+    free(real_regex);
 
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    REGEX_COMPILATION_ERROR(re, error_number, error_offset);
 
-    pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
+    pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
-    int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
+    int rc = pcre2_match(re, subject, subject_length, 0, 0, match_data, NULL);
 
     if(rc < 0)
     {
@@ -3315,58 +3304,58 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
         }
     }
 
-    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
-    uint32_t namecount;
+    PCRE2_SIZE* o_vector = pcre2_get_ovector_pointer(match_data);
+    uint32_t name_count;
 
     ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
+    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &name_count);
 
     for(int i = 0; i < rc; i++)
     {
-        PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
-        PCRE2_SPTR substringstart = subject + ovector[2 * i];
-        dict_set_entry(vm, result, NUMBER_VAL(i), GC_L_STRING((char*)substringstart, (int)substringlength));
+        PCRE2_SIZE substring_length = o_vector[2 * i + 1] - o_vector[2 * i];
+        PCRE2_SPTR substring_start = subject + o_vector[2 * i];
+        dict_set_entry(vm, result, NUMBER_VAL(i), GC_L_STRING((char*)substring_start, (int)substring_length));
     }
 
-    if(namecount > 0)
+    if(name_count > 0)
     {
-        uint32_t nameentrysize;
-        PCRE2_SPTR nametable;
-        PCRE2_SPTR tabptr;
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
+        uint32_t name_entry_size;
+        PCRE2_SPTR name_table;
+        PCRE2_SPTR tab_ptr;
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &name_table);
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &name_entry_size);
 
-        tabptr = nametable;
+        tab_ptr = name_table;
 
-        for(int i = 0; i < (int)namecount; i++)
+        for(int i = 0; i < (int)name_count; i++)
         {
-            int n = (tabptr[0] << 8) | tabptr[1];
+            int n = (tab_ptr[0] << 8) | tab_ptr[1];
 
-            int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
-            int keylength = (int)nameentrysize - 3;
+            int value_length = (int)(o_vector[2 * n + 1] - o_vector[2 * n]);
+            int key_length = (int)name_entry_size - 3;
 
-            char* _key = ALLOCATE(char, keylength + 1);
-            char* _val = ALLOCATE(char, valuelength + 1);
+            char* _key = ALLOCATE(char, key_length + 1);
+            char* _val = ALLOCATE(char, value_length + 1);
 
-            sprintf(_key, "%*s", keylength, tabptr + 2);
-            sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
+            sprintf(_key, "%*s", key_length, tab_ptr + 2);
+            sprintf(_val, "%*s", value_length, subject + o_vector[2 * n]);
 
             while(isspace((unsigned char)*_key))
                 _key++;
 
-            dict_set_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))), OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
+            dict_set_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, key_length))), OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, value_length))));
 
-            tabptr += nameentrysize;
+            tab_ptr += name_entry_size;
         }
     }
 
-    pcre2_match_data_free(matchdata);
+    pcre2_match_data_free(match_data);
     pcre2_code_free(re);
 
     RETURN_OBJ(result);
 }
 
-bool objfn_string_matches(VMState* vm, int argcount, Value* args)
+bool objfn_string_matches(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(matches, 1);
     ENFORCE_ARG_TYPE(matches, 0, IS_STRING);
@@ -3385,28 +3374,28 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
 
     GET_REGEX_COMPILE_OPTIONS(substr, true);
 
-    char* realregex = remove_regex_delimiter(vm, substr);
+    char* real_regex = remove_regex_delimiter(vm, substr);
 
-    int errornumber;
-    PCRE2_SIZE erroroffset;
-    uint32_t optionbits;
+    int error_number;
+    PCRE2_SIZE error_offset;
+    uint32_t option_bits;
     uint32_t newline;
-    uint32_t namecount, groupcount;
-    uint32_t nameentrysize;
-    PCRE2_SPTR nametable;
+    uint32_t name_count, group_count;
+    uint32_t name_entry_size;
+    PCRE2_SPTR name_table;
 
-    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
+    PCRE2_SPTR pattern = (PCRE2_SPTR)real_regex;
     PCRE2_SPTR subject = (PCRE2_SPTR)string->chars;
-    PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
+    PCRE2_SIZE subject_length = (PCRE2_SIZE)string->length;
 
-    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
-    free(realregex);
+    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compile_options, &error_number, &error_offset, NULL);
+    free(real_regex);
 
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    REGEX_COMPILATION_ERROR(re, error_number, error_offset);
 
-    pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
+    pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
-    int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
+    int rc = pcre2_match(re, subject, subject_length, 0, 0, match_data, NULL);
 
     if(rc < 0)
     {
@@ -3420,15 +3409,15 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
         }
     }
 
-    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
+    PCRE2_SIZE* o_vector = pcre2_get_ovector_pointer(match_data);
 
     //   REGEX_VECTOR_SIZE_WARNING();
 
     // handle edge cases such as /(?=.\K)/
-    REGEX_ASSERTION_ERROR(re, matchdata, ovector);
+    REGEX_ASSERTION_ERROR(re, match_data, o_vector);
 
-    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
-    (void)pcre2_pattern_info(re, PCRE2_INFO_CAPTURECOUNT, &groupcount);
+    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &name_count);
+    (void)pcre2_pattern_info(re, PCRE2_INFO_CAPTURECOUNT, &group_count);
 
     ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
 
@@ -3441,103 +3430,103 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
     for(int i = 0; i < rc; i++)
     {
         ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-        PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
-        PCRE2_SPTR substringstart = subject + ovector[2 * i];
-        write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
+        PCRE2_SIZE substring_length = o_vector[2 * i + 1] - o_vector[2 * i];
+        PCRE2_SPTR substring_start = subject + o_vector[2 * i];
+        write_list(vm, list, GC_L_STRING((char*)substring_start, (int)substring_length));
         dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
     }
 
-    if(namecount > 0)
+    if(name_count > 0)
     {
-        PCRE2_SPTR tabptr;
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
+        PCRE2_SPTR tab_ptr;
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &name_table);
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &name_entry_size);
 
-        tabptr = nametable;
+        tab_ptr = name_table;
 
-        for(int i = 0; i < (int)namecount; i++)
+        for(int i = 0; i < (int)name_count; i++)
         {
-            int n = (tabptr[0] << 8) | tabptr[1];
+            int n = (tab_ptr[0] << 8) | tab_ptr[1];
 
-            int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
-            int keylength = (int)nameentrysize - 3;
+            int value_length = (int)(o_vector[2 * n + 1] - o_vector[2 * n]);
+            int key_length = (int)name_entry_size - 3;
 
-            char* _key = ALLOCATE(char, keylength + 1);
-            char* _val = ALLOCATE(char, valuelength + 1);
+            char* _key = ALLOCATE(char, key_length + 1);
+            char* _val = ALLOCATE(char, value_length + 1);
 
-            sprintf(_key, "%*s", keylength, tabptr + 2);
-            sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
+            sprintf(_key, "%*s", key_length, tab_ptr + 2);
+            sprintf(_val, "%*s", value_length, subject + o_vector[2 * n]);
 
             while(isspace((unsigned char)*_key))
                 _key++;
 
             ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-            write_list(vm, list, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
+            write_list(vm, list, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, value_length))));
 
-            dict_add_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))), OBJ_VAL(list));
+            dict_add_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, key_length))), OBJ_VAL(list));
 
-            tabptr += nameentrysize;
+            tab_ptr += name_entry_size;
         }
     }
 
-    (void)pcre2_pattern_info(re, PCRE2_INFO_ALLOPTIONS, &optionbits);
-    int utf8 = (optionbits & PCRE2_UTF) != 0;
+    (void)pcre2_pattern_info(re, PCRE2_INFO_ALLOPTIONS, &option_bits);
+    int utf8 = (option_bits & PCRE2_UTF) != 0;
 
     (void)pcre2_pattern_info(re, PCRE2_INFO_NEWLINE, &newline);
-    int crlfisnewline = newline == PCRE2_NEWLINE_ANY || newline == PCRE2_NEWLINE_CRLF || newline == PCRE2_NEWLINE_ANYCRLF;
+    int crlf_is_newline = newline == PCRE2_NEWLINE_ANY || newline == PCRE2_NEWLINE_CRLF || newline == PCRE2_NEWLINE_ANYCRLF;
 
     // find the other matches
     for(;;)
     {
         uint32_t options = 0;
-        PCRE2_SIZE startoffset = ovector[1];
+        PCRE2_SIZE start_offset = o_vector[1];
 
         // if the previous match was for an empty string
-        if(ovector[0] == ovector[1])
+        if(o_vector[0] == o_vector[1])
         {
-            if(ovector[0] == subjectlength)
+            if(o_vector[0] == subject_length)
                 break;
             options = PCRE2_NOTEMPTY_ATSTART | PCRE2_ANCHORED;
         }
         else
         {
-            PCRE2_SIZE startchar = pcre2_get_startchar(matchdata);
-            if(startoffset > subjectlength - 1)
+            PCRE2_SIZE start_char = pcre2_get_startchar(match_data);
+            if(start_offset > subject_length - 1)
             {
                 break;
             }
-            if(startoffset <= startchar)
+            if(start_offset <= start_char)
             {
-                if(startchar >= subjectlength - 1)
+                if(start_char >= subject_length - 1)
                 {
                     break;
                 }
-                startoffset = startchar + 1;
+                start_offset = start_char + 1;
                 if(utf8)
                 {
-                    for(; startoffset < subjectlength; startoffset++)
-                        if((subject[startoffset] & 0xc0) != 0x80)
+                    for(; start_offset < subject_length; start_offset++)
+                        if((subject[start_offset] & 0xc0) != 0x80)
                             break;
                 }
             }
         }
 
-        rc = pcre2_match(re, subject, subjectlength, startoffset, options, matchdata, NULL);
+        rc = pcre2_match(re, subject, subject_length, start_offset, options, match_data, NULL);
 
         if(rc == PCRE2_ERROR_NOMATCH)
         {
             if(options == 0)
                 break;
-            ovector[1] = startoffset + 1;
-            if(crlfisnewline && startoffset < subjectlength - 1 && subject[startoffset] == '\r' && subject[startoffset + 1] == '\n')
-                ovector[1] += 1;
+            o_vector[1] = start_offset + 1;
+            if(crlf_is_newline && start_offset < subject_length - 1 && subject[start_offset] == '\r' && subject[start_offset + 1] == '\n')
+                o_vector[1] += 1;
             else if(utf8)
             {
-                while(ovector[1] < subjectlength)
+                while(o_vector[1] < subject_length)
                 {
-                    if((subject[ovector[1]] & 0xc0) != 0x80)
+                    if((subject[o_vector[1]] & 0xc0) != 0x80)
                         break;
-                    ovector[1] += 1;
+                    o_vector[1] += 1;
                 }
             }
             continue;
@@ -3545,58 +3534,58 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
 
         if(rc < 0 && rc != PCRE2_ERROR_PARTIAL)
         {
-            pcre2_match_data_free(matchdata);
+            pcre2_match_data_free(match_data);
             pcre2_code_free(re);
             REGEX_ERR("regular expression error %d", rc);
         }
 
         // REGEX_VECTOR_SIZE_WARNING();
-        REGEX_ASSERTION_ERROR(re, matchdata, ovector);
+        REGEX_ASSERTION_ERROR(re, match_data, o_vector);
 
         for(int i = 0; i < rc; i++)
         {
-            PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
-            PCRE2_SPTR substringstart = subject + ovector[2 * i];
+            PCRE2_SIZE substring_length = o_vector[2 * i + 1] - o_vector[2 * i];
+            PCRE2_SPTR substring_start = subject + o_vector[2 * i];
 
             Value vlist;
             if(dict_get_entry(result, NUMBER_VAL(i), &vlist))
             {
-                write_list(vm, AS_LIST(vlist), GC_L_STRING((char*)substringstart, (int)substringlength));
+                write_list(vm, AS_LIST(vlist), GC_L_STRING((char*)substring_start, (int)substring_length));
             }
             else
             {
                 ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-                write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
+                write_list(vm, list, GC_L_STRING((char*)substring_start, (int)substring_length));
                 dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
             }
         }
 
-        if(namecount > 0)
+        if(name_count > 0)
         {
-            PCRE2_SPTR tabptr;
-            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
-            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
+            PCRE2_SPTR tab_ptr;
+            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &name_table);
+            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &name_entry_size);
 
-            tabptr = nametable;
+            tab_ptr = name_table;
 
-            for(int i = 0; i < (int)namecount; i++)
+            for(int i = 0; i < (int)name_count; i++)
             {
-                int n = (tabptr[0] << 8) | tabptr[1];
+                int n = (tab_ptr[0] << 8) | tab_ptr[1];
 
-                int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
-                int keylength = (int)nameentrysize - 3;
+                int value_length = (int)(o_vector[2 * n + 1] - o_vector[2 * n]);
+                int key_length = (int)name_entry_size - 3;
 
-                char* _key = ALLOCATE(char, keylength + 1);
-                char* _val = ALLOCATE(char, valuelength + 1);
+                char* _key = ALLOCATE(char, key_length + 1);
+                char* _val = ALLOCATE(char, value_length + 1);
 
-                sprintf(_key, "%*s", keylength, tabptr + 2);
-                sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
+                sprintf(_key, "%*s", key_length, tab_ptr + 2);
+                sprintf(_val, "%*s", value_length, subject + o_vector[2 * n]);
 
                 while(isspace((unsigned char)*_key))
                     _key++;
 
-                ObjString* name = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _key, keylength));
-                ObjString* value = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _val, valuelength));
+                ObjString* name = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _key, key_length));
+                ObjString* value = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _val, value_length));
 
                 Value nlist;
                 if(dict_get_entry(result, OBJ_VAL(name), &nlist))
@@ -3610,18 +3599,18 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
                     dict_set_entry(vm, result, OBJ_VAL(name), OBJ_VAL(list));
                 }
 
-                tabptr += nameentrysize;
+                tab_ptr += name_entry_size;
             }
         }
     }
 
-    pcre2_match_data_free(matchdata);
+    pcre2_match_data_free(match_data);
     pcre2_code_free(re);
 
     RETURN_OBJ(result);
 }
 
-bool objfn_string_replace(VMState* vm, int argcount, Value* args)
+bool objfn_string_replace(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(replace, 2);
     ENFORCE_ARG_TYPE(replace, 0, IS_STRING);
@@ -3629,7 +3618,7 @@ bool objfn_string_replace(VMState* vm, int argcount, Value* args)
 
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
-    ObjString* repsubstr = AS_STRING(args[1]);
+    ObjString* rep_substr = AS_STRING(args[1]);
 
     if(string->length == 0 && substr->length == 0)
     {
@@ -3641,69 +3630,69 @@ bool objfn_string_replace(VMState* vm, int argcount, Value* args)
     }
 
     GET_REGEX_COMPILE_OPTIONS(substr, false);
-    char* realregex = remove_regex_delimiter(vm, substr);
+    char* real_regex = remove_regex_delimiter(vm, substr);
 
     PCRE2_SPTR input = (PCRE2_SPTR)string->chars;
-    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
-    PCRE2_SPTR replacement = (PCRE2_SPTR)repsubstr->chars;
+    PCRE2_SPTR pattern = (PCRE2_SPTR)real_regex;
+    PCRE2_SPTR replacement = (PCRE2_SPTR)rep_substr->chars;
 
-    int result, errornumber;
-    PCRE2_SIZE erroroffset;
+    int result, error_number;
+    PCRE2_SIZE error_offset;
 
-    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions & PCRE2_MULTILINE, &errornumber, &erroroffset, 0);
-    free(realregex);
+    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compile_options & PCRE2_MULTILINE, &error_number, &error_offset, 0);
+    free(real_regex);
 
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    REGEX_COMPILATION_ERROR(re, error_number, error_offset);
 
-    pcre2_match_context* matchcontext = pcre2_match_context_create(0);
+    pcre2_match_context* match_context = pcre2_match_context_create(0);
 
-    PCRE2_SIZE outputlength = 0;
-    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_OVERFLOW_LENGTH, 0, matchcontext, replacement,
-                              PCRE2_ZERO_TERMINATED, 0, &outputlength);
+    PCRE2_SIZE output_length = 0;
+    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_OVERFLOW_LENGTH, 0, match_context, replacement,
+                              PCRE2_ZERO_TERMINATED, 0, &output_length);
 
     if(result < 0 && result != PCRE2_ERROR_NOMEMORY)
     {
         REGEX_ERR("regular expression post-compilation failed for replacement", result);
     }
 
-    PCRE2_UCHAR* outputbuffer = ALLOCATE(PCRE2_UCHAR, outputlength);
+    PCRE2_UCHAR* output_buffer = ALLOCATE(PCRE2_UCHAR, output_length);
 
-    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_UNSET_EMPTY, 0, matchcontext, replacement,
-                              PCRE2_ZERO_TERMINATED, outputbuffer, &outputlength);
+    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_UNSET_EMPTY, 0, match_context, replacement,
+                              PCRE2_ZERO_TERMINATED, output_buffer, &output_length);
 
     if(result < 0 && result != PCRE2_ERROR_NOMEMORY)
     {
         REGEX_ERR("regular expression error at replacement time", result);
     }
 
-    ObjString* response = take_string(vm, (char*)outputbuffer, (int)outputlength);
+    ObjString* response = take_string(vm, (char*)output_buffer, (int)output_length);
 
-    pcre2_match_context_free(matchcontext);
+    pcre2_match_context_free(match_context);
     pcre2_code_free(re);
 
     RETURN_OBJ(response);
 }
 
-bool objfn_string_tobytes(VMState* vm, int argcount, Value* args)
+bool objfn_string_tobytes(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(tobytes, 0);
+    ENFORCE_ARG_COUNT(to_bytes, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     RETURN_OBJ(copy_bytes(vm, (unsigned char*)string->chars, string->length));
 }
 
-bool objfn_string_iter(VMState* vm, int argcount, Value* args)
+bool objfn_string_iter(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
     ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
 
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    int length = string->isascii ? string->length : string->utf8length;
+    int length = string->is_ascii ? string->length : string->utf8_length;
     int index = AS_NUMBER(args[0]);
 
     if(index > -1 && index < length)
     {
         int start = index, end = index + 1;
-        if(!string->isascii)
+        if(!string->is_ascii)
         {
             utf8slice(string->chars, &start, &end);
         }
@@ -3714,11 +3703,11 @@ bool objfn_string_iter(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool objfn_string_itern(VMState* vm, int argcount, Value* args)
+bool objfn_string_itern(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    int length = string->isascii ? string->length : string->utf8length;
+    int length = string->is_ascii ? string->length : string->utf8_length;
 
     if(IS_NIL(args[0]))
     {
@@ -3746,7 +3735,7 @@ bool objfn_string_itern(VMState* vm, int argcount, Value* args)
 #include <ctype.h>
 #include <string.h>
 
-bool cfn_bytes(VMState* vm, int argcount, Value* args)
+bool cfn_bytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(bytes, 1);
     if(IS_NUMBER(args[0]))
@@ -3776,13 +3765,13 @@ bool cfn_bytes(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("expected bytes size or bytes list as argument");
 }
 
-bool objfn_bytes_length(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_length(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(length, 0);
     RETURN_NUMBER(AS_BYTES(METHOD_OBJECT)->bytes.count);
 }
 
-bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 1);
 
@@ -3796,9 +3785,9 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
 
         // append here...
         ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-        int oldcount = bytes->bytes.count;
+        int old_count = bytes->bytes.count;
         bytes->bytes.count++;
-        bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, oldcount, bytes->bytes.count);
+        bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, old_count, bytes->bytes.count);
         bytes->bytes.bytes[bytes->bytes.count - 1] = (unsigned char)byte;
         RETURN;
     }
@@ -3839,36 +3828,36 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("bytes can only append a byte or a list of bytes");
 }
 
-bool objfn_bytes_clone(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
+    ObjBytes* n_bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
 
-    memcpy(nbytes->bytes.bytes, bytes->bytes.bytes, bytes->bytes.count);
+    memcpy(n_bytes->bytes.bytes, bytes->bytes.bytes, bytes->bytes.count);
 
-    RETURN_OBJ(nbytes);
+    RETURN_OBJ(n_bytes);
 }
 
-bool objfn_bytes_extend(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_extend(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 1);
     ENFORCE_ARG_TYPE(extend, 0, IS_BYTES);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = AS_BYTES(args[0]);
+    ObjBytes* n_bytes = AS_BYTES(args[0]);
 
-    bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, bytes->bytes.count + nbytes->bytes.count);
+    bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, bytes->bytes.count + n_bytes->bytes.count);
     if(bytes->bytes.bytes == NULL)
     {
         RETURN_ERROR("out of memory");
     }
 
-    memcpy(bytes->bytes.bytes + bytes->bytes.count, nbytes->bytes.bytes, nbytes->bytes.count);
-    bytes->bytes.count += nbytes->bytes.count;
+    memcpy(bytes->bytes.bytes + bytes->bytes.count, n_bytes->bytes.bytes, n_bytes->bytes.count);
+    bytes->bytes.count += n_bytes->bytes.count;
     RETURN_OBJ(bytes);
 }
 
-bool objfn_bytes_pop(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
@@ -3877,7 +3866,7 @@ bool objfn_bytes_pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)((int)c));
 }
 
-bool objfn_bytes_remove(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 1);
     ENFORCE_ARG_TYPE(remove, 0, IS_NUMBER);
@@ -3901,22 +3890,22 @@ bool objfn_bytes_remove(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)((int)val));
 }
 
-bool objfn_bytes_reverse(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
 
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
+    ObjBytes* n_bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
 
     for(int i = 0; i < bytes->bytes.count; i++)
     {
-        nbytes->bytes.bytes[i] = bytes->bytes.bytes[bytes->bytes.count - i - 1];
+        n_bytes->bytes.bytes[i] = bytes->bytes.bytes[bytes->bytes.count - i - 1];
     }
 
-    RETURN_OBJ(nbytes);
+    RETURN_OBJ(n_bytes);
 }
 
-bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_split(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(split, 1);
     ENFORCE_ARG_TYPE(split, 0, IS_BYTES);
@@ -3960,20 +3949,20 @@ bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool objfn_bytes_first(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_first(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 0);
     RETURN_NUMBER((double)((int)AS_BYTES(METHOD_OBJECT)->bytes.bytes[0]));
 }
 
-bool objfn_bytes_last(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_last(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     RETURN_NUMBER((double)((int)bytes->bytes.bytes[bytes->bytes.count - 1]));
 }
 
-bool objfn_bytes_get(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 1);
     ENFORCE_ARG_TYPE(get, 0, IS_NUMBER);
@@ -3988,7 +3977,7 @@ bool objfn_bytes_get(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)((int)bytes->bytes.bytes[index]));
 }
 
-bool objfn_bytes_isalpha(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_isalpha(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_alpha, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
@@ -4003,9 +3992,9 @@ bool objfn_bytes_isalpha(VMState* vm, int argcount, Value* args)
     RETURN_TRUE;
 }
 
-bool objfn_bytes_isalnum(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_isalnum(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isalnum, 0);
+    ENFORCE_ARG_COUNT(is_alnum, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
 
     for(int i = 0; i < bytes->bytes.count; i++)
@@ -4018,7 +4007,7 @@ bool objfn_bytes_isalnum(VMState* vm, int argcount, Value* args)
     RETURN_TRUE;
 }
 
-bool objfn_bytes_isnumber(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_isnumber(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_number, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
@@ -4033,9 +4022,9 @@ bool objfn_bytes_isnumber(VMState* vm, int argcount, Value* args)
     RETURN_TRUE;
 }
 
-bool objfn_bytes_islower(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_islower(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(islower, 0);
+    ENFORCE_ARG_COUNT(is_lower, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
 
     for(int i = 0; i < bytes->bytes.count; i++)
@@ -4048,9 +4037,9 @@ bool objfn_bytes_islower(VMState* vm, int argcount, Value* args)
     RETURN_TRUE;
 }
 
-bool objfn_bytes_isupper(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_isupper(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isupper, 0);
+    ENFORCE_ARG_COUNT(is_upper, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
 
     for(int i = 0; i < bytes->bytes.count; i++)
@@ -4063,9 +4052,9 @@ bool objfn_bytes_isupper(VMState* vm, int argcount, Value* args)
     RETURN_TRUE;
 }
 
-bool objfn_bytes_isspace(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_isspace(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isspace, 0);
+    ENFORCE_ARG_COUNT(is_space, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
 
     for(int i = 0; i < bytes->bytes.count; i++)
@@ -4078,7 +4067,7 @@ bool objfn_bytes_isspace(VMState* vm, int argcount, Value* args)
     RETURN_TRUE;
 }
 
-bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_dispose(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(dispose, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
@@ -4086,7 +4075,7 @@ bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
@@ -4100,7 +4089,7 @@ bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool objfn_bytes_tostring(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_tostring(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_string, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
@@ -4109,7 +4098,7 @@ bool objfn_bytes_tostring(VMState* vm, int argcount, Value* args)
     RETURN_L_STRING(string, bytes->bytes.count);
 }
 
-bool objfn_bytes_iter(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_iter(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
     ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
@@ -4126,7 +4115,7 @@ bool objfn_bytes_iter(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool objfn_bytes_itern(VMState* vm, int argcount, Value* args)
+bool objfn_bytes_itern(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
@@ -4305,16 +4294,16 @@ bool table_set(VMState* vm, HashTable* table, Value key, Value value)
 
     HashEntry* entry = find_entry(table->entries, table->capacity, key);
 
-    bool isnew = IS_EMPTY(entry->key);
+    bool is_new = IS_EMPTY(entry->key);
 
-    if(isnew && IS_NIL(entry->value))
+    if(is_new && IS_NIL(entry->value))
         table->count++;
 
     // overwrites existing entries.
     entry->key = key;
     entry->value = value;
 
-    return isnew;
+    return is_new;
 }
 
 bool table_delete(HashTable* table, Value key)
@@ -4485,22 +4474,22 @@ bool dict_get_entry(ObjDict* dict, Value key, Value* value)
 
 bool dict_set_entry(VMState* vm, ObjDict* dict, Value key, Value value)
 {
-    Value tempvalue;
-    if(!table_get(&dict->items, key, &tempvalue))
+    Value temp_value;
+    if(!table_get(&dict->items, key, &temp_value))
     {
         write_value_arr(vm, &dict->names, key);// add key if it doesn't exist.
     }
     return table_set(vm, &dict->items, key, value);
 }
 
-bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool willassign)
+bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool will_assign)
 {
     Value index = peek(vm, 0);
 
     Value result;
     if(dict_get_entry(dict, index, &result))
     {
-        if(!willassign)
+        if(!will_assign)
         {
             pop_n(vm, 2);// we can safely get rid of the index from the stack
         }
@@ -4522,21 +4511,21 @@ void bl_vmdo_dictsetindex(VMState* vm, ObjDict* dict, Value index, Value value)
     push(vm, value);
 }
 
-bool objfn_dict_length(VMState* vm, int argcount, Value* args)
+bool objfn_dict_length(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(dictionary.length, 0);
     RETURN_NUMBER(AS_DICT(METHOD_OBJECT)->names.count);
 }
 
-bool objfn_dict_add(VMState* vm, int argcount, Value* args)
+bool objfn_dict_add(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(add, 2);
     ENFORCE_VALID_DICT_KEY(add, 0);
 
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
 
-    Value tempvalue;
-    if(table_get(&dict->items, args[0], &tempvalue))
+    Value temp_value;
+    if(table_get(&dict->items, args[0], &temp_value))
     {
         RETURN_ERROR("duplicate key %s at add()", value_to_string(vm, args[0]));
     }
@@ -4545,7 +4534,7 @@ bool objfn_dict_add(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_dict_set(VMState* vm, int argcount, Value* args)
+bool objfn_dict_set(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(set, 2);
     ENFORCE_VALID_DICT_KEY(set, 0);
@@ -4563,7 +4552,7 @@ bool objfn_dict_set(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
+bool objfn_dict_clear(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(dict, 0);
 
@@ -4573,42 +4562,42 @@ bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_dict_clone(VMState* vm, int argcount, Value* args)
+bool objfn_dict_clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    ObjDict* n_dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
 
-    table_add_all(vm, &dict->items, &ndict->items);
+    table_add_all(vm, &dict->items, &n_dict->items);
 
     for(int i = 0; i < dict->names.count; i++)
     {
-        write_value_arr(vm, &ndict->names, dict->names.values[i]);
+        write_value_arr(vm, &n_dict->names, dict->names.values[i]);
     }
 
-    RETURN_OBJ(ndict);
+    RETURN_OBJ(n_dict);
 }
 
-bool objfn_dict_compact(VMState* vm, int argcount, Value* args)
+bool objfn_dict_compact(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(compact, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    ObjDict* n_dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
 
     for(int i = 0; i < dict->names.count; i++)
     {
-        Value tmpvalue;
-        table_get(&dict->items, dict->names.values[i], &tmpvalue);
-        if(!values_equal(tmpvalue, NIL_VAL))
+        Value tmp_value;
+        table_get(&dict->items, dict->names.values[i], &tmp_value);
+        if(!values_equal(tmp_value, NIL_VAL))
         {
-            dict_add_entry(vm, ndict, dict->names.values[i], tmpvalue);
+            dict_add_entry(vm, n_dict, dict->names.values[i], tmp_value);
         }
     }
 
-    RETURN_OBJ(ndict);
+    RETURN_OBJ(n_dict);
 }
 
-bool objfn_dict_contains(VMState* vm, int argcount, Value* args)
+bool objfn_dict_contains(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(contains, 1);
     ENFORCE_VALID_DICT_KEY(contains, 0);
@@ -4618,23 +4607,23 @@ bool objfn_dict_contains(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(table_get(&dict->items, args[0], &value));
 }
 
-bool objfn_dict_extend(VMState* vm, int argcount, Value* args)
+bool objfn_dict_extend(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 1);
     ENFORCE_ARG_TYPE(extend, 0, IS_DICT);
 
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* dictcpy = AS_DICT(args[0]);
+    ObjDict* dict_cpy = AS_DICT(args[0]);
 
-    for(int i = 0; i < dictcpy->names.count; i++)
+    for(int i = 0; i < dict_cpy->names.count; i++)
     {
-        write_value_arr(vm, &dict->names, dictcpy->names.values[i]);
+        write_value_arr(vm, &dict->names, dict_cpy->names.values[i]);
     }
-    table_add_all(vm, &dictcpy->items, &dict->items);
+    table_add_all(vm, &dict_cpy->items, &dict->items);
     RETURN;
 }
 
-bool objfn_dict_get(VMState* vm, int argcount, Value* args)
+bool objfn_dict_get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(get, 1, 2);
     ENFORCE_VALID_DICT_KEY(get, 0);
@@ -4643,7 +4632,7 @@ bool objfn_dict_get(VMState* vm, int argcount, Value* args)
     Value value;
     if(!dict_get_entry(dict, args[0], &value))
     {
-        if(argcount == 1)
+        if(arg_count == 1)
         {
             RETURN_NIL;
         }
@@ -4656,7 +4645,7 @@ bool objfn_dict_get(VMState* vm, int argcount, Value* args)
     RETURN_VALUE(value);
 }
 
-bool objfn_dict_keys(VMState* vm, int argcount, Value* args)
+bool objfn_dict_keys(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(keys, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
@@ -4668,21 +4657,21 @@ bool objfn_dict_keys(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool objfn_dict_values(VMState* vm, int argcount, Value* args)
+bool objfn_dict_values(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(values, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
-        Value tmpvalue;
-        dict_get_entry(dict, dict->names.values[i], &tmpvalue);
-        write_list(vm, list, tmpvalue);
+        Value tmp_value;
+        dict_get_entry(dict, dict->names.values[i], &tmp_value);
+        write_list(vm, list, tmp_value);
     }
     RETURN_OBJ(list);
 }
 
-bool objfn_dict_remove(VMState* vm, int argcount, Value* args)
+bool objfn_dict_remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 1);
     ENFORCE_VALID_DICT_KEY(remove, 0);
@@ -4712,47 +4701,47 @@ bool objfn_dict_remove(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool objfn_dict_isempty(VMState* vm, int argcount, Value* args)
+bool objfn_dict_isempty(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isempty, 0);
+    ENFORCE_ARG_COUNT(is_empty, 0);
     RETURN_BOOL(AS_DICT(METHOD_OBJECT)->names.count == 0);
 }
 
-bool objfn_dict_findkey(VMState* vm, int argcount, Value* args)
+bool objfn_dict_findkey(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(findkey, 1);
+    ENFORCE_ARG_COUNT(find_key, 1);
     RETURN_VALUE(table_find_key(&AS_DICT(METHOD_OBJECT)->items, args[0]));
 }
 
-bool objfn_dict_tolist(VMState* vm, int argcount, Value* args)
+bool objfn_dict_tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
 
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjList* namelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    ObjList* valuelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjList* name_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjList* value_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
-        write_list(vm, namelist, dict->names.values[i]);
+        write_list(vm, name_list, dict->names.values[i]);
         Value value;
         if(table_get(&dict->items, dict->names.values[i], &value))
         {
-            write_list(vm, valuelist, value);
+            write_list(vm, value_list, value);
         }
         else
         {// theoretically impossible
-            write_list(vm, valuelist, NIL_VAL);
+            write_list(vm, value_list, NIL_VAL);
         }
     }
 
     ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    write_list(vm, list, OBJ_VAL(namelist));
-    write_list(vm, list, OBJ_VAL(valuelist));
+    write_list(vm, list, OBJ_VAL(name_list));
+    write_list(vm, list, OBJ_VAL(value_list));
 
     RETURN_OBJ(list);
 }
 
-bool objfn_dict_iter(VMState* vm, int argcount, Value* args)
+bool objfn_dict_iter(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
@@ -4766,7 +4755,7 @@ bool objfn_dict_iter(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
+bool objfn_dict_itern(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
@@ -4809,34 +4798,34 @@ ObjList* copy_list(VMState* vm, ObjList* list, int start, int length)
     return _list;
 }
 
-bool objfn_list_length(VMState* vm, int argcount, Value* args)
+bool objfn_list_length(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(length, 0);
     RETURN_NUMBER(AS_LIST(METHOD_OBJECT)->items.count);
 }
 
-bool objfn_list_append(VMState* vm, int argcount, Value* args)
+bool objfn_list_append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 1);
     write_list(vm, AS_LIST(METHOD_OBJECT), args[0]);
     RETURN;
 }
 
-bool objfn_list_clear(VMState* vm, int argcount, Value* args)
+bool objfn_list_clear(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clear, 0);
     free_value_arr(vm, &AS_LIST(METHOD_OBJECT)->items);
     RETURN;
 }
 
-bool objfn_list_clone(VMState* vm, int argcount, Value* args)
+bool objfn_list_clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
     ObjList* list = AS_LIST(METHOD_OBJECT);
     RETURN_OBJ(copy_list(vm, list, 0, list->items.count));
 }
 
-bool objfn_list_count(VMState* vm, int argcount, Value* args)
+bool objfn_list_count(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(count, 1);
     ObjList* list = AS_LIST(METHOD_OBJECT);
@@ -4851,7 +4840,7 @@ bool objfn_list_count(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(count);
 }
 
-bool objfn_list_extend(VMState* vm, int argcount, Value* args)
+bool objfn_list_extend(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 1);
     ENFORCE_ARG_TYPE(extend, 0, IS_LIST);
@@ -4867,9 +4856,9 @@ bool objfn_list_extend(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_list_indexof(VMState* vm, int argcount, Value* args)
+bool objfn_list_indexof(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(indexof, 1);
+    ENFORCE_ARG_COUNT(index_of, 1);
 
     ObjList* list = AS_LIST(METHOD_OBJECT);
 
@@ -4884,7 +4873,7 @@ bool objfn_list_indexof(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(-1);
 }
 
-bool objfn_list_insert(VMState* vm, int argcount, Value* args)
+bool objfn_list_insert(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(insert, 2);
     ENFORCE_ARG_TYPE(insert, 1, IS_NUMBER);
@@ -4896,7 +4885,7 @@ bool objfn_list_insert(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_list_pop(VMState* vm, int argcount, Value* args)
+bool objfn_list_pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 0);
 
@@ -4910,12 +4899,12 @@ bool objfn_list_pop(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool objfn_list_shift(VMState* vm, int argcount, Value* args)
+bool objfn_list_shift(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(shift, 0, 1);
 
     int count = 1;
-    if(argcount == 1)
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(shift, 0, IS_NUMBER);
         count = AS_NUMBER(args[0]);
@@ -4929,10 +4918,10 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
     }
     else if(count > 0)
     {
-        ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        ObjList* n_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
         for(int i = 0; i < count; i++)
         {
-            write_list(vm, nlist, list->items.values[0]);
+            write_list(vm, n_list, list->items.values[0]);
             for(int j = 0; j < list->items.count; j++)
             {
                 list->items.values[j] = list->items.values[j + 1];
@@ -4942,17 +4931,17 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
 
         if(count == 1)
         {
-            RETURN_VALUE(nlist->items.values[0]);
+            RETURN_VALUE(n_list->items.values[0]);
         }
         else
         {
-            RETURN_OBJ(nlist);
+            RETURN_OBJ(n_list);
         }
     }
     RETURN_NIL;
 }
 
-bool objfn_list_removeat(VMState* vm, int argcount, Value* args)
+bool objfn_list_removeat(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove_at, 1);
     ENFORCE_ARG_TYPE(remove_at, 0, IS_NUMBER);
@@ -4973,7 +4962,7 @@ bool objfn_list_removeat(VMState* vm, int argcount, Value* args)
     RETURN_VALUE(value);
 }
 
-bool objfn_list_remove(VMState* vm, int argcount, Value* args)
+bool objfn_list_remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 1);
 
@@ -4999,7 +4988,7 @@ bool objfn_list_remove(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_list_reverse(VMState* vm, int argcount, Value* args)
+bool objfn_list_reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 0);
 
@@ -5024,7 +5013,7 @@ bool objfn_list_reverse(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(nlist);
 }
 
-bool objfn_list_sort(VMState* vm, int argcount, Value* args)
+bool objfn_list_sort(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(sort, 0);
 
@@ -5033,7 +5022,7 @@ bool objfn_list_sort(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_list_contains(VMState* vm, int argcount, Value* args)
+bool objfn_list_contains(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(contains, 1);
 
@@ -5049,40 +5038,40 @@ bool objfn_list_contains(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool objfn_list_delete(VMState* vm, int argcount, Value* args)
+bool objfn_list_delete(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(delete, 1, 2);
     ENFORCE_ARG_TYPE(delete, 0, IS_NUMBER);
 
-    int lowerindex = AS_NUMBER(args[0]);
-    int upperindex = lowerindex;
+    int lower_index = AS_NUMBER(args[0]);
+    int upper_index = lower_index;
 
-    if(argcount == 2)
+    if(arg_count == 2)
     {
         ENFORCE_ARG_TYPE(delete, 1, IS_NUMBER);
-        upperindex = AS_NUMBER(args[1]);
+        upper_index = AS_NUMBER(args[1]);
     }
 
     ObjList* list = AS_LIST(METHOD_OBJECT);
 
-    if(lowerindex < 0 || lowerindex >= list->items.count)
+    if(lower_index < 0 || lower_index >= list->items.count)
     {
-        RETURN_ERROR("list index %d out of range at delete()", lowerindex);
+        RETURN_ERROR("list index %d out of range at delete()", lower_index);
     }
-    else if(upperindex < lowerindex || upperindex >= list->items.count)
+    else if(upper_index < lower_index || upper_index >= list->items.count)
     {
-        RETURN_ERROR("invalid upper limit %d at delete()", upperindex);
+        RETURN_ERROR("invalid upper limit %d at delete()", upper_index);
     }
 
-    for(int i = 0; i < list->items.count - upperindex; i++)
+    for(int i = 0; i < list->items.count - upper_index; i++)
     {
-        list->items.values[lowerindex + i] = list->items.values[i + upperindex + 1];
+        list->items.values[lower_index + i] = list->items.values[i + upper_index + 1];
     }
-    list->items.count -= upperindex - lowerindex + 1;
-    RETURN_NUMBER((double)upperindex - (double)lowerindex + 1);
+    list->items.count -= upper_index - lower_index + 1;
+    RETURN_NUMBER((double)upper_index - (double)lower_index + 1);
 }
 
-bool objfn_list_first(VMState* vm, int argcount, Value* args)
+bool objfn_list_first(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 0);
     ObjList* list = AS_LIST(METHOD_OBJECT);
@@ -5096,7 +5085,7 @@ bool objfn_list_first(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool objfn_list_last(VMState* vm, int argcount, Value* args)
+bool objfn_list_last(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(last, 0);
     ObjList* list = AS_LIST(METHOD_OBJECT);
@@ -5110,13 +5099,13 @@ bool objfn_list_last(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool objfn_list_isempty(VMState* vm, int argcount, Value* args)
+bool objfn_list_isempty(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isempty, 0);
+    ENFORCE_ARG_COUNT(is_empty, 0);
     RETURN_BOOL(AS_LIST(METHOD_OBJECT)->items.count == 0);
 }
 
-bool objfn_list_take(VMState* vm, int argcount, Value* args)
+bool objfn_list_take(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(take, 1);
     ENFORCE_ARG_TYPE(take, 0, IS_NUMBER);
@@ -5134,7 +5123,7 @@ bool objfn_list_take(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(copy_list(vm, list, 0, count));
 }
 
-bool objfn_list_get(VMState* vm, int argcount, Value* args)
+bool objfn_list_get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 1);
     ENFORCE_ARG_TYPE(get, 0, IS_NUMBER);
@@ -5149,37 +5138,37 @@ bool objfn_list_get(VMState* vm, int argcount, Value* args)
     RETURN_VALUE(list->items.values[index]);
 }
 
-bool objfn_list_compact(VMState* vm, int argcount, Value* args)
+bool objfn_list_compact(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(compact, 0);
 
     ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjList* n_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
 
     for(int i = 0; i < list->items.count; i++)
     {
         if(!values_equal(list->items.values[i], NIL_VAL))
         {
-            write_list(vm, nlist, list->items.values[i]);
+            write_list(vm, n_list, list->items.values[i]);
         }
     }
 
-    RETURN_OBJ(nlist);
+    RETURN_OBJ(n_list);
 }
 
-bool objfn_list_unique(VMState* vm, int argcount, Value* args)
+bool objfn_list_unique(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(unique, 0);
 
     ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjList* n_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
 
     for(int i = 0; i < list->items.count; i++)
     {
         bool found = false;
-        for(int j = 0; j < nlist->items.count; j++)
+        for(int j = 0; j < n_list->items.count; j++)
         {
-            if(values_equal(nlist->items.values[j], list->items.values[i]))
+            if(values_equal(n_list->items.values[j], list->items.values[i]))
             {
                 found = true;
                 continue;
@@ -5188,50 +5177,50 @@ bool objfn_list_unique(VMState* vm, int argcount, Value* args)
 
         if(!found)
         {
-            write_list(vm, nlist, list->items.values[i]);
+            write_list(vm, n_list, list->items.values[i]);
         }
     }
 
-    RETURN_OBJ(nlist);
+    RETURN_OBJ(n_list);
 }
 
-bool objfn_list_zip(VMState* vm, int argcount, Value* args)
+bool objfn_list_zip(VMState* vm, int arg_count, Value* args)
 {
     ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjList* n_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
 
-    ObjList** arglist = ALLOCATE(ObjList*, argcount);
+    ObjList** arg_list = ALLOCATE(ObjList*, arg_count);
 
-    for(int i = 0; i < argcount; i++)
+    for(int i = 0; i < arg_count; i++)
     {
         ENFORCE_ARG_TYPE(zip, i, IS_LIST);
-        arglist[i] = AS_LIST(args[i]);
+        arg_list[i] = AS_LIST(args[i]);
     }
 
     for(int i = 0; i < list->items.count; i++)
     {
-        ObjList* alist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-        write_list(vm, alist, list->items.values[i]);// item of main list
+        ObjList* a_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        write_list(vm, a_list, list->items.values[i]);// item of main list
 
-        for(int j = 0; j < argcount; j++)
+        for(int j = 0; j < arg_count; j++)
         {// item of argument lists
-            if(i < arglist[j]->items.count)
+            if(i < arg_list[j]->items.count)
             {
-                write_list(vm, alist, arglist[j]->items.values[i]);
+                write_list(vm, a_list, arg_list[j]->items.values[i]);
             }
             else
             {
-                write_list(vm, alist, NIL_VAL);
+                write_list(vm, a_list, NIL_VAL);
             }
         }
 
-        write_list(vm, nlist, OBJ_VAL(alist));
+        write_list(vm, n_list, OBJ_VAL(a_list));
     }
 
-    RETURN_OBJ(nlist);
+    RETURN_OBJ(n_list);
 }
 
-bool objfn_list_todict(VMState* vm, int argcount, Value* args)
+bool objfn_list_todict(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_dict, 0);
 
@@ -5244,7 +5233,7 @@ bool objfn_list_todict(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(dict);
 }
 
-bool objfn_list_iter(VMState* vm, int argcount, Value* args)
+bool objfn_list_iter(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
     ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
@@ -5261,7 +5250,7 @@ bool objfn_list_iter(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool objfn_list_itern(VMState* vm, int argcount, Value* args)
+bool objfn_list_itern(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjList* list = AS_LIST(METHOD_OBJECT);
@@ -5300,16 +5289,16 @@ void init_byte_arr(VMState* vm, ByteArray* array, int length)
 {
     array->count = length;
     array->bytes = (unsigned char*)calloc(length, sizeof(unsigned char));
-    vm->bytesallocated += sizeof(unsigned char) * length;
+    vm->bytes_allocated += sizeof(unsigned char) * length;
 }
 
 void write_value_arr(VMState* vm, ValArray* array, Value value)
 {
     if(array->capacity < array->count + 1)
     {
-        int oldcapacity = array->capacity;
-        array->capacity = GROW_CAPACITY(oldcapacity);
-        array->values = GROW_ARRAY(Value, array->values, oldcapacity, array->capacity);
+        int old_capacity = array->capacity;
+        array->capacity = GROW_CAPACITY(old_capacity);
+        array->values = GROW_ARRAY(Value, array->values, old_capacity, array->capacity);
     }
 
     array->values[array->count] = value;
@@ -5366,7 +5355,7 @@ void free_byte_arr(VMState* vm, ByteArray* array)
     }
 }
 
-static void do_print_value(Value value, bool fixstring)
+static void do_print_value(Value value, bool fix_string)
 {
     switch(value.type)
     {
@@ -5382,7 +5371,7 @@ static void do_print_value(Value value, bool fixstring)
             printf(NUMBER_FORMAT, AS_NUMBER(value));
             break;
         case VAL_OBJ:
-            print_object(value, fixstring);
+            print_object(value, fix_string);
             break;
 
         default:
@@ -5405,11 +5394,11 @@ void echo_value(Value value)
 static char* number_to_string(VMState* vm, double number)
 {
     int length = snprintf(NULL, 0, NUMBER_FORMAT, number);
-    char* numstr = ALLOCATE(char, length + 1);
-    if(numstr != NULL)
+    char* num_str = ALLOCATE(char, length + 1);
+    if(num_str != NULL)
     {
-        sprintf(numstr, NUMBER_FORMAT, number);
-        return numstr;
+        sprintf(num_str, NUMBER_FORMAT, number);
+        return num_str;
     }
     return "";
 }
@@ -5486,13 +5475,13 @@ static uint32_t hash_bits(uint64_t hash)
 
 uint32_t hash_double(double value)
 {
-    typedef union bdoubleunion bdoubleunion;
-    union bdoubleunion
+    typedef union b_double_union b_double_union;
+    union b_double_union
     {
         uint64_t bits;
         double num;
     };
-    bdoubleunion bits;
+    b_double_union bits;
     bits.num = value;
     return hash_bits(bits.bits);
 }
@@ -5689,20 +5678,20 @@ Value copy_value(VMState* vm, Value value)
             case OBJ_LIST:
             {
                 ObjList* list = AS_LIST(value);
-                ObjList* nlist = new_list(vm);
-                push(vm, OBJ_VAL(nlist));
+                ObjList* n_list = new_list(vm);
+                push(vm, OBJ_VAL(n_list));
 
                 for(int i = 0; i < list->items.count; i++)
                 {
-                    write_value_arr(vm, &nlist->items, list->items.values[i]);
+                    write_value_arr(vm, &n_list->items, list->items.values[i]);
                 }
 
                 pop(vm);
-                return OBJ_VAL(nlist);
+                return OBJ_VAL(n_list);
             }
             /*case OBJ_DICT: {
         ObjDict *dict = AS_DICT(value);
-        ObjDict *ndict = new_dict(vm);
+        ObjDict *n_dict = new_dict(vm);
 
         // @TODO: Figure out how to handle dictionary values correctly
         // remember that copying keys is redundant and unnecessary
@@ -5736,7 +5725,7 @@ ObjPointer* new_ptr(VMState* vm, void* pointer)
     ObjPointer* ptr = (ObjPointer*)allocate_object(vm, sizeof(ObjPointer), OBJ_PTR);
     ptr->pointer = pointer;
     ptr->name = "<void *>";
-    ptr->fnptrfree = NULL;
+    ptr->free_fn = NULL;
     return ptr;
 }
 
@@ -5757,8 +5746,8 @@ ObjSwitch* new_switch(VMState* vm)
 {
     ObjSwitch* sw = (ObjSwitch*)allocate_object(vm, sizeof(ObjSwitch), OBJ_SWITCH);
     init_table(&sw->table);
-    sw->defaultjump = -1;
-    sw->exitjump = -1;
+    sw->default_jump = -1;
+    sw->exit_jump = -1;
     return sw;
 }
 
@@ -5803,7 +5792,7 @@ ObjDict* new_dict(VMState* vm)
 ObjFile* new_file(VMState* vm, ObjString* path, ObjString* mode)
 {
     ObjFile* file = (ObjFile*)allocate_object(vm, sizeof(ObjFile), OBJ_FILE);
-    file->isopen = true;
+    file->is_open = true;
     file->mode = mode;
     file->path = path;
     file->file = NULL;
@@ -5823,7 +5812,7 @@ ObjClass* new_class(VMState* vm, ObjString* name)
     ObjClass* klass = (ObjClass*)allocate_object(vm, sizeof(ObjClass), OBJ_CLASS);
     klass->name = name;
     init_table(&klass->properties);
-    init_table(&klass->staticproperties);
+    init_table(&klass->static_properties);
     init_table(&klass->methods);
     klass->initializer = EMPTY_VAL;
     klass->superclass = NULL;
@@ -5834,8 +5823,8 @@ ObjFunction* new_function(VMState* vm, ObjModule* module, FuncType type)
 {
     ObjFunction* function = (ObjFunction*)allocate_object(vm, sizeof(ObjFunction), OBJ_FUNCTION);
     function->arity = 0;
-    function->upvaluecount = 0;
-    function->isvariadic = false;
+    function->up_value_count = 0;
+    function->is_variadic = false;
     function->name = NULL;
     function->type = type;
     function->module = module;
@@ -5857,7 +5846,7 @@ ObjInstance* new_instance(VMState* vm, ObjClass* klass)
     return instance;
 }
 
-ObjNativeFunction* new_native(VMState* vm, bnativefn function, const char* name)
+ObjNativeFunction* new_native(VMState* vm, b_native_fn function, const char* name)
 {
     ObjNativeFunction* native = (ObjNativeFunction*)allocate_object(vm, sizeof(ObjNativeFunction), OBJ_NATIVE);
     native->natfn = function;
@@ -5868,16 +5857,16 @@ ObjNativeFunction* new_native(VMState* vm, bnativefn function, const char* name)
 
 ObjClosure* new_closure(VMState* vm, ObjFunction* function)
 {
-    ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvaluecount);
-    for(int i = 0; i < function->upvaluecount; i++)
+    ObjUpvalue** up_values = ALLOCATE(ObjUpvalue*, function->up_value_count);
+    for(int i = 0; i < function->up_value_count; i++)
     {
-        upvalues[i] = NULL;
+        up_values[i] = NULL;
     }
 
     ObjClosure* closure = (ObjClosure*)allocate_object(vm, sizeof(ObjClosure), OBJ_CLOSURE);
     closure->fnptr = function;
-    closure->upvalues = upvalues;
-    closure->upvaluecount = function->upvaluecount;
+    closure->up_values = up_values;
+    closure->up_value_count = function->up_value_count;
     return closure;
 }
 
@@ -5887,8 +5876,8 @@ ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_
     ObjString* string = (ObjString*)allocate_object(vm, sizeof(ObjString), OBJ_STRING);
     string->chars = chars;
     string->length = length;
-    string->utf8length = utf8len(chars);
-    string->isascii = false;
+    string->utf8_length = utf8len(chars);
+    string->is_ascii = false;
     string->hash = hash;
 
     push(vm, OBJ_VAL(string));// fixing gc corruption
@@ -5920,20 +5909,20 @@ ObjString* copy_string(VMState* vm, const char* chars, int length)
     if(interned != NULL)
         return interned;
 
-    char* heapchars = ALLOCATE(char, (size_t)length + 1);
-    memcpy(heapchars, chars, length);
-    heapchars[length] = '\0';
+    char* heap_chars = ALLOCATE(char, (size_t)length + 1);
+    memcpy(heap_chars, chars, length);
+    heap_chars[length] = '\0';
 
-    return bl_string_fromallocated(vm, heapchars, length, hash);
+    return bl_string_fromallocated(vm, heap_chars, length, hash);
 }
 
 ObjUpvalue* new_up_value(VMState* vm, Value* slot)
 {
-    ObjUpvalue* upvalue = (ObjUpvalue*)allocate_object(vm, sizeof(ObjUpvalue), OBJ_UP_VALUE);
-    upvalue->closed = NIL_VAL;
-    upvalue->location = slot;
-    upvalue->next = NULL;
-    return upvalue;
+    ObjUpvalue* up_value = (ObjUpvalue*)allocate_object(vm, sizeof(ObjUpvalue), OBJ_UP_VALUE);
+    up_value->closed = NIL_VAL;
+    up_value->location = slot;
+    up_value->next = NULL;
+    return up_value;
 }
 
 static void print_function(ObjFunction* func)
@@ -5944,7 +5933,7 @@ static void print_function(ObjFunction* func)
     }
     else
     {
-        printf(func->isvariadic ? "<function %s(%d...) at %p>" : "<function %s(%d) at %p>", func->name->chars, func->arity, (void*)func);
+        printf(func->is_variadic ? "<function %s(%d...) at %p>" : "<function %s(%d) at %p>", func->name->chars, func->arity, (void*)func);
     }
 }
 
@@ -6010,7 +5999,7 @@ static void print_file(ObjFile* file)
     printf("<file at %s in mode %s>", file->path->chars, file->mode->chars);
 }
 
-void print_object(Value value, bool fixstring)
+void print_object(Value value, bool fix_string)
 {
     switch(OBJ_TYPE(value))
     {
@@ -6096,7 +6085,7 @@ void print_object(Value value, bool fixstring)
         case OBJ_STRING:
         {
             ObjString* string = AS_STRING(value);
-            if(fixstring)
+            if(fix_string)
             {
                 printf(strchr(string->chars, '\'') != NULL ? "\"%.*s\"" : "'%.*s'", string->length, string->chars);
             }
@@ -6131,7 +6120,7 @@ static char* function_to_string(ObjFunction* func)
         return strdup("<script 0x00>");
     }
 
-    const char* format = func->isvariadic ? "<function %s(%d...)>" : "<function %s(%d)>";
+    const char* format = func->is_variadic ? "<function %s(%d...)>" : "<function %s(%d)>";
     char* str = (char*)malloc(sizeof(char) * (snprintf(NULL, 0, format, func->name->chars, func->arity)));
     if(str != NULL)
     {
@@ -6362,7 +6351,7 @@ void bl_scanner_init(AstScanner* s, const char* source)
     s->current = source;
     s->start = source;
     s->line = 1;
-    s->interpolatingcount = -1;
+    s->interpolating_count = -1;
 }
 
 bool bl_scanner_isatend(AstScanner* s)
@@ -6557,17 +6546,17 @@ static AstToken bl_scanner_scanstring(AstScanner* s, char quote)
     {
         if(bl_scanner_current(s) == '$' && bl_scanner_next(s) == '{' && bl_scanner_previous(s) != '\\')
         {// interpolation started
-            if(s->interpolatingcount - 1 < MAX_INTERPOLATION_NESTING)
+            if(s->interpolating_count - 1 < MAX_INTERPOLATION_NESTING)
             {
-                s->interpolatingcount++;
-                s->interpolating[s->interpolatingcount] = (int)quote;
+                s->interpolating_count++;
+                s->interpolating[s->interpolating_count] = (int)quote;
                 s->current++;
                 AstToken tkn = make_token(s, TOK_INTERPOLATION);
                 s->current++;
                 return tkn;
             }
 
-            return error_token(s, "maximum interpolation nesting of %d exceeded by %d", MAX_INTERPOLATION_NESTING, MAX_INTERPOLATION_NESTING - s->interpolatingcount + 1);
+            return error_token(s, "maximum interpolation nesting of %d exceeded by %d", MAX_INTERPOLATION_NESTING, MAX_INTERPOLATION_NESTING - s->interpolating_count + 1);
         }
         if(bl_scanner_current(s) == '\\' && (bl_scanner_next(s) == quote || bl_scanner_next(s) == '\\'))
         {
@@ -6745,10 +6734,10 @@ AstToken bl_scanner_scantoken(AstScanner* s)
         case '{':
             return make_token(s, TOK_LBRACE);
         case '}':
-            if(s->interpolatingcount > -1)
+            if(s->interpolating_count > -1)
             {
-                AstToken token = bl_scanner_scanstring(s, (char)s->interpolating[s->interpolatingcount]);
-                s->interpolatingcount--;
+                AstToken token = bl_scanner_scanstring(s, (char)s->interpolating[s->interpolating_count]);
+                s->interpolating_count--;
                 return token;
             }
             return make_token(s, TOK_RBRACE);
@@ -6884,7 +6873,7 @@ static void bl_parser_emitbyte(AstParser* p, uint8_t byte);
 static void bl_parser_emitshort(AstParser* p, uint16_t byte);
 static void bl_parser_emitbytes(AstParser* p, uint8_t byte, uint8_t byte2);
 static void bl_parser_emitbyte_and_short(AstParser* p, uint8_t byte, uint16_t byte2);
-static void bl_parser_emitloop(AstParser* p, int loopstart);
+static void bl_parser_emitloop(AstParser* p, int loop_start);
 static void bl_parser_emitreturn(AstParser* p);
 static int bl_parser_makeconstant(AstParser* p, Value value);
 static void bl_parser_emitconstant(AstParser* p, Value value);
@@ -6898,7 +6887,7 @@ static void bl_compiler_init(AstParser* p, AstCompiler* compiler, FuncType type)
 static int bl_parser_identconst(AstParser* p, AstToken* name);
 static bool bl_parser_identsequal(AstToken* a, AstToken* b);
 static int bl_compiler_resolvelocal(AstParser* p, AstCompiler* compiler, AstToken* name);
-static int bl_compiler_addupvalue(AstParser* p, AstCompiler* compiler, uint16_t index, bool islocal);
+static int bl_compiler_addupvalue(AstParser* p, AstCompiler* compiler, uint16_t index, bool is_local);
 static int bl_compiler_resolveupvalue(AstParser* p, AstCompiler* compiler, AstToken* name);
 static int bl_parser_addlocal(AstParser* p, AstToken name);
 static void bl_parser_declvar(AstParser* p);
@@ -6911,15 +6900,33 @@ static void bl_parser_beginscope(AstParser* p);
 static void bl_parser_endscope(AstParser* p);
 static void bl_parser_discardlocal(AstParser* p, int depth);
 static void bl_parser_endloop(AstParser* p);
+static void bl_parser_rulebinary(AstParser* p, AstToken previous, bool canassign);
 static uint8_t bl_parser_parsearglist(AstParser* p);
-static void bl_parser_parseassign(AstParser* p, uint8_t realop, uint8_t getop, uint8_t setop, int arg);
-static void bl_parser_doassign(AstParser* p, uint8_t getop, uint8_t setop, int arg, bool canassign);
+static void bl_parser_rulecall(AstParser* p, AstToken previous, bool canassign);
+static void bl_parser_ruleliteral(AstParser* p, bool canassign);
+static void bl_parser_parseassign(AstParser* p, uint8_t real_op, uint8_t get_op, uint8_t set_op, int arg);
+static void bl_parser_doassign(AstParser* p, uint8_t get_op, uint8_t set_op, int arg, bool canassign);
+static void bl_parser_ruledot(AstParser* p, AstToken previous, bool canassign);
 static void bl_parser_namedvar(AstParser* p, AstToken name, bool canassign);
+static void bl_parser_rulelist(AstParser* p, bool canassign);
+static void bl_parser_ruledict(AstParser* p, bool canassign);
+static void bl_parser_ruleindexing(AstParser* p, AstToken previous, bool canassign);
+static void bl_parser_rulevariable(AstParser* p, bool canassign);
+static void bl_parser_ruleself(AstParser* p, bool canassign);
+static void bl_parser_ruleparent(AstParser* p, bool canassign);
+static void bl_parser_rulegrouping(AstParser* p, bool canassign);
 static Value bl_parser_compilenumber(AstParser* p);
+static void bl_parser_rulenumber(AstParser* p, bool canassign);
 static int read_hex_digit(char c);
 static int read_hex_escape(AstParser* p, char* str, int index, int count);
-static int read_unicode_escape(AstParser* p, char* string, char* realstring, int numberbytes, int realindex, int index);
+static int read_unicode_escape(AstParser* p, char* string, char* real_string, int number_bytes, int real_index, int index);
 static char* compile_string(AstParser* p, int* length);
+static void bl_parser_rulestring(AstParser* p, bool canassign);
+static void bl_parser_rulestrinterpol(AstParser* p, bool canassign);
+static void bl_parser_ruleunary(AstParser* p, bool canassign);
+static void bl_parser_ruleand(AstParser* p, AstToken previous, bool canassign);
+static void bl_parser_ruleor(AstParser* p, AstToken previous, bool canassign);
+static void bl_parser_ruleconditional(AstParser* p, AstToken previous, bool canassign);
 static void do_parse_precedence(AstParser* p, AstPrecedence precedence);
 static void parse_precedence(AstParser* p, AstPrecedence precedence);
 static void parse_precedence_no_advance(AstParser* p, AstPrecedence precedence);
@@ -6929,20 +6936,21 @@ static void bl_parser_parseblock(AstParser* p);
 static void function_args(AstParser* p);
 static void function_body(AstParser* p, AstCompiler* compiler);
 static void bl_parser_parsefunction(AstParser* p, FuncType type);
-static void bl_parser_parsemethod(AstParser* p, AstToken classname, bool isstatic);
-static void bl_parser_parsefield(AstParser* p, bool isstatic);
+static void bl_parser_parsemethod(AstParser* p, AstToken class_name, bool is_static);
+static void bl_parser_ruleanon(AstParser* p, bool canassign);
+static void bl_parser_parsefield(AstParser* p, bool is_static);
 static void function_declaration(AstParser* p);
 static void class_declaration(AstParser* p);
-static void compile_var_declaration(AstParser* p, bool isinitializer);
+static void compile_var_declaration(AstParser* p, bool is_initializer);
 static void var_declaration(AstParser* p);
-static void expression_statement(AstParser* p, bool isinitializer, bool semi);
+static void expression_statement(AstParser* p, bool is_initializer, bool semi);
 static void iter_statement(AstParser* p);
 static void for_statement(AstParser* p);
 static void using_statement(AstParser* p);
 static void if_statement(AstParser* p);
 static void echo_statement(AstParser* p);
 static void die_statement(AstParser* p);
-static void parse_specific_import(AstParser* p, char* modulename, int importconstant, bool wasrenamed, bool isnative);
+static void parse_specific_import(AstParser* p, char* module_name, int import_constant, bool was_renamed, bool is_native);
 static void import_statement(AstParser* p);
 static void assert_statement(AstParser* p);
 static void try_statement(AstParser* p);
@@ -6966,10 +6974,10 @@ static void bl_parser_errorat(AstParser* p, AstToken* t, const char* message, va
 
     // do not cascade error
     // suppress error if already in panic mode
-    if(p->panicmode)
+    if(p->panic_mode)
         return;
 
-    p->panicmode = true;
+    p->panic_mode = true;
 
     fprintf(stderr, "SyntaxError");
 
@@ -6998,7 +7006,7 @@ static void bl_parser_errorat(AstParser* p, AstToken* t, const char* message, va
     fputs("\n", stderr);
     fprintf(stderr, "  %s:%d\n", p->module->file, t->line);
 
-    p->haderror = true;
+    p->had_error = true;
 }
 
 static void bl_parser_raiseerror(AstParser* p, const char* message, ...)
@@ -7079,7 +7087,7 @@ static bool bl_parser_match(AstParser* p, TokType t)
 static void bl_parser_consumestmtend(AstParser* p)
 {
     // allow block last statement to omit statement end
-    if(p->blockcount > 0 && bl_parser_check(p, TOK_RBRACE))
+    if(p->block_count > 0 && bl_parser_check(p, TOK_RBRACE))
         return;
 
     if(bl_parser_match(p, TOK_SEMICOLON))
@@ -7201,7 +7209,7 @@ static int bl_parser_getcodeargscount(const uint8_t* bytecode, const Value* cons
             ObjFunction* fn = AS_FUNCTION(constants[constant]);
 
             // There is two byte for the constant, then three for each up value.
-            return 2 + (fn->upvaluecount * 3);
+            return 2 + (fn->up_value_count * 3);
         }
 
             //    default:
@@ -7241,11 +7249,11 @@ static void bl_parser_emitbyte_and_short(AstParser* p, uint8_t byte, uint16_t by
   write_blob(p->vm, bl_parser_currentblob(p), byte2 & 0xff, p->previous.line);
 } */
 
-static void bl_parser_emitloop(AstParser* p, int loopstart)
+static void bl_parser_emitloop(AstParser* p, int loop_start)
 {
     bl_parser_emitbyte(p, OP_LOOP);
 
-    int offset = bl_parser_currentblob(p)->count - loopstart + 2;
+    int offset = bl_parser_currentblob(p)->count - loop_start + 2;
     if(offset > UINT16_MAX)
         bl_parser_raiseerror(p, "loop body too large");
 
@@ -7255,7 +7263,7 @@ static void bl_parser_emitloop(AstParser* p, int loopstart)
 
 static void bl_parser_emitreturn(AstParser* p)
 {
-    if(p->istrying)
+    if(p->is_trying)
     {
         bl_parser_emitbyte(p, OP_POP_TRY);
     }
@@ -7366,9 +7374,9 @@ static void bl_compiler_init(AstParser* p, AstCompiler* compiler, FuncType type)
     compiler->enclosing = p->vm->compiler;
     compiler->currfunc = NULL;
     compiler->type = type;
-    compiler->localcount = 0;
-    compiler->scopedepth = 0;
-    compiler->handlercount = 0;
+    compiler->local_count = 0;
+    compiler->scope_depth = 0;
+    compiler->handler_count = 0;
 
     compiler->currfunc = new_function(p->vm, p->module, type);
     p->vm->compiler = compiler;
@@ -7381,9 +7389,9 @@ static void bl_compiler_init(AstParser* p, AstCompiler* compiler, FuncType type)
     }
 
     // claiming slot zero for use in class methods
-    AstLocal* local = &p->vm->compiler->locals[p->vm->compiler->localcount++];
+    AstLocal* local = &p->vm->compiler->locals[p->vm->compiler->local_count++];
     local->depth = 0;
-    local->iscaptured = false;
+    local->is_captured = false;
 
     if(type != TYPE_FUNCTION)
     {
@@ -7409,7 +7417,7 @@ static bool bl_parser_identsequal(AstToken* a, AstToken* b)
 
 static int bl_compiler_resolvelocal(AstParser* p, AstCompiler* compiler, AstToken* name)
 {
-    for(int i = compiler->localcount - 1; i >= 0; i--)
+    for(int i = compiler->local_count - 1; i >= 0; i--)
     {
         AstLocal* local = &compiler->locals[i];
         if(bl_parser_identsequal(&local->name, name))
@@ -7424,28 +7432,28 @@ static int bl_compiler_resolvelocal(AstParser* p, AstCompiler* compiler, AstToke
     return -1;
 }
 
-static int bl_compiler_addupvalue(AstParser* p, AstCompiler* compiler, uint16_t index, bool islocal)
+static int bl_compiler_addupvalue(AstParser* p, AstCompiler* compiler, uint16_t index, bool is_local)
 {
-    int upvaluecount = compiler->currfunc->upvaluecount;
+    int up_value_count = compiler->currfunc->up_value_count;
 
-    for(int i = 0; i < upvaluecount; i++)
+    for(int i = 0; i < up_value_count; i++)
     {
-        Upvalue* upvalue = &compiler->upvalues[i];
-        if(upvalue->index == index && upvalue->islocal == islocal)
+        Upvalue* up_value = &compiler->up_values[i];
+        if(up_value->index == index && up_value->is_local == is_local)
         {
             return i;
         }
     }
 
-    if(upvaluecount == UINT8_COUNT)
+    if(up_value_count == UINT8_COUNT)
     {
         bl_parser_raiseerror(p, "too many closure variables in function");
         return 0;
     }
 
-    compiler->upvalues[upvaluecount].islocal = islocal;
-    compiler->upvalues[upvaluecount].index = index;
-    return compiler->currfunc->upvaluecount++;
+    compiler->up_values[up_value_count].is_local = is_local;
+    compiler->up_values[up_value_count].index = index;
+    return compiler->currfunc->up_value_count++;
 }
 
 static int bl_compiler_resolveupvalue(AstParser* p, AstCompiler* compiler, AstToken* name)
@@ -7456,14 +7464,14 @@ static int bl_compiler_resolveupvalue(AstParser* p, AstCompiler* compiler, AstTo
     int local = bl_compiler_resolvelocal(p, compiler->enclosing, name);
     if(local != -1)
     {
-        compiler->enclosing->locals[local].iscaptured = true;
+        compiler->enclosing->locals[local].is_captured = true;
         return bl_compiler_addupvalue(p, compiler, (uint16_t)local, true);
     }
 
-    int upvalue = bl_compiler_resolveupvalue(p, compiler->enclosing, name);
-    if(upvalue != -1)
+    int up_value = bl_compiler_resolveupvalue(p, compiler->enclosing, name);
+    if(up_value != -1)
     {
-        return bl_compiler_addupvalue(p, compiler, (uint16_t)upvalue, false);
+        return bl_compiler_addupvalue(p, compiler, (uint16_t)up_value, false);
     }
 
     return -1;
@@ -7471,32 +7479,32 @@ static int bl_compiler_resolveupvalue(AstParser* p, AstCompiler* compiler, AstTo
 
 static int bl_parser_addlocal(AstParser* p, AstToken name)
 {
-    if(p->vm->compiler->localcount == UINT8_COUNT)
+    if(p->vm->compiler->local_count == UINT8_COUNT)
     {
         // we've reached maximum local variables per scope
         bl_parser_raiseerror(p, "too many local variables in scope");
         return -1;
     }
 
-    AstLocal* local = &p->vm->compiler->locals[p->vm->compiler->localcount++];
+    AstLocal* local = &p->vm->compiler->locals[p->vm->compiler->local_count++];
     local->name = name;
     local->depth = -1;
-    local->iscaptured = false;
-    return p->vm->compiler->localcount;
+    local->is_captured = false;
+    return p->vm->compiler->local_count;
 }
 
 static void bl_parser_declvar(AstParser* p)
 {
     // global variables are implicitly declared...
-    if(p->vm->compiler->scopedepth == 0)
+    if(p->vm->compiler->scope_depth == 0)
         return;
 
     AstToken* name = &p->previous;
 
-    for(int i = p->vm->compiler->localcount - 1; i >= 0; i--)
+    for(int i = p->vm->compiler->local_count - 1; i >= 0; i--)
     {
         AstLocal* local = &p->vm->compiler->locals[i];
-        if(local->depth != -1 && local->depth < p->vm->compiler->scopedepth)
+        if(local->depth != -1 && local->depth < p->vm->compiler->scope_depth)
         {
             break;
         }
@@ -7515,7 +7523,7 @@ static int bl_parser_parsevar(AstParser* p, const char* message)
     bl_parser_consume(p, TOK_IDENTIFIER, message);
 
     bl_parser_declvar(p);
-    if(p->vm->compiler->scopedepth > 0)// we are in a local scope...
+    if(p->vm->compiler->scope_depth > 0)// we are in a local scope...
         return 0;
 
     return bl_parser_identconst(p, &p->previous);
@@ -7523,15 +7531,15 @@ static int bl_parser_parsevar(AstParser* p, const char* message)
 
 static void bl_parser_markinit(AstParser* p)
 {
-    if(p->vm->compiler->scopedepth == 0)
+    if(p->vm->compiler->scope_depth == 0)
         return;
 
-    p->vm->compiler->locals[p->vm->compiler->localcount - 1].depth = p->vm->compiler->scopedepth;
+    p->vm->compiler->locals[p->vm->compiler->local_count - 1].depth = p->vm->compiler->scope_depth;
 }
 
 static void bl_parser_defvar(AstParser* p, int global)
 {
-    if(p->vm->compiler->scopedepth > 0)
+    if(p->vm->compiler->scope_depth > 0)
     {// we are in a local scope...
         bl_parser_markinit(p);
         return;
@@ -7553,7 +7561,7 @@ static ObjFunction* bl_compiler_end(AstParser* p)
     bl_parser_emitreturn(p);
     ObjFunction* function = p->vm->compiler->currfunc;
 
-    if(!p->haderror && p->vm->shouldprintbytecode)
+    if(!p->had_error && p->vm->should_print_bytecode)
     {
         disassemble_blob(bl_parser_currentblob(p), function->name == NULL ? p->module->file : function->name->chars);
     }
@@ -7564,17 +7572,17 @@ static ObjFunction* bl_compiler_end(AstParser* p)
 
 static void bl_parser_beginscope(AstParser* p)
 {
-    p->vm->compiler->scopedepth++;
+    p->vm->compiler->scope_depth++;
 }
 
 static void bl_parser_endscope(AstParser* p)
 {
-    p->vm->compiler->scopedepth--;
+    p->vm->compiler->scope_depth--;
 
     // remove all variables declared in scope while exiting...
-    while(p->vm->compiler->localcount > 0 && p->vm->compiler->locals[p->vm->compiler->localcount - 1].depth > p->vm->compiler->scopedepth)
+    while(p->vm->compiler->local_count > 0 && p->vm->compiler->locals[p->vm->compiler->local_count - 1].depth > p->vm->compiler->scope_depth)
     {
-        if(p->vm->compiler->locals[p->vm->compiler->localcount - 1].iscaptured)
+        if(p->vm->compiler->locals[p->vm->compiler->local_count - 1].is_captured)
         {
             bl_parser_emitbyte(p, OP_CLOSE_UP_VALUE);
         }
@@ -7582,19 +7590,19 @@ static void bl_parser_endscope(AstParser* p)
         {
             bl_parser_emitbyte(p, OP_POP);
         }
-        p->vm->compiler->localcount--;
+        p->vm->compiler->local_count--;
     }
 }
 
 static void bl_parser_discardlocal(AstParser* p, int depth)
 {
-    if(p->vm->compiler->scopedepth == -1)
+    if(p->vm->compiler->scope_depth == -1)
     {
         bl_parser_raiseerror(p, "cannot exit top-level scope");
     }
-    for(int i = p->vm->compiler->localcount - 1; i >= 0 && p->vm->compiler->locals[i].depth > depth; i--)
+    for(int i = p->vm->compiler->local_count - 1; i >= 0 && p->vm->compiler->locals[i].depth > depth; i--)
     {
-        if(p->vm->compiler->locals[i].iscaptured)
+        if(p->vm->compiler->locals[i].is_captured)
         {
             bl_parser_emitbyte(p, OP_CLOSE_UP_VALUE);
         }
@@ -7608,7 +7616,7 @@ static void bl_parser_discardlocal(AstParser* p, int depth)
 static void bl_parser_endloop(AstParser* p)
 {
     // find all OP_BREAK_PL placeholder and replace with the appropriate jump...
-    int i = p->innermostloopstart;
+    int i = p->innermost_loop_start;
 
     while(i < p->vm->compiler->currfunc->blob.count)
     {
@@ -7714,37 +7722,33 @@ static void bl_parser_rulebinary(AstParser* p, AstToken previous, bool canassign
 
 static uint8_t bl_parser_parsearglist(AstParser* p)
 {
-    uint8_t argcount = 0;
+    uint8_t arg_count = 0;
     if(!bl_parser_check(p, TOK_RPAREN))
     {
         do
         {
             bl_parser_ignorespace(p);
             bl_parser_parseexpr(p);
-            if(argcount == MAX_FUNCTION_PARAMETERS)
+            if(arg_count == MAX_FUNCTION_PARAMETERS)
             {
                 bl_parser_raiseerror(p, "cannot have more than %d arguments to a function", MAX_FUNCTION_PARAMETERS);
             }
-            argcount++;
+            arg_count++;
         } while(bl_parser_match(p, TOK_COMMA));
     }
     bl_parser_ignorespace(p);
     bl_parser_consume(p, TOK_RPAREN, "expected ')' after argument list");
-    return argcount;
+    return arg_count;
 }
 
 static void bl_parser_rulecall(AstParser* p, AstToken previous, bool canassign)
 {
-    uint8_t argcount;
-    (void)previous;
-    (void)canassign;
-    argcount = bl_parser_parsearglist(p);
-    bl_parser_emitbytes(p, OP_CALL, argcount);
+    uint8_t arg_count = bl_parser_parsearglist(p);
+    bl_parser_emitbytes(p, OP_CALL, arg_count);
 }
 
 static void bl_parser_ruleliteral(AstParser* p, bool canassign)
 {
-    (void)canassign;
     switch(p->previous.type)
     {
         case TOK_NIL:
@@ -7761,158 +7765,158 @@ static void bl_parser_ruleliteral(AstParser* p, bool canassign)
     }
 }
 
-static void bl_parser_parseassign(AstParser* p, uint8_t realop, uint8_t getop, uint8_t setop, int arg)
+static void bl_parser_parseassign(AstParser* p, uint8_t real_op, uint8_t get_op, uint8_t set_op, int arg)
 {
-    p->replcanecho = false;
-    if(getop == OP_GET_PROPERTY || getop == OP_GET_SELF_PROPERTY)
+    p->repl_can_echo = false;
+    if(get_op == OP_GET_PROPERTY || get_op == OP_GET_SELF_PROPERTY)
     {
         bl_parser_emitbyte(p, OP_DUP);
     }
 
     if(arg != -1)
     {
-        bl_parser_emitbyte_and_short(p, getop, arg);
+        bl_parser_emitbyte_and_short(p, get_op, arg);
     }
     else
     {
-        bl_parser_emitbytes(p, getop, 1);
+        bl_parser_emitbytes(p, get_op, 1);
     }
 
     bl_parser_parseexpr(p);
-    bl_parser_emitbyte(p, realop);
+    bl_parser_emitbyte(p, real_op);
     if(arg != -1)
     {
-        bl_parser_emitbyte_and_short(p, setop, (uint16_t)arg);
+        bl_parser_emitbyte_and_short(p, set_op, (uint16_t)arg);
     }
     else
     {
-        bl_parser_emitbyte(p, setop);
+        bl_parser_emitbyte(p, set_op);
     }
 }
 
-static void bl_parser_doassign(AstParser* p, uint8_t getop, uint8_t setop, int arg, bool canassign)
+static void bl_parser_doassign(AstParser* p, uint8_t get_op, uint8_t set_op, int arg, bool canassign)
 {
     if(canassign && bl_parser_match(p, TOK_EQUAL))
     {
-        p->replcanecho = false;
+        p->repl_can_echo = false;
         bl_parser_parseexpr(p);
         if(arg != -1)
         {
-            bl_parser_emitbyte_and_short(p, setop, (uint16_t)arg);
+            bl_parser_emitbyte_and_short(p, set_op, (uint16_t)arg);
         }
         else
         {
-            bl_parser_emitbyte(p, setop);
+            bl_parser_emitbyte(p, set_op);
         }
     }
     else if(canassign && bl_parser_match(p, TOK_PLUSEQ))
     {
-        bl_parser_parseassign(p, OP_ADD, getop, setop, arg);
+        bl_parser_parseassign(p, OP_ADD, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_MINUSEQ))
     {
-        bl_parser_parseassign(p, OP_SUBTRACT, getop, setop, arg);
+        bl_parser_parseassign(p, OP_SUBTRACT, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_MULTIPLYEQ))
     {
-        bl_parser_parseassign(p, OP_MULTIPLY, getop, setop, arg);
+        bl_parser_parseassign(p, OP_MULTIPLY, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_DIVIDEEQ))
     {
-        bl_parser_parseassign(p, OP_DIVIDE, getop, setop, arg);
+        bl_parser_parseassign(p, OP_DIVIDE, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_POWEQ))
     {
-        bl_parser_parseassign(p, OP_POW, getop, setop, arg);
+        bl_parser_parseassign(p, OP_POW, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_PERCENTEQ))
     {
-        bl_parser_parseassign(p, OP_REMINDER, getop, setop, arg);
+        bl_parser_parseassign(p, OP_REMINDER, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_FLOOREQ))
     {
-        bl_parser_parseassign(p, OP_F_DIVIDE, getop, setop, arg);
+        bl_parser_parseassign(p, OP_F_DIVIDE, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_AMPEQ))
     {
-        bl_parser_parseassign(p, OP_AND, getop, setop, arg);
+        bl_parser_parseassign(p, OP_AND, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_BAREQ))
     {
-        bl_parser_parseassign(p, OP_OR, getop, setop, arg);
+        bl_parser_parseassign(p, OP_OR, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_TILDEEQ))
     {
-        bl_parser_parseassign(p, OP_BIT_NOT, getop, setop, arg);
+        bl_parser_parseassign(p, OP_BIT_NOT, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_XOREQ))
     {
-        bl_parser_parseassign(p, OP_XOR, getop, setop, arg);
+        bl_parser_parseassign(p, OP_XOR, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_LSHIFTEQ))
     {
-        bl_parser_parseassign(p, OP_LSHIFT, getop, setop, arg);
+        bl_parser_parseassign(p, OP_LSHIFT, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_RSHIFTEQ))
     {
-        bl_parser_parseassign(p, OP_RSHIFT, getop, setop, arg);
+        bl_parser_parseassign(p, OP_RSHIFT, get_op, set_op, arg);
     }
     else if(canassign && bl_parser_match(p, TOK_INCREMENT))
     {
-        p->replcanecho = false;
-        if(getop == OP_GET_PROPERTY || getop == OP_GET_SELF_PROPERTY)
+        p->repl_can_echo = false;
+        if(get_op == OP_GET_PROPERTY || get_op == OP_GET_SELF_PROPERTY)
         {
             bl_parser_emitbyte(p, OP_DUP);
         }
 
         if(arg != -1)
         {
-            bl_parser_emitbyte_and_short(p, getop, arg);
+            bl_parser_emitbyte_and_short(p, get_op, arg);
         }
         else
         {
-            bl_parser_emitbytes(p, getop, 1);
+            bl_parser_emitbytes(p, get_op, 1);
         }
 
         bl_parser_emitbytes(p, OP_ONE, OP_ADD);
-        bl_parser_emitbyte_and_short(p, setop, (uint16_t)arg);
+        bl_parser_emitbyte_and_short(p, set_op, (uint16_t)arg);
     }
     else if(canassign && bl_parser_match(p, TOK_DECREMENT))
     {
-        p->replcanecho = false;
-        if(getop == OP_GET_PROPERTY || getop == OP_GET_SELF_PROPERTY)
+        p->repl_can_echo = false;
+        if(get_op == OP_GET_PROPERTY || get_op == OP_GET_SELF_PROPERTY)
         {
             bl_parser_emitbyte(p, OP_DUP);
         }
 
         if(arg != -1)
         {
-            bl_parser_emitbyte_and_short(p, getop, arg);
+            bl_parser_emitbyte_and_short(p, get_op, arg);
         }
         else
         {
-            bl_parser_emitbytes(p, getop, 1);
+            bl_parser_emitbytes(p, get_op, 1);
         }
 
         bl_parser_emitbytes(p, OP_ONE, OP_SUBTRACT);
-        bl_parser_emitbyte_and_short(p, setop, (uint16_t)arg);
+        bl_parser_emitbyte_and_short(p, set_op, (uint16_t)arg);
     }
     else
     {
         if(arg != -1)
         {
-            if(getop == OP_GET_INDEX || getop == OP_GET_RANGED_INDEX)
+            if(get_op == OP_GET_INDEX || get_op == OP_GET_RANGED_INDEX)
             {
-                bl_parser_emitbytes(p, getop, (uint8_t)0);
+                bl_parser_emitbytes(p, get_op, (uint8_t)0);
             }
             else
             {
-                bl_parser_emitbyte_and_short(p, getop, (uint16_t)arg);
+                bl_parser_emitbyte_and_short(p, get_op, (uint16_t)arg);
             }
         }
         else
         {
-            bl_parser_emitbytes(p, getop, (uint8_t)0);
+            bl_parser_emitbytes(p, get_op, (uint8_t)0);
         }
     }
 }
@@ -7925,8 +7929,8 @@ static void bl_parser_ruledot(AstParser* p, AstToken previous, bool canassign)
 
     if(bl_parser_match(p, TOK_LPAREN))
     {
-        uint8_t argcount = bl_parser_parsearglist(p);
-        if(p->currentclass != NULL && (previous.type == TOK_SELF || bl_parser_identsequal(&p->previous, &p->currentclass->name)))
+        uint8_t arg_count = bl_parser_parsearglist(p);
+        if(p->current_class != NULL && (previous.type == TOK_SELF || bl_parser_identsequal(&p->previous, &p->current_class->name)))
         {
             bl_parser_emitbyte_and_short(p, OP_INVOKE_SELF, name);
         }
@@ -7934,51 +7938,50 @@ static void bl_parser_ruledot(AstParser* p, AstToken previous, bool canassign)
         {
             bl_parser_emitbyte_and_short(p, OP_INVOKE, name);
         }
-        bl_parser_emitbyte(p, argcount);
+        bl_parser_emitbyte(p, arg_count);
     }
     else
     {
-        OpCode getop = OP_GET_PROPERTY, setop = OP_SET_PROPERTY;
+        OpCode get_op = OP_GET_PROPERTY, set_op = OP_SET_PROPERTY;
 
-        if(p->currentclass != NULL && (previous.type == TOK_SELF || bl_parser_identsequal(&p->previous, &p->currentclass->name)))
+        if(p->current_class != NULL && (previous.type == TOK_SELF || bl_parser_identsequal(&p->previous, &p->current_class->name)))
         {
-            getop = OP_GET_SELF_PROPERTY;
+            get_op = OP_GET_SELF_PROPERTY;
         }
 
-        bl_parser_doassign(p, getop, setop, name, canassign);
+        bl_parser_doassign(p, get_op, set_op, name, canassign);
     }
 }
 
 static void bl_parser_namedvar(AstParser* p, AstToken name, bool canassign)
 {
-    uint8_t getop, setop;
+    uint8_t get_op, set_op;
     int arg = bl_compiler_resolvelocal(p, p->vm->compiler, &name);
     if(arg != -1)
     {
-        getop = OP_GET_LOCAL;
-        setop = OP_SET_LOCAL;
+        get_op = OP_GET_LOCAL;
+        set_op = OP_SET_LOCAL;
     }
     else if((arg = bl_compiler_resolveupvalue(p, p->vm->compiler, &name)) != -1)
     {
-        getop = OP_GET_UP_VALUE;
-        setop = OP_SET_UP_VALUE;
+        get_op = OP_GET_UP_VALUE;
+        set_op = OP_SET_UP_VALUE;
     }
     else
     {
         arg = bl_parser_identconst(p, &name);
-        getop = OP_GET_GLOBAL;
-        setop = OP_SET_GLOBAL;
+        get_op = OP_GET_GLOBAL;
+        set_op = OP_SET_GLOBAL;
     }
 
-    bl_parser_doassign(p, getop, setop, arg, canassign);
+    bl_parser_doassign(p, get_op, set_op, arg, canassign);
 }
 
 static void bl_parser_rulelist(AstParser* p, bool canassign)
 {
-    int count;
-    (void)canassign;
     bl_parser_emitbyte(p, OP_NIL);// placeholder for the list
-    count = 0;
+
+    int count = 0;
     if(!bl_parser_check(p, TOK_RBRACKET))
     {
         do
@@ -7997,10 +8000,9 @@ static void bl_parser_rulelist(AstParser* p, bool canassign)
 
 static void bl_parser_ruledict(AstParser* p, bool canassign)
 {
-    int itemcount;
-    (void)canassign;
     bl_parser_emitbyte(p, OP_NIL);// placeholder for the dictionary
-    itemcount = 0;
+
+    int item_count = 0;
     if(!bl_parser_check(p, TOK_RBRACE))
     {
         do
@@ -8023,31 +8025,25 @@ static void bl_parser_ruledict(AstParser* p, bool canassign)
                 bl_parser_ignorespace(p);
 
                 bl_parser_parseexpr(p);
-                itemcount++;
+                item_count++;
             }
         } while(bl_parser_match(p, TOK_COMMA));
     }
     bl_parser_ignorespace(p);
     bl_parser_consume(p, TOK_RBRACE, "expected '}' after dictionary");
 
-    bl_parser_emitbyte_and_short(p, OP_DICT, itemcount);
+    bl_parser_emitbyte_and_short(p, OP_DICT, item_count);
 }
 
 static void bl_parser_ruleindexing(AstParser* p, AstToken previous, bool canassign)
 {
-    uint8_t getop;
-    bool assignable;
-    bool commamatch;
-    (void)previous;
-    (void)canassign;
-    assignable = true;
-    commamatch = false;
-    getop = OP_GET_INDEX;
+    bool assignable = true, comma_match = false;
+    uint8_t get_op = OP_GET_INDEX;
     if(bl_parser_match(p, TOK_COMMA))
     {
         bl_parser_emitbyte(p, OP_NIL);
-        commamatch = true;
-        getop = OP_GET_RANGED_INDEX;
+        comma_match = true;
+        get_op = OP_GET_RANGED_INDEX;
     }
     else
     {
@@ -8056,8 +8052,8 @@ static void bl_parser_ruleindexing(AstParser* p, AstToken previous, bool canassi
 
     if(!bl_parser_match(p, TOK_RBRACKET))
     {
-        getop = OP_GET_RANGED_INDEX;
-        if(!commamatch)
+        get_op = OP_GET_RANGED_INDEX;
+        if(!comma_match)
         {
             bl_parser_consume(p, TOK_COMMA, "expecting ',' or ']'");
         }
@@ -8074,13 +8070,13 @@ static void bl_parser_ruleindexing(AstParser* p, AstToken previous, bool canassi
     }
     else
     {
-        if(commamatch)
+        if(comma_match)
         {
             bl_parser_emitbyte(p, OP_NIL);
         }
     }
 
-    bl_parser_doassign(p, getop, OP_SET_INDEX, -1, assignable);
+    bl_parser_doassign(p, get_op, OP_SET_INDEX, -1, assignable);
 }
 
 static void bl_parser_rulevariable(AstParser* p, bool canassign)
@@ -8090,8 +8086,7 @@ static void bl_parser_rulevariable(AstParser* p, bool canassign)
 
 static void bl_parser_ruleself(AstParser* p, bool canassign)
 {
-    (void)canassign;
-    if(p->currentclass == NULL)
+    if(p->current_class == NULL)
     {
         bl_parser_raiseerror(p, "cannot use keyword 'self' outside of a class");
         return;
@@ -8101,20 +8096,17 @@ static void bl_parser_ruleself(AstParser* p, bool canassign)
 
 static void bl_parser_ruleparent(AstParser* p, bool canassign)
 {
-    int name;
-    bool invself;
-    (void)canassign;
-    if(p->currentclass == NULL)
+    if(p->current_class == NULL)
     {
         bl_parser_raiseerror(p, "cannot use keyword 'parent' outside of a class");
     }
-    else if(!p->currentclass->hassuperclass)
+    else if(!p->current_class->has_superclass)
     {
         bl_parser_raiseerror(p, "cannot use keyword 'parent' in a class without a parent");
     }
 
-    name = -1;
-    invself = false;
+    int name = -1;
+    bool invself = false;
 
     if(!bl_parser_check(p, TOK_LPAREN))
     {
@@ -8131,16 +8123,16 @@ static void bl_parser_ruleparent(AstParser* p, bool canassign)
 
     if(bl_parser_match(p, TOK_LPAREN))
     {
-        uint8_t argcount = bl_parser_parsearglist(p);
+        uint8_t arg_count = bl_parser_parsearglist(p);
         bl_parser_namedvar(p, bl_parser_synthtoken("parent"), false);
         if(!invself)
         {
             bl_parser_emitbyte_and_short(p, OP_SUPER_INVOKE, name);
-            bl_parser_emitbyte(p, argcount);
+            bl_parser_emitbyte(p, arg_count);
         }
         else
         {
-            bl_parser_emitbytes(p, OP_SUPER_INVOKE_SELF, argcount);
+            bl_parser_emitbytes(p, OP_SUPER_INVOKE_SELF, arg_count);
         }
     }
     else
@@ -8152,7 +8144,6 @@ static void bl_parser_ruleparent(AstParser* p, bool canassign)
 
 static void bl_parser_rulegrouping(AstParser* p, bool canassign)
 {
-    (void)canassign;
     bl_parser_ignorespace(p);
     bl_parser_parseexpr(p);
     bl_parser_ignorespace(p);
@@ -8185,7 +8176,6 @@ static Value bl_parser_compilenumber(AstParser* p)
 
 static void bl_parser_rulenumber(AstParser* p, bool canassign)
 {
-    (void)canassign;
     bl_parser_emitconstant(p, bl_parser_compilenumber(p));
 }
 
@@ -8224,9 +8214,9 @@ static int read_hex_escape(AstParser* p, char* str, int index, int count)
     return value;
 }
 
-static int read_unicode_escape(AstParser* p, char* string, char* realstring, int numberbytes, int realindex, int index)
+static int read_unicode_escape(AstParser* p, char* string, char* real_string, int number_bytes, int real_index, int index)
 {
-    int value = read_hex_escape(p, realstring, realindex, numberbytes);
+    int value = read_hex_escape(p, real_string, real_index, number_bytes);
     int count = utf8_number_bytes(value);
     if(count == -1)
     {
@@ -8248,12 +8238,12 @@ static char* compile_string(AstParser* p, int* length)
     char* str = (char*)malloc((((size_t)p->previous.length - 2) + 1) * sizeof(char));
     char* real = (char*)p->previous.start + 1;
 
-    int reallength = p->previous.length - 2, k = 0;
+    int real_length = p->previous.length - 2, k = 0;
 
-    for(int i = 0; i < reallength; i++, k++)
+    for(int i = 0; i < real_length; i++, k++)
     {
         char c = real[i];
-        if(c == '\\' && i < reallength - 1)
+        if(c == '\\' && i < real_length - 1)
         {
             switch(real[i + 1])
             {
@@ -8330,9 +8320,7 @@ static char* compile_string(AstParser* p, int* length)
 static void bl_parser_rulestring(AstParser* p, bool canassign)
 {
     int length;
-    char* str;
-    (void)canassign;
-    str = compile_string(p, &length);
+    char* str = compile_string(p, &length);
     bl_parser_emitconstant(p, OBJ_VAL(take_string(p->vm, str, length)));
 }
 
@@ -8341,14 +8329,14 @@ static void bl_parser_rulestrinterpol(AstParser* p, bool canassign)
     int count = 0;
     do
     {
-        bool doadd = false;
-        bool stringmatched = false;
+        bool do_add = false;
+        bool string_matched = false;
 
         if(p->previous.length - 2 > 0)
         {
             bl_parser_rulestring(p, canassign);
-            doadd = true;
-            stringmatched = true;
+            do_add = true;
+            string_matched = true;
 
             if(count > 0)
             {
@@ -8359,7 +8347,7 @@ static void bl_parser_rulestrinterpol(AstParser* p, bool canassign)
         bl_parser_parseexpr(p);
         bl_parser_emitbyte(p, OP_STRINGIFY);
 
-        if(doadd || (count >= 1 && stringmatched == false))
+        if(do_add || (count >= 1 && string_matched == false))
         {
             bl_parser_emitbyte(p, OP_ADD);
         }
@@ -8377,9 +8365,8 @@ static void bl_parser_rulestrinterpol(AstParser* p, bool canassign)
 
 static void bl_parser_ruleunary(AstParser* p, bool canassign)
 {
-    TokType op;
-    (void)canassign;
-    op = p->previous.type;
+    TokType op = p->previous.type;
+
     // compile the expression
     parse_precedence(p, PREC_UNARY);
 
@@ -8403,36 +8390,29 @@ static void bl_parser_ruleunary(AstParser* p, bool canassign)
 
 static void bl_parser_ruleand(AstParser* p, AstToken previous, bool canassign)
 {
-    int endjump;
-    (void)previous;
-    (void)canassign;
-    endjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+    int end_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+
     bl_parser_emitbyte(p, OP_POP);
     parse_precedence(p, PREC_AND);
-    bl_parser_patchjump(p, endjump);
+
+    bl_parser_patchjump(p, end_jump);
 }
 
 static void bl_parser_ruleor(AstParser* p, AstToken previous, bool canassign)
 {
-    int elsejump;
-    int endjump;
-    (void)previous;
-    (void)canassign;
-    elsejump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
-    endjump = bl_parser_emitjump(p, OP_JUMP);
+    int else_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+    int end_jump = bl_parser_emitjump(p, OP_JUMP);
 
-    bl_parser_patchjump(p, elsejump);
+    bl_parser_patchjump(p, else_jump);
     bl_parser_emitbyte(p, OP_POP);
 
     parse_precedence(p, PREC_OR);
-    bl_parser_patchjump(p, endjump);
+    bl_parser_patchjump(p, end_jump);
 }
 
 static void bl_parser_ruleconditional(AstParser* p, AstToken previous, bool canassign)
 {
-    (void)previous;
-    (void)canassign;
-    int thenjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+    int then_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
     bl_parser_emitbyte(p, OP_POP);
 
     bl_parser_ignorespace(p);
@@ -8440,9 +8420,9 @@ static void bl_parser_ruleconditional(AstParser* p, AstToken previous, bool cana
     parse_precedence(p, PREC_CONDITIONAL);
     bl_parser_ignorespace(p);
 
-    int elsejump = bl_parser_emitjump(p, OP_JUMP);
+    int else_jump = bl_parser_emitjump(p, OP_JUMP);
 
-    bl_parser_patchjump(p, thenjump);
+    bl_parser_patchjump(p, then_jump);
     bl_parser_emitbyte(p, OP_POP);
 
     bl_parser_consume(p, TOK_COLON, "expected matching ':' after '?' conditional");
@@ -8452,27 +8432,10 @@ static void bl_parser_ruleconditional(AstParser* p, AstToken previous, bool cana
     // linear conditionals can be nested.
     parse_precedence(p, PREC_ASSIGNMENT);
 
-    bl_parser_patchjump(p, elsejump);
+    bl_parser_patchjump(p, else_jump);
 }
 
-static void bl_parser_ruleanon(AstParser* p, bool canassign)
-{
-    AstCompiler compiler;
-    (void)canassign;
-    bl_compiler_init(p, &compiler, TYPE_FUNCTION);
-    bl_parser_beginscope(p);
-
-    // compile parameter list
-    if(!bl_parser_check(p, TOK_BAR))
-    {
-        function_args(p);
-    }
-    bl_parser_consume(p, TOK_BAR, "expected '|' after anonymous function parameters");
-
-    function_body(p, &compiler);
-}
-
-static AstRule parserules[] = {
+static const AstRule parse_rules[] = {
     // symbols
     [TOK_NEWLINE] = { NULL, NULL, PREC_NONE },// (
     [TOK_LPAREN] = { bl_parser_rulegrouping, bl_parser_rulecall, PREC_CALL },// (
@@ -8579,7 +8542,7 @@ static AstRule parserules[] = {
 
 static void do_parse_precedence(AstParser* p, AstPrecedence precedence)
 {
-    bparseprefixfn prefix_rule = get_rule(p->previous.type)->prefix;
+    b_parse_prefix_fn prefix_rule = get_rule(p->previous.type)->prefix;
 
     if(prefix_rule == NULL)
     {
@@ -8595,7 +8558,7 @@ static void do_parse_precedence(AstParser* p, AstPrecedence precedence)
         AstToken previous = p->previous;
         bl_parser_ignorespace(p);
         bl_parser_advance(p);
-        bparseinfixfn infix_rule = get_rule(p->previous.type)->infix;
+        b_parse_infix_fn infix_rule = get_rule(p->previous.type)->infix;
         infix_rule(p, previous, canassign);
     }
 
@@ -8607,12 +8570,12 @@ static void do_parse_precedence(AstParser* p, AstPrecedence precedence)
 
 static void parse_precedence(AstParser* p, AstPrecedence precedence)
 {
-    if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    if(bl_scanner_isatend(p->scanner) && p->vm->is_repl)
         return;
 
     bl_parser_ignorespace(p);
 
-    if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    if(bl_scanner_isatend(p->scanner) && p->vm->is_repl)
         return;
 
     bl_parser_advance(p);
@@ -8622,12 +8585,12 @@ static void parse_precedence(AstParser* p, AstPrecedence precedence)
 
 static void parse_precedence_no_advance(AstParser* p, AstPrecedence precedence)
 {
-    if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    if(bl_scanner_isatend(p->scanner) && p->vm->is_repl)
         return;
 
     bl_parser_ignorespace(p);
 
-    if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    if(bl_scanner_isatend(p->scanner) && p->vm->is_repl)
         return;
 
     do_parse_precedence(p, precedence);
@@ -8635,7 +8598,7 @@ static void parse_precedence_no_advance(AstParser* p, AstPrecedence precedence)
 
 static AstRule* get_rule(TokType type)
 {
-    return &parserules[type];
+    return &parse_rules[type];
 }
 
 static void bl_parser_parseexpr(AstParser* p)
@@ -8645,13 +8608,13 @@ static void bl_parser_parseexpr(AstParser* p)
 
 static void bl_parser_parseblock(AstParser* p)
 {
-    p->blockcount++;
+    p->block_count++;
     bl_parser_ignorespace(p);
     while(!bl_parser_check(p, TOK_RBRACE) && !bl_parser_check(p, TOK_EOF))
     {
         declaration(p);
     }
-    p->blockcount--;
+    p->block_count--;
     bl_parser_consume(p, TOK_RBRACE, "expected '}' after block");
 }
 
@@ -8669,14 +8632,14 @@ static void function_args(AstParser* p)
 
         if(bl_parser_match(p, TOK_TRIDOT))
         {
-            p->vm->compiler->currfunc->isvariadic = true;
+            p->vm->compiler->currfunc->is_variadic = true;
             bl_parser_addlocal(p, bl_parser_synthtoken("__args__"));
             bl_parser_defvar(p, 0);
             break;
         }
 
-        int paramconstant = bl_parser_parsevar(p, "expected parameter name");
-        bl_parser_defvar(p, paramconstant);
+        int param_constant = bl_parser_parsevar(p, "expected parameter name");
+        bl_parser_defvar(p, param_constant);
         bl_parser_ignorespace(p);
     } while(bl_parser_match(p, TOK_COMMA));
 }
@@ -8693,10 +8656,10 @@ static void function_body(AstParser* p, AstCompiler* compiler)
 
     bl_parser_emitbyte_and_short(p, OP_CLOSURE, bl_parser_makeconstant(p, OBJ_VAL(function)));
 
-    for(int i = 0; i < function->upvaluecount; i++)
+    for(int i = 0; i < function->up_value_count; i++)
     {
-        bl_parser_emitbyte(p, compiler->upvalues[i].islocal ? 1 : 0);
-        bl_parser_emitshort(p, compiler->upvalues[i].index);
+        bl_parser_emitbyte(p, compiler->up_values[i].is_local ? 1 : 0);
+        bl_parser_emitshort(p, compiler->up_values[i].index);
     }
 }
 
@@ -8717,15 +8680,15 @@ static void bl_parser_parsefunction(AstParser* p, FuncType type)
     function_body(p, &compiler);
 }
 
-static void bl_parser_parsemethod(AstParser* p, AstToken classname, bool isstatic)
+static void bl_parser_parsemethod(AstParser* p, AstToken class_name, bool is_static)
 {
     TokType tkns[] = { TOK_IDENTIFIER, TOK_DECORATOR };
 
     bl_parser_consumeor(p, "method name expected", tkns, 2);
     int constant = bl_parser_identconst(p, &p->previous);
 
-    FuncType type = isstatic ? TYPE_STATIC : TYPE_METHOD;
-    if(p->previous.length == classname.length && memcmp(p->previous.start, classname.start, classname.length) == 0)
+    FuncType type = is_static ? TYPE_STATIC : TYPE_METHOD;
+    if(p->previous.length == class_name.length && memcmp(p->previous.start, class_name.start, class_name.length) == 0)
     {
         type = TYPE_INITIALIZER;
     }
@@ -8738,12 +8701,26 @@ static void bl_parser_parsemethod(AstParser* p, AstToken classname, bool isstati
     bl_parser_emitbyte_and_short(p, OP_METHOD, constant);
 }
 
+static void bl_parser_ruleanon(AstParser* p, bool canassign)
+{
+    AstCompiler compiler;
+    bl_compiler_init(p, &compiler, TYPE_FUNCTION);
+    bl_parser_beginscope(p);
 
+    // compile parameter list
+    if(!bl_parser_check(p, TOK_BAR))
+    {
+        function_args(p);
+    }
+    bl_parser_consume(p, TOK_BAR, "expected '|' after anonymous function parameters");
 
-static void bl_parser_parsefield(AstParser* p, bool isstatic)
+    function_body(p, &compiler);
+}
+
+static void bl_parser_parsefield(AstParser* p, bool is_static)
 {
     bl_parser_consume(p, TOK_IDENTIFIER, "class property name expected");
-    int fieldconstant = bl_parser_identconst(p, &p->previous);
+    int field_constant = bl_parser_identconst(p, &p->previous);
 
     if(bl_parser_match(p, TOK_EQUAL))
     {
@@ -8754,8 +8731,8 @@ static void bl_parser_parsefield(AstParser* p, bool isstatic)
         bl_parser_emitbyte(p, OP_NIL);
     }
 
-    bl_parser_emitbyte_and_short(p, OP_CLASS_PROPERTY, fieldconstant);
-    bl_parser_emitbyte(p, isstatic ? 1 : 0);
+    bl_parser_emitbyte_and_short(p, OP_CLASS_PROPERTY, field_constant);
+    bl_parser_emitbyte(p, is_static ? 1 : 0);
 
     bl_parser_consumestmtend(p);
     bl_parser_ignorespace(p);
@@ -8772,77 +8749,77 @@ static void function_declaration(AstParser* p)
 static void class_declaration(AstParser* p)
 {
     bl_parser_consume(p, TOK_IDENTIFIER, "class name expected");
-    int nameconstant = bl_parser_identconst(p, &p->previous);
-    AstToken classname = p->previous;
+    int name_constant = bl_parser_identconst(p, &p->previous);
+    AstToken class_name = p->previous;
     bl_parser_declvar(p);
 
-    bl_parser_emitbyte_and_short(p, OP_CLASS, nameconstant);
-    bl_parser_defvar(p, nameconstant);
+    bl_parser_emitbyte_and_short(p, OP_CLASS, name_constant);
+    bl_parser_defvar(p, name_constant);
 
-    AstClassCompiler classcompiler;
-    classcompiler.name = p->previous;
-    classcompiler.hassuperclass = false;
-    classcompiler.enclosing = p->currentclass;
-    p->currentclass = &classcompiler;
+    AstClassCompiler class_compiler;
+    class_compiler.name = p->previous;
+    class_compiler.has_superclass = false;
+    class_compiler.enclosing = p->current_class;
+    p->current_class = &class_compiler;
 
     if(bl_parser_match(p, TOK_LESS))
     {
         bl_parser_consume(p, TOK_IDENTIFIER, "name of superclass expected");
         bl_parser_rulevariable(p, false);
 
-        if(bl_parser_identsequal(&classname, &p->previous))
+        if(bl_parser_identsequal(&class_name, &p->previous))
         {
-            bl_parser_raiseerror(p, "class %.*s cannot inherit from itself", classname.length, classname.start);
+            bl_parser_raiseerror(p, "class %.*s cannot inherit from itself", class_name.length, class_name.start);
         }
 
         bl_parser_beginscope(p);
         bl_parser_addlocal(p, bl_parser_synthtoken("parent"));
         bl_parser_defvar(p, 0);
 
-        bl_parser_namedvar(p, classname, false);
+        bl_parser_namedvar(p, class_name, false);
         bl_parser_emitbyte(p, OP_INHERIT);
-        classcompiler.hassuperclass = true;
+        class_compiler.has_superclass = true;
     }
 
-    bl_parser_namedvar(p, classname, false);
+    bl_parser_namedvar(p, class_name, false);
 
     bl_parser_ignorespace(p);
     bl_parser_consume(p, TOK_LBRACE, "expected '{' before class body");
     bl_parser_ignorespace(p);
     while(!bl_parser_check(p, TOK_RBRACE) && !bl_parser_check(p, TOK_EOF))
     {
-        bool isstatic = false;
+        bool is_static = false;
         if(bl_parser_match(p, TOK_STATIC))
-            isstatic = true;
+            is_static = true;
 
         if(bl_parser_match(p, TOK_VAR))
         {
-            bl_parser_parsefield(p, isstatic);
+            bl_parser_parsefield(p, is_static);
         }
         else
         {
-            bl_parser_parsemethod(p, classname, isstatic);
+            bl_parser_parsemethod(p, class_name, is_static);
             bl_parser_ignorespace(p);
         }
     }
     bl_parser_consume(p, TOK_RBRACE, "expected '}' after class body");
     bl_parser_emitbyte(p, OP_POP);
 
-    if(classcompiler.hassuperclass)
+    if(class_compiler.has_superclass)
     {
         bl_parser_endscope(p);
     }
 
-    p->currentclass = p->currentclass->enclosing;
+    p->current_class = p->current_class->enclosing;
 }
 
-static void compile_var_declaration(AstParser* p, bool isinitializer)
+static void compile_var_declaration(AstParser* p, bool is_initializer)
 {
-    int totalparsed = 0;
+    int total_parsed = 0;
 
     do
     {
-        if(totalparsed > 0)
+        if(total_parsed > 0)
         {
             bl_parser_ignorespace(p);
         }
@@ -8858,10 +8835,10 @@ static void compile_var_declaration(AstParser* p, bool isinitializer)
         }
 
         bl_parser_defvar(p, global);
-        totalparsed++;
+        total_parsed++;
     } while(bl_parser_match(p, TOK_COMMA));
 
-    if(!isinitializer)
+    if(!is_initializer)
     {
         bl_parser_consumestmtend(p);
     }
@@ -8877,11 +8854,11 @@ static void var_declaration(AstParser* p)
     compile_var_declaration(p, false);
 }
 
-static void expression_statement(AstParser* p, bool isinitializer, bool semi)
+static void expression_statement(AstParser* p, bool is_initializer, bool semi)
 {
-    if(p->vm->isrepl && p->vm->compiler->scopedepth == 0)
+    if(p->vm->is_repl && p->vm->compiler->scope_depth == 0)
     {
-        p->replcanecho = true;
+        p->repl_can_echo = true;
     }
     if(!semi)
     {
@@ -8891,12 +8868,12 @@ static void expression_statement(AstParser* p, bool isinitializer, bool semi)
     {
         parse_precedence_no_advance(p, PREC_ASSIGNMENT);
     }
-    if(!isinitializer)
+    if(!is_initializer)
     {
-        if(p->replcanecho && p->vm->isrepl)
+        if(p->repl_can_echo && p->vm->is_repl)
         {
             bl_parser_emitbyte(p, OP_ECHO);
-            p->replcanecho = false;
+            p->repl_can_echo = false;
         }
         else
         {
@@ -8949,14 +8926,14 @@ static void iter_statement(AstParser* p)
     }
 
     // keep a copy of the surrounding loop's start and depth
-    int surroundingloopstart = p->innermostloopstart;
-    int surroundingscopedepth = p->innermostloopscopedepth;
+    int surrounding_loop_start = p->innermost_loop_start;
+    int surrounding_scope_depth = p->innermost_loop_scope_depth;
 
     // update the parser's loop start and depth to the current
-    p->innermostloopstart = bl_parser_currentblob(p)->count;
-    p->innermostloopscopedepth = p->vm->compiler->scopedepth;
+    p->innermost_loop_start = bl_parser_currentblob(p)->count;
+    p->innermost_loop_scope_depth = p->vm->compiler->scope_depth;
 
-    int exitjump = -1;
+    int exit_jump = -1;
     if(!bl_parser_match(p, TOK_SEMICOLON))
     {// the condition is optional
         bl_parser_parseexpr(p);
@@ -8964,40 +8941,40 @@ static void iter_statement(AstParser* p)
         bl_parser_ignorespace(p);
 
         // jump out of the loop if the condition is false...
-        exitjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+        exit_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
         bl_parser_emitbyte(p, OP_POP);// pop the condition
     }
 
     // the iterator...
     if(!bl_parser_check(p, TOK_LBRACE))
     {
-        int bodyjump = bl_parser_emitjump(p, OP_JUMP);
+        int body_jump = bl_parser_emitjump(p, OP_JUMP);
 
-        int incrementstart = bl_parser_currentblob(p)->count;
+        int increment_start = bl_parser_currentblob(p)->count;
         bl_parser_parseexpr(p);
         bl_parser_ignorespace(p);
         bl_parser_emitbyte(p, OP_POP);
 
-        bl_parser_emitloop(p, p->innermostloopstart);
-        p->innermostloopstart = incrementstart;
-        bl_parser_patchjump(p, bodyjump);
+        bl_parser_emitloop(p, p->innermost_loop_start);
+        p->innermost_loop_start = increment_start;
+        bl_parser_patchjump(p, body_jump);
     }
 
     bl_parser_parsestmt(p);
 
-    bl_parser_emitloop(p, p->innermostloopstart);
+    bl_parser_emitloop(p, p->innermost_loop_start);
 
-    if(exitjump != -1)
+    if(exit_jump != -1)
     {
-        bl_parser_patchjump(p, exitjump);
+        bl_parser_patchjump(p, exit_jump);
         bl_parser_emitbyte(p, OP_POP);
     }
 
     bl_parser_endloop(p);
 
     // reset the loop start and scope depth to the surrounding value
-    p->innermostloopstart = surroundingloopstart;
-    p->innermostloopscopedepth = surroundingscopedepth;
+    p->innermost_loop_start = surrounding_loop_start;
+    p->innermost_loop_scope_depth = surrounding_scope_depth;
 
     bl_parser_endscope(p);
 }
@@ -9056,27 +9033,22 @@ static void for_statement(AstParser* p)
     // define @iter and @itern constant
     int iter__ = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, "@iter", 5)));
     int iter_n__ = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, "@itern", 6)));
-    /*
-    if(bl_parser_match(p, TOK_LPAREN))
-    {
-        bl_parser_advance(p);
-    }
-    */
+
     bl_parser_consume(p, TOK_IDENTIFIER, "expected variable name after 'for'");
-    AstToken keytoken, valuetoken;
+    AstToken key_token, value_token;
 
     if(!bl_parser_check(p, TOK_COMMA))
     {
-        keytoken = bl_parser_synthtoken(" _ ");
-        valuetoken = p->previous;
+        key_token = bl_parser_synthtoken(" _ ");
+        value_token = p->previous;
     }
     else
     {
-        keytoken = p->previous;
+        key_token = p->previous;
 
         bl_parser_consume(p, TOK_COMMA, "");
         bl_parser_consume(p, TOK_IDENTIFIER, "expected variable name after ','");
-        valuetoken = p->previous;
+        value_token = p->previous;
     }
 
     bl_parser_consume(p, TOK_IN, "expected 'in' after for loop variable(s)");
@@ -9084,57 +9056,52 @@ static void for_statement(AstParser* p)
 
     // The space in the variable name ensures it won't collide with a user-defined
     // variable.
-    AstToken iteratortoken = bl_parser_synthtoken(" iterator ");
+    AstToken iterator_token = bl_parser_synthtoken(" iterator ");
 
     // Evaluate the sequence expression and store it in a hidden local variable.
     bl_parser_parseexpr(p);
 
-    if(p->vm->compiler->localcount + 3 > UINT8_COUNT)
+    if(p->vm->compiler->local_count + 3 > UINT8_COUNT)
     {
         bl_parser_raiseerror(p, "cannot declare more than %d variables in one scope", UINT8_COUNT);
         return;
     }
-    /*
-    if(bl_parser_match(p, TOK_RPAREN))
-    {
-        bl_parser_advance(p);
-    }
-    */
+
     // add the iterator to the local scope
-    int iteratorslot = bl_parser_addlocal(p, iteratortoken) - 1;
+    int iterator_slot = bl_parser_addlocal(p, iterator_token) - 1;
     bl_parser_defvar(p, 0);
 
     // Create the key local variable.
     bl_parser_emitbyte(p, OP_NIL);
-    int keyslot = bl_parser_addlocal(p, keytoken) - 1;
-    bl_parser_defvar(p, keyslot);
+    int key_slot = bl_parser_addlocal(p, key_token) - 1;
+    bl_parser_defvar(p, key_slot);
 
     // create the local value slot
     bl_parser_emitbyte(p, OP_NIL);
-    int valueslot = bl_parser_addlocal(p, valuetoken) - 1;
+    int value_slot = bl_parser_addlocal(p, value_token) - 1;
     bl_parser_defvar(p, 0);
 
-    int surroundingloopstart = p->innermostloopstart;
-    int surroundingscopedepth = p->innermostloopscopedepth;
+    int surrounding_loop_start = p->innermost_loop_start;
+    int surrounding_scope_depth = p->innermost_loop_scope_depth;
 
     // we'll be jumping back to right before the
     // expression after the loop body
-    p->innermostloopstart = bl_parser_currentblob(p)->count;
-    p->innermostloopscopedepth = p->vm->compiler->scopedepth;
+    p->innermost_loop_start = bl_parser_currentblob(p)->count;
+    p->innermost_loop_scope_depth = p->vm->compiler->scope_depth;
 
     // key = iterable.iter_n__(key)
-    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, iteratorslot);
-    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, keyslot);
+    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, iterator_slot);
+    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, key_slot);
     bl_parser_emitbyte_and_short(p, OP_INVOKE, iter_n__);
     bl_parser_emitbyte(p, 1);
-    bl_parser_emitbyte_and_short(p, OP_SET_LOCAL, keyslot);
+    bl_parser_emitbyte_and_short(p, OP_SET_LOCAL, key_slot);
 
-    int falsejump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+    int false_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
     bl_parser_emitbyte(p, OP_POP);
 
     // value = iterable.iter__(key)
-    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, iteratorslot);
-    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, keyslot);
+    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, iterator_slot);
+    bl_parser_emitbyte_and_short(p, OP_GET_LOCAL, key_slot);
     bl_parser_emitbyte_and_short(p, OP_INVOKE, iter__);
     bl_parser_emitbyte(p, 1);
 
@@ -9143,22 +9110,22 @@ static void for_statement(AstParser* p)
     bl_parser_beginscope(p);
 
     // update the value
-    bl_parser_emitbyte_and_short(p, OP_SET_LOCAL, valueslot);
+    bl_parser_emitbyte_and_short(p, OP_SET_LOCAL, value_slot);
     bl_parser_emitbyte(p, OP_POP);
 
     bl_parser_parsestmt(p);
 
     bl_parser_endscope(p);
 
-    bl_parser_emitloop(p, p->innermostloopstart);
+    bl_parser_emitloop(p, p->innermost_loop_start);
 
-    bl_parser_patchjump(p, falsejump);
+    bl_parser_patchjump(p, false_jump);
     bl_parser_emitbyte(p, OP_POP);
 
     bl_parser_endloop(p);
 
-    p->innermostloopstart = surroundingloopstart;
-    p->innermostloopscopedepth = surroundingscopedepth;
+    p->innermost_loop_start = surrounding_loop_start;
+    p->innermost_loop_scope_depth = surrounding_scope_depth;
 
     bl_parser_endscope(p);
 }
@@ -9181,21 +9148,21 @@ static void using_statement(AstParser* p)
     bl_parser_ignorespace(p);
 
     int state = 0;// 0: before all cases, 1: before default, 2: after default
-    int caseends[MAX_USING_CASES];
-    int casecount = 0;
+    int case_ends[MAX_USING_CASES];
+    int case_count = 0;
 
     ObjSwitch* sw = new_switch(p->vm);
     push(p->vm, OBJ_VAL(sw));
 
-    int switchcode = bl_parser_emitswitch(p);
+    int switch_code = bl_parser_emitswitch(p);
     // bl_parser_emitbyte_and_short(p, OP_SWITCH, bl_parser_makeconstant(p, OBJ_VAL(sw)));
-    int startoffset = bl_parser_currentblob(p)->count;
+    int start_offset = bl_parser_currentblob(p)->count;
 
     while(!bl_parser_match(p, TOK_RBRACE) && !bl_parser_check(p, TOK_EOF))
     {
         if(bl_parser_match(p, TOK_WHEN) || bl_parser_match(p, TOK_DEFAULT))
         {
-            TokType casetype = p->previous.type;
+            TokType case_type = p->previous.type;
 
             if(state == 2)
             {
@@ -9205,17 +9172,17 @@ static void using_statement(AstParser* p)
             if(state == 1)
             {
                 // at the end of the previous case, jump over the others...
-                caseends[casecount++] = bl_parser_emitjump(p, OP_JUMP);
+                case_ends[case_count++] = bl_parser_emitjump(p, OP_JUMP);
             }
 
-            if(casetype == TOK_WHEN)
+            if(case_type == TOK_WHEN)
             {
                 state = 1;
                 do
                 {
                     bl_parser_advance(p);
 
-                    Value jump = NUMBER_VAL((double)bl_parser_currentblob(p)->count - (double)startoffset);
+                    Value jump = NUMBER_VAL((double)bl_parser_currentblob(p)->count - (double)start_offset);
 
                     if(p->previous.type == TOK_TRUE)
                     {
@@ -9249,7 +9216,7 @@ static void using_statement(AstParser* p)
             else
             {
                 state = 2;
-                sw->defaultjump = bl_parser_currentblob(p)->count - startoffset;
+                sw->default_jump = bl_parser_currentblob(p)->count - start_offset;
             }
         }
         else
@@ -9266,18 +9233,18 @@ static void using_statement(AstParser* p)
     // if we ended without a default case, patch its condition jump
     if(state == 1)
     {
-        caseends[casecount++] = bl_parser_emitjump(p, OP_JUMP);
+        case_ends[case_count++] = bl_parser_emitjump(p, OP_JUMP);
     }
 
     // patch all the case jumps to the end
-    for(int i = 0; i < casecount; i++)
+    for(int i = 0; i < case_count; i++)
     {
-        bl_parser_patchjump(p, caseends[i]);
+        bl_parser_patchjump(p, case_ends[i]);
     }
 
-    sw->exitjump = bl_parser_currentblob(p)->count - startoffset;
+    sw->exit_jump = bl_parser_currentblob(p)->count - start_offset;
 
-    bl_parser_patchswitch(p, switchcode, bl_parser_makeconstant(p, OBJ_VAL(sw)));
+    bl_parser_patchswitch(p, switch_code, bl_parser_makeconstant(p, OBJ_VAL(sw)));
     pop(p->vm);// pop the switch
 }
 
@@ -9285,13 +9252,13 @@ static void if_statement(AstParser* p)
 {
     bl_parser_parseexpr(p);
 
-    int thenjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+    int then_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
     bl_parser_emitbyte(p, OP_POP);
     bl_parser_parsestmt(p);
 
-    int elsejump = bl_parser_emitjump(p, OP_JUMP);
+    int else_jump = bl_parser_emitjump(p, OP_JUMP);
 
-    bl_parser_patchjump(p, thenjump);
+    bl_parser_patchjump(p, then_jump);
     bl_parser_emitbyte(p, OP_POP);
 
     if(bl_parser_match(p, TOK_ELSE))
@@ -9299,7 +9266,7 @@ static void if_statement(AstParser* p)
         bl_parser_parsestmt(p);
     }
 
-    bl_parser_patchjump(p, elsejump);
+    bl_parser_patchjump(p, else_jump);
 }
 
 static void echo_statement(AstParser* p)
@@ -9316,18 +9283,18 @@ static void die_statement(AstParser* p)
     bl_parser_consumestmtend(p);
 }
 
-static void parse_specific_import(AstParser* p, char* modulename, int importconstant, bool wasrenamed, bool isnative)
+static void parse_specific_import(AstParser* p, char* module_name, int import_constant, bool was_renamed, bool is_native)
 {
     if(bl_parser_match(p, TOK_LBRACE))
     {
-        if(wasrenamed)
+        if(was_renamed)
         {
             bl_parser_raiseerror(p, "selective import on renamed module");
             return;
         }
 
-        bl_parser_emitbyte_and_short(p, OP_CONSTANT, importconstant);
-        bool samenameselectiveexist = false;
+        bl_parser_emitbyte_and_short(p, OP_CONSTANT, import_constant);
+        bool same_name_selective_exist = false;
 
         do
         {
@@ -9336,26 +9303,26 @@ static void parse_specific_import(AstParser* p, char* modulename, int importcons
             // terminate on all (*)
             if(bl_parser_match(p, TOK_MULTIPLY))
             {
-                bl_parser_emitbyte(p, isnative ? OP_IMPORT_ALL_NATIVE : OP_IMPORT_ALL);
+                bl_parser_emitbyte(p, is_native ? OP_IMPORT_ALL_NATIVE : OP_IMPORT_ALL);
                 break;
             }
 
             int name = bl_parser_parsevar(p, "module object name expected");
 
-            if(modulename != NULL && p->previous.length == (int)strlen(modulename) && memcmp(modulename, p->previous.start, p->previous.length) == 0)
+            if(module_name != NULL && p->previous.length == (int)strlen(module_name) && memcmp(module_name, p->previous.start, p->previous.length) == 0)
             {
-                samenameselectiveexist = true;
+                same_name_selective_exist = true;
             }
 
-            bl_parser_emitbyte_and_short(p, isnative ? OP_SELECT_NATIVE_IMPORT : OP_SELECT_IMPORT, name);
+            bl_parser_emitbyte_and_short(p, is_native ? OP_SELECT_NATIVE_IMPORT : OP_SELECT_IMPORT, name);
         } while(bl_parser_match(p, TOK_COMMA));
         bl_parser_ignorespace(p);
 
         bl_parser_consume(p, TOK_RBRACE, "expected '}' at end of selective import");
 
-        if(!samenameselectiveexist)
+        if(!same_name_selective_exist)
         {
-            bl_parser_emitbyte_and_short(p, isnative ? OP_EJECT_NATIVE_IMPORT : OP_EJECT_IMPORT, importconstant);
+            bl_parser_emitbyte_and_short(p, is_native ? OP_EJECT_NATIVE_IMPORT : OP_EJECT_IMPORT, import_constant);
         }
         bl_parser_emitbyte(p, OP_POP);// pop the module constant from stack
         bl_parser_consumestmtend(p);
@@ -9365,18 +9332,18 @@ static void parse_specific_import(AstParser* p, char* modulename, int importcons
 static void import_statement(AstParser* p)
 {
     //  bl_parser_consume(p, TOK_LITERAL, "expected module name");
-    //  int modulenamelength;
-    //  char *modulename = compile_string(p, &modulenamelength);
+    //  int module_name_length;
+    //  char *module_name = compile_string(p, &module_name_length);
 
-    char* modulename = NULL;
-    char* modulefile = NULL;
+    char* module_name = NULL;
+    char* module_file = NULL;
 
-    int partcount = 0;
+    int part_count = 0;
 
-    bool isrelative = bl_parser_match(p, TOK_DOT);
+    bool is_relative = bl_parser_match(p, TOK_DOT);
 
     // allow for import starting with ..
-    if(!isrelative)
+    if(!is_relative)
     {
         if(bl_parser_match(p, TOK_RANGE))
         {
@@ -9395,89 +9362,89 @@ static void import_statement(AstParser* p)
     {
         if(p->previous.type == TOK_RANGE)
         {
-            isrelative = true;
-            if(modulefile == NULL)
+            is_relative = true;
+            if(module_file == NULL)
             {
-                modulefile = strdup("/../");
+                module_file = strdup("/../");
             }
             else
             {
-                modulefile = append_strings(modulefile, "/../");
+                module_file = append_strings(module_file, "/../");
             }
         }
 
-        if(modulename != NULL)
+        if(module_name != NULL)
         {
-            free(modulename);
+            free(module_name);
         }
 
         bl_parser_consume(p, TOK_IDENTIFIER, "module name expected");
 
-        modulename = (char*)calloc(p->previous.length + 1, sizeof(char));
-        memcpy(modulename, p->previous.start, p->previous.length);
-        modulename[p->previous.length] = '\0';
+        module_name = (char*)calloc(p->previous.length + 1, sizeof(char));
+        memcpy(module_name, p->previous.start, p->previous.length);
+        module_name[p->previous.length] = '\0';
 
         // handle native modules
-        if(partcount == 0 && modulename[0] == '_' && !isrelative)
+        if(part_count == 0 && module_name[0] == '_' && !is_relative)
         {
-            int module = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, modulename, (int)strlen(modulename))));
+            int module = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, module_name, (int)strlen(module_name))));
             bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, module);
 
-            parse_specific_import(p, modulename, module, false, true);
+            parse_specific_import(p, module_name, module, false, true);
             return;
         }
 
-        if(modulefile == NULL)
+        if(module_file == NULL)
         {
-            modulefile = strdup(modulename);
+            module_file = strdup(module_name);
         }
         else
         {
-            if(modulefile[strlen(modulefile) - 1] != BLADE_PATH_SEPARATOR[0])
+            if(module_file[strlen(module_file) - 1] != BLADE_PATH_SEPARATOR[0])
             {
-                modulefile = append_strings(modulefile, BLADE_PATH_SEPARATOR);
+                module_file = append_strings(module_file, BLADE_PATH_SEPARATOR);
             }
-            modulefile = append_strings(modulefile, modulename);
+            module_file = append_strings(module_file, module_name);
         }
 
-        partcount++;
+        part_count++;
     } while(bl_parser_match(p, TOK_DOT) || bl_parser_match(p, TOK_RANGE));
 
-    bool wasrenamed = false;
+    bool was_renamed = false;
 
     if(bl_parser_match(p, TOK_AS))
     {
         bl_parser_consume(p, TOK_IDENTIFIER, "module name expected");
-        free(modulename);
-        modulename = (char*)calloc(p->previous.length + 1, sizeof(char));
-        if(modulename == NULL)
+        free(module_name);
+        module_name = (char*)calloc(p->previous.length + 1, sizeof(char));
+        if(module_name == NULL)
         {
             bl_parser_raiseerror(p, "could not allocate memory for module name");
             return;
         }
-        memcpy(modulename, p->previous.start, p->previous.length);
-        modulename[p->previous.length] = '\0';
-        wasrenamed = true;
+        memcpy(module_name, p->previous.start, p->previous.length);
+        module_name[p->previous.length] = '\0';
+        was_renamed = true;
     }
 
-    char* modulepath = resolve_import_path(modulefile, p->module->file, isrelative);
+    char* module_path = resolve_import_path(module_file, p->module->file, is_relative);
 
-    if(modulepath == NULL)
+    if(module_path == NULL)
     {
         // check if there is one in the vm's registry
         // handle native modules
         Value md;
-        ObjString* finalmodulename = copy_string(p->vm, modulename, (int)strlen(modulename));
-        if(table_get(&p->vm->modules, OBJ_VAL(finalmodulename), &md))
+        ObjString* final_module_name = copy_string(p->vm, module_name, (int)strlen(module_name));
+        if(table_get(&p->vm->modules, OBJ_VAL(final_module_name), &md))
         {
-            int module = bl_parser_makeconstant(p, OBJ_VAL(finalmodulename));
+            int module = bl_parser_makeconstant(p, OBJ_VAL(final_module_name));
             bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, module);
 
-            parse_specific_import(p, modulename, module, false, true);
+            parse_specific_import(p, module_name, module, false, true);
             return;
         }
 
-        free(modulepath);
+        free(module_path);
         bl_parser_raiseerror(p, "module not found");
         return;
     }
@@ -9488,17 +9455,17 @@ static void import_statement(AstParser* p)
     }
 
     // do the import here...
-    char* source = read_file(modulepath);
+    char* source = read_file(module_path);
     if(source == NULL)
     {
-        bl_parser_raiseerror(p, "could not read import file %s", modulepath);
+        bl_parser_raiseerror(p, "could not read import file %s", module_path);
         return;
     }
 
     BinaryBlob blob;
     init_blob(&blob);
 
-    ObjModule* module = new_module(p->vm, modulename, modulepath);
+    ObjModule* module = new_module(p->vm, module_name, module_path);
 
     push(p->vm, OBJ_VAL(module));
     ObjFunction* function = bl_compiler_compilesource(p->vm, module, source, &blob);
@@ -9508,7 +9475,7 @@ static void import_statement(AstParser* p)
 
     if(function == NULL)
     {
-        bl_parser_raiseerror(p, "failed to import %s", modulename);
+        bl_parser_raiseerror(p, "failed to import %s", module_name);
         return;
     }
 
@@ -9518,10 +9485,10 @@ static void import_statement(AstParser* p)
     ObjClosure* closure = new_closure(p->vm, function);
     pop(p->vm);
 
-    int importconstant = bl_parser_makeconstant(p, OBJ_VAL(closure));
-    bl_parser_emitbyte_and_short(p, OP_CALL_IMPORT, importconstant);
+    int import_constant = bl_parser_makeconstant(p, OBJ_VAL(closure));
+    bl_parser_emitbyte_and_short(p, OP_CALL_IMPORT, import_constant);
 
-    parse_specific_import(p, modulename, importconstant, wasrenamed, false);
+    parse_specific_import(p, module_name, import_constant, was_renamed, false);
 }
 
 static void assert_statement(AstParser* p)
@@ -9543,31 +9510,31 @@ static void assert_statement(AstParser* p)
 
 static void try_statement(AstParser* p)
 {
-    if(p->vm->compiler->handlercount == MAX_EXCEPTION_HANDLERS)
+    if(p->vm->compiler->handler_count == MAX_EXCEPTION_HANDLERS)
     {
         bl_parser_raiseerror(p, "maximum exception handler in scope exceeded");
     }
-    p->vm->compiler->handlercount++;
-    p->istrying = true;
+    p->vm->compiler->handler_count++;
+    p->is_trying = true;
 
     bl_parser_ignorespace(p);
-    int trybegins = bl_parser_emittry(p);
+    int try_begins = bl_parser_emittry(p);
 
     bl_parser_parsestmt(p);// compile the try body
     bl_parser_emitbyte(p, OP_POP_TRY);
-    int exitjump = bl_parser_emitjump(p, OP_JUMP);
-    p->istrying = false;
+    int exit_jump = bl_parser_emitjump(p, OP_JUMP);
+    p->is_trying = false;
 
     // we can safely use 0 because a program cannot start with a
     // catch or finally block
     int address = 0, type = -1, finally = 0;
 
-    bool catchexists = false, finalexists = false;
+    bool catch_exists = false, final_exists = false;
 
     // catch body must maintain its own scope
     if(bl_parser_match(p, TOK_CATCH))
     {
-        catchexists = true;
+        catch_exists = true;
         bl_parser_beginscope(p);
 
         bl_parser_consume(p, TOK_IDENTIFIER, "missing exception class name");
@@ -9594,11 +9561,11 @@ static void try_statement(AstParser* p)
         type = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, "Exception", 9)));
     }
 
-    bl_parser_patchjump(p, exitjump);
+    bl_parser_patchjump(p, exit_jump);
 
     if(bl_parser_match(p, TOK_FINALLY))
     {
-        finalexists = true;
+        final_exists = true;
         // if we arrived here from either the try or handler block,
         // we don't want to continue propagating the exception
         bl_parser_emitbyte(p, OP_FALSE);
@@ -9607,24 +9574,24 @@ static void try_statement(AstParser* p)
         bl_parser_ignorespace(p);
         bl_parser_parsestmt(p);
 
-        int continueexecutionaddress = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+        int continue_execution_address = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
         bl_parser_emitbyte(p, OP_POP);// pop the bool off the stack
         bl_parser_emitbyte(p, OP_PUBLISH_TRY);
-        bl_parser_patchjump(p, continueexecutionaddress);
+        bl_parser_patchjump(p, continue_execution_address);
         bl_parser_emitbyte(p, OP_POP);
     }
 
-    if(!finalexists && !catchexists)
+    if(!final_exists && !catch_exists)
     {
         bl_parser_raiseerror(p, "try block must contain at least one of catch or finally");
     }
 
-    bl_parser_patchtry(p, trybegins, type, address, finally);
+    bl_parser_patchtry(p, try_begins, type, address, finally);
 }
 
 static void return_statement(AstParser* p)
 {
-    p->isreturning = true;
+    p->is_returning = true;
     if(p->vm->compiler->type == TYPE_SCRIPT)
     {
         bl_parser_raiseerror(p, "cannot return from top-level code");
@@ -9641,7 +9608,7 @@ static void return_statement(AstParser* p)
             bl_parser_raiseerror(p, "cannot return value from constructor");
         }
 
-        if(p->istrying)
+        if(p->is_trying)
         {
             bl_parser_emitbyte(p, OP_POP_TRY);
         }
@@ -9650,44 +9617,44 @@ static void return_statement(AstParser* p)
         bl_parser_emitbyte(p, OP_RETURN);
         bl_parser_consumestmtend(p);
     }
-    p->isreturning = false;
+    p->is_returning = false;
 }
 
 static void while_statement(AstParser* p)
 {
-    int surroundingloopstart = p->innermostloopstart;
-    int surroundingscopedepth = p->innermostloopscopedepth;
+    int surrounding_loop_start = p->innermost_loop_start;
+    int surrounding_scope_depth = p->innermost_loop_scope_depth;
 
     // we'll be jumping back to right before the
     // expression after the loop body
-    p->innermostloopstart = bl_parser_currentblob(p)->count;
+    p->innermost_loop_start = bl_parser_currentblob(p)->count;
 
     bl_parser_parseexpr(p);
 
-    int exitjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+    int exit_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
     bl_parser_emitbyte(p, OP_POP);
 
     bl_parser_parsestmt(p);
 
-    bl_parser_emitloop(p, p->innermostloopstart);
+    bl_parser_emitloop(p, p->innermost_loop_start);
 
-    bl_parser_patchjump(p, exitjump);
+    bl_parser_patchjump(p, exit_jump);
     bl_parser_emitbyte(p, OP_POP);
 
     bl_parser_endloop(p);
 
-    p->innermostloopstart = surroundingloopstart;
-    p->innermostloopscopedepth = surroundingscopedepth;
+    p->innermost_loop_start = surrounding_loop_start;
+    p->innermost_loop_scope_depth = surrounding_scope_depth;
 }
 
 static void do_while_statement(AstParser* p)
 {
-    int surroundingloopstart = p->innermostloopstart;
-    int surroundingscopedepth = p->innermostloopscopedepth;
+    int surrounding_loop_start = p->innermost_loop_start;
+    int surrounding_scope_depth = p->innermost_loop_scope_depth;
 
     // we'll be jumping back to right before the
     // statements after the loop body
-    p->innermostloopstart = bl_parser_currentblob(p)->count;
+    p->innermost_loop_start = bl_parser_currentblob(p)->count;
 
     bl_parser_parsestmt(p);
 
@@ -9695,51 +9662,51 @@ static void do_while_statement(AstParser* p)
 
     bl_parser_parseexpr(p);
 
-    int exitjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
+    int exit_jump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
     bl_parser_emitbyte(p, OP_POP);
 
-    bl_parser_emitloop(p, p->innermostloopstart);
+    bl_parser_emitloop(p, p->innermost_loop_start);
 
-    bl_parser_patchjump(p, exitjump);
+    bl_parser_patchjump(p, exit_jump);
     bl_parser_emitbyte(p, OP_POP);
 
     bl_parser_endloop(p);
 
-    p->innermostloopstart = surroundingloopstart;
-    p->innermostloopscopedepth = surroundingscopedepth;
+    p->innermost_loop_start = surrounding_loop_start;
+    p->innermost_loop_scope_depth = surrounding_scope_depth;
 }
 
 static void continue_statement(AstParser* p)
 {
-    if(p->innermostloopstart == -1)
+    if(p->innermost_loop_start == -1)
     {
         bl_parser_raiseerror(p, "'continue' can only be used in a loop");
     }
 
     // discard local variables created in the loop
-    bl_parser_discardlocal(p, p->innermostloopscopedepth);
+    bl_parser_discardlocal(p, p->innermost_loop_scope_depth);
 
     // go back to the top of the loop
-    bl_parser_emitloop(p, p->innermostloopstart);
+    bl_parser_emitloop(p, p->innermost_loop_start);
     bl_parser_consumestmtend(p);
 }
 
 static void break_statement(AstParser* p)
 {
-    if(p->innermostloopstart == -1)
+    if(p->innermost_loop_start == -1)
     {
         bl_parser_raiseerror(p, "'break' can only be used in a loop");
     }
 
     // discard local variables created in the loop
-    //  bl_parser_discardlocal(p, p->innermostloopscopedepth);
+    //  bl_parser_discardlocal(p, p->innermost_loop_scope_depth);
     bl_parser_emitjump(p, OP_BREAK_PL);
     bl_parser_consumestmtend(p);
 }
 
 static void synchronize(AstParser* p)
 {
-    p->panicmode = false;
+    p->panic_mode = false;
 
     while(p->current.type != TOK_EOF)
     {
@@ -9798,7 +9765,7 @@ static void declaration(AstParser* p)
     }
     else if(bl_parser_match(p, TOK_LBRACE))
     {
-        if(!bl_parser_check(p, TOK_NEWLINE) && p->vm->compiler->scopedepth == 0)
+        if(!bl_parser_check(p, TOK_NEWLINE) && p->vm->compiler->scope_depth == 0)
         {
             expression_statement(p, false, true);
         }
@@ -9816,7 +9783,7 @@ static void declaration(AstParser* p)
 
     bl_parser_ignorespace(p);
 
-    if(p->panicmode)
+    if(p->panic_mode)
         synchronize(p);
 
     bl_parser_ignorespace(p);
@@ -9824,7 +9791,7 @@ static void declaration(AstParser* p)
 
 static void bl_parser_parsestmt(AstParser* p)
 {
-    p->replcanecho = false;
+    p->repl_can_echo = false;
     bl_parser_ignorespace(p);
 
     if(bl_parser_match(p, TOK_ECHO))
@@ -9900,24 +9867,25 @@ static void bl_parser_parsestmt(AstParser* p)
 ObjFunction* bl_compiler_compilesource(VMState* vm, ObjModule* module, const char* source, BinaryBlob* blob)
 {
     AstScanner scanner;
-    AstParser parser;
-    AstCompiler compiler;
-    (void)blob;
     bl_scanner_init(&scanner, source);
+
+    AstParser parser;
+
     parser.vm = vm;
     parser.scanner = &scanner;
 
-    parser.haderror = false;
-    parser.panicmode = false;
-    parser.blockcount = 0;
-    parser.replcanecho = false;
-    parser.isreturning = false;
-    parser.istrying = false;
-    parser.innermostloopstart = -1;
-    parser.innermostloopscopedepth = 0;
-    parser.currentclass = NULL;
+    parser.had_error = false;
+    parser.panic_mode = false;
+    parser.block_count = 0;
+    parser.repl_can_echo = false;
+    parser.is_returning = false;
+    parser.is_trying = false;
+    parser.innermost_loop_start = -1;
+    parser.innermost_loop_scope_depth = 0;
+    parser.current_class = NULL;
     parser.module = module;
 
+    AstCompiler compiler;
     bl_compiler_init(&parser, &compiler, TYPE_SCRIPT);
 
     bl_parser_advance(&parser);
@@ -9930,7 +9898,7 @@ ObjFunction* bl_compiler_compilesource(VMState* vm, ObjModule* module, const cha
 
     ObjFunction* function = bl_compiler_end(&parser);
 
-    return parser.haderror ? NULL : function;
+    return parser.had_error ? NULL : function;
 }
 
 void mark_compiler_roots(VMState* vm)
@@ -10008,9 +9976,9 @@ static int invoke_instruction(const char* name, BinaryBlob* blob, int offset)
 {
     uint16_t constant = (uint16_t)(blob->code[offset + 1] << 8);
     constant |= blob->code[offset + 2];
-    uint8_t argcount = blob->code[offset + 3];
+    uint8_t arg_count = blob->code[offset + 3];
 
-    printf("%-16s (%d args) %8d '", name, argcount, constant);
+    printf("%-16s (%d args) %8d '", name, arg_count, constant);
     print_value(blob->constants.values[constant]);
     printf("'\n");
     return offset + 4;
@@ -10032,42 +10000,42 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
     switch(instruction)
     {
         case OP_JUMP_IF_FALSE:
-            return jump_instruction("fjump", 1, blob, offset);
+            return jump_instruction("f_jump", 1, blob, offset);
         case OP_JUMP:
             return jump_instruction("jump", 1, blob, offset);
         case OP_TRY:
-            return try_instruction("itry", blob, offset);
+            return try_instruction("i_try", blob, offset);
         case OP_LOOP:
             return jump_instruction("loop", -1, blob, offset);
 
         case OP_DEFINE_GLOBAL:
-            return constant_instruction("dglob", blob, offset);
+            return constant_instruction("d_glob", blob, offset);
         case OP_GET_GLOBAL:
-            return constant_instruction("gglob", blob, offset);
+            return constant_instruction("g_glob", blob, offset);
         case OP_SET_GLOBAL:
-            return constant_instruction("sglob", blob, offset);
+            return constant_instruction("s_glob", blob, offset);
 
         case OP_GET_LOCAL:
-            return short_instruction("gloc", blob, offset);
+            return short_instruction("g_loc", blob, offset);
         case OP_SET_LOCAL:
-            return short_instruction("sloc", blob, offset);
+            return short_instruction("s_loc", blob, offset);
 
         case OP_GET_PROPERTY:
-            return constant_instruction("gprop", blob, offset);
+            return constant_instruction("g_prop", blob, offset);
         case OP_GET_SELF_PROPERTY:
-            return constant_instruction("gprops", blob, offset);
+            return constant_instruction("g_props", blob, offset);
         case OP_SET_PROPERTY:
-            return constant_instruction("sprop", blob, offset);
+            return constant_instruction("s_prop", blob, offset);
 
         case OP_GET_UP_VALUE:
-            return short_instruction("gupv", blob, offset);
+            return short_instruction("g_up_v", blob, offset);
         case OP_SET_UP_VALUE:
-            return short_instruction("supv", blob, offset);
+            return short_instruction("s_up_v", blob, offset);
 
         case OP_POP_TRY:
-            return simple_instruction("ptry", offset);
+            return simple_instruction("p_try", offset);
         case OP_PUBLISH_TRY:
-            return simple_instruction("pubtry", offset);
+            return simple_instruction("pub_try", offset);
 
         case OP_CONSTANT:
             return constant_instruction("load", blob, offset);
@@ -10096,9 +10064,9 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
         case OP_DIVIDE:
             return simple_instruction("div", offset);
         case OP_F_DIVIDE:
-            return simple_instruction("fdiv", offset);
+            return simple_instruction("f_div", offset);
         case OP_REMINDER:
-            return simple_instruction("rmod", offset);
+            return simple_instruction("r_mod", offset);
         case OP_POW:
             return simple_instruction("pow", offset);
         case OP_NEGATE:
@@ -10106,36 +10074,36 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
         case OP_NOT:
             return simple_instruction("not", offset);
         case OP_BIT_NOT:
-            return simple_instruction("bnot", offset);
+            return simple_instruction("b_not", offset);
         case OP_AND:
-            return simple_instruction("band", offset);
+            return simple_instruction("b_and", offset);
         case OP_OR:
-            return simple_instruction("bor", offset);
+            return simple_instruction("b_or", offset);
         case OP_XOR:
-            return simple_instruction("bxor", offset);
+            return simple_instruction("b_xor", offset);
         case OP_LSHIFT:
-            return simple_instruction("lshift", offset);
+            return simple_instruction("l_shift", offset);
         case OP_RSHIFT:
-            return simple_instruction("rshift", offset);
+            return simple_instruction("r_shift", offset);
         case OP_ONE:
             return simple_instruction("one", offset);
 
         case OP_CALL_IMPORT:
-            return short_instruction("cimport", blob, offset);
+            return short_instruction("c_import", blob, offset);
         case OP_NATIVE_MODULE:
-            return short_instruction("fimport", blob, offset);
+            return short_instruction("f_import", blob, offset);
         case OP_SELECT_IMPORT:
-            return short_instruction("simport", blob, offset);
+            return short_instruction("s_import", blob, offset);
         case OP_SELECT_NATIVE_IMPORT:
-            return short_instruction("snimport", blob, offset);
+            return short_instruction("sn_import", blob, offset);
         case OP_EJECT_IMPORT:
-            return short_instruction("eimport", blob, offset);
+            return short_instruction("e_import", blob, offset);
         case OP_EJECT_NATIVE_IMPORT:
-            return short_instruction("enimport", blob, offset);
+            return short_instruction("en_import", blob, offset);
         case OP_IMPORT_ALL:
-            return simple_instruction("aimport", offset);
+            return simple_instruction("a_import", offset);
         case OP_IMPORT_ALL_NATIVE:
-            return simple_instruction("animport", offset);
+            return simple_instruction("an_import", offset);
 
         case OP_ECHO:
             return simple_instruction("echo", offset);
@@ -10148,7 +10116,7 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
         case OP_POP:
             return simple_instruction("pop", offset);
         case OP_CLOSE_UP_VALUE:
-            return simple_instruction("clupv", offset);
+            return simple_instruction("cl_up_v", offset);
         case OP_DUP:
             return simple_instruction("dup", offset);
         case OP_ASSERT:
@@ -10168,11 +10136,11 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
         case OP_DICT:
             return short_instruction("dict", blob, offset);
         case OP_GET_INDEX:
-            return byte_instruction("gind", blob, offset);
+            return byte_instruction("g_ind", blob, offset);
         case OP_GET_RANGED_INDEX:
-            return byte_instruction("grind", blob, offset);
+            return byte_instruction("gr_ind", blob, offset);
         case OP_SET_INDEX:
-            return simple_instruction("sind", offset);
+            return simple_instruction("s_ind", offset);
 
         case OP_CLOSURE:
         {
@@ -10184,12 +10152,12 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
             printf("\n");
 
             ObjFunction* function = AS_FUNCTION(blob->constants.values[constant]);
-            for(int j = 0; j < function->upvaluecount; j++)
+            for(int j = 0; j < function->up_value_count; j++)
             {
-                int islocal = blob->code[offset++];
+                int is_local = blob->code[offset++];
                 uint16_t index = blob->code[offset++] << 8;
                 index |= blob->code[offset++];
-                printf("%04d      |                     %s %d\n", offset - 3, islocal ? "local" : "up-value", (int)index);
+                printf("%04d      |                     %s %d\n", offset - 3, is_local ? "local" : "up-value", (int)index);
             }
 
             return offset;
@@ -10199,7 +10167,7 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
         case OP_INVOKE:
             return invoke_instruction("invk", blob, offset);
         case OP_INVOKE_SELF:
-            return invoke_instruction("invks", blob, offset);
+            return invoke_instruction("invk_s", blob, offset);
         case OP_RETURN:
             return simple_instruction("ret", offset);
 
@@ -10208,15 +10176,15 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
         case OP_METHOD:
             return constant_instruction("meth", blob, offset);
         case OP_CLASS_PROPERTY:
-            return constant_instruction("clprop", blob, offset);
+            return constant_instruction("cl_prop", blob, offset);
         case OP_GET_SUPER:
-            return constant_instruction("gsup", blob, offset);
+            return constant_instruction("g_sup", blob, offset);
         case OP_INHERIT:
             return simple_instruction("inher", offset);
         case OP_SUPER_INVOKE:
-            return invoke_instruction("sinvk", blob, offset);
+            return invoke_instruction("s_invk", blob, offset);
         case OP_SUPER_INVOKE_SELF:
-            return byte_instruction("sinvks", blob, offset);
+            return byte_instruction("s_invk_s", blob, offset);
 
         default:
             printf("unknown opcode %d\n", instruction);
@@ -10251,7 +10219,7 @@ static int file_close(ObjFile* file)
         fflush(file->file);
         int result = fclose(file->file);
         file->file = NULL;
-        file->isopen = false;
+        file->is_open = false;
         return result;
     }
     return -1;
@@ -10259,7 +10227,7 @@ static int file_close(ObjFile* file)
 
 static void file_open(ObjFile* file)
 {
-    if((file->file == NULL || !file->isopen) && !is_std_file(file))
+    if((file->file == NULL || !file->is_open) && !is_std_file(file))
     {
         char* mode = file->mode->chars;
         if(strstr(file->mode->chars, "w") != NULL && strstr(file->mode->chars, "+") != NULL)
@@ -10268,11 +10236,11 @@ static void file_open(ObjFile* file)
         }
 
         file->file = fopen(file->path->chars, mode);
-        file->isopen = true;
+        file->is_open = true;
     }
 }
 
-bool cfn_file(VMState* vm, int argcount, Value* args)
+bool cfn_file(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(file, 1, 2);
     ENFORCE_ARG_TYPE(file, 0, IS_STRING);
@@ -10285,7 +10253,7 @@ bool cfn_file(VMState* vm, int argcount, Value* args)
 
     ObjString* mode = NULL;
 
-    if(argcount == 2)
+    if(arg_count == 2)
     {
         ENFORCE_ARG_TYPE(file, 1, IS_STRING);
         mode = AS_STRING(args[1]);
@@ -10301,7 +10269,7 @@ bool cfn_file(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(file);
 }
 
-bool objfn_file_exists(VMState* vm, int argcount, Value* args)
+bool objfn_file_exists(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(exists, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -10309,57 +10277,47 @@ bool objfn_file_exists(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(file_exists(file->path->chars));
 }
 
-bool objfn_file_close(VMState* vm, int argcount, Value* args)
+bool objfn_file_close(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(close, 0);
     file_close(AS_FILE(METHOD_OBJECT));
     RETURN;
 }
 
-bool objfn_file_open(VMState* vm, int argcount, Value* args)
+bool objfn_file_open(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(open, 0);
     file_open(AS_FILE(METHOD_OBJECT));
     RETURN;
 }
 
-bool objfn_file_isopen(VMState* vm, int argcount, Value* args)
+bool objfn_file_isopen(VMState* vm, int arg_count, Value* args)
 {
-    ObjFile* file;
-    (void)vm;
-    (void)argcount;
-    file = AS_FILE(METHOD_OBJECT);
-    RETURN_BOOL(is_std_file(file) || (file->isopen && file->file != NULL));
+    ObjFile* file = AS_FILE(METHOD_OBJECT);
+    RETURN_BOOL(is_std_file(file) || (file->is_open && file->file != NULL));
 }
 
-bool objfn_file_isclosed(VMState* vm, int argcount, Value* args)
+bool objfn_file_isclosed(VMState* vm, int arg_count, Value* args)
 {
-    ObjFile* file;
-    (void)argcount;
-    (void)vm;
-    file = AS_FILE(METHOD_OBJECT);
-    RETURN_BOOL(!is_std_file(file) && !file->isopen && file->file == NULL);
+    ObjFile* file = AS_FILE(METHOD_OBJECT);
+    RETURN_BOOL(!is_std_file(file) && !file->is_open && file->file == NULL);
 }
 
-bool objfn_file_read(VMState* vm, int argcount, Value* args)
+bool objfn_file_read(VMState* vm, int arg_count, Value* args)
 {
-    size_t filesize;
-    size_t filesizereal;
-    bool inbinarymode;
-    char* buffer;
-    size_t bytesread;
-    struct stat stats;
-    ObjFile* file;
     ENFORCE_ARG_RANGE(read, 0, 1);
-    filesize = -1;
-    filesizereal = -1;
-    if(argcount == 1)
+    size_t file_size = -1;
+    size_t file_size_real = -1;
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(read, 0, IS_NUMBER);
-        filesize = (size_t)AS_NUMBER(args[0]);
+        file_size = (size_t)AS_NUMBER(args[0]);
     }
-    file = AS_FILE(METHOD_OBJECT);
-    inbinarymode = strstr(file->mode->chars, "b") != NULL;
+
+    ObjFile* file = AS_FILE(METHOD_OBJECT);
+
+    bool in_binary_mode = strstr(file->mode->chars, "b") != NULL;
+
     if(!is_std_file(file))
     {
         // file is in read mode and file does not exist
@@ -10372,29 +10330,34 @@ bool objfn_file_read(VMState* vm, int argcount, Value* args)
         {
             FILE_ERROR(Unsupported, "cannot read file in write mode");
         }
-        if(!file->isopen)
+
+        if(!file->is_open)
         {// open the file if it isn't open
             file_open(file);
         }
+
         if(file->file == NULL)
         {
             FILE_ERROR(Read, "could not read file");
         }
+
         // Get file size
+        struct stat stats;// stats is super faster on large files
         if(lstat(file->path->chars, &stats) == 0)
         {
-            filesizereal = (size_t)stats.st_size;
+            file_size_real = (size_t)stats.st_size;
         }
         else
         {
             // fallback
             fseek(file->file, 0L, SEEK_END);
-            filesizereal = ftell(file->file);
+            file_size_real = ftell(file->file);
             rewind(file->file);
         }
-        if(filesize == (size_t)-1 || filesize > filesizereal)
+
+        if(file_size == (size_t)-1 || file_size > file_size_real)
         {
-            filesize = filesizereal;
+            file_size = file_size_real;
         }
     }
     else
@@ -10404,60 +10367,61 @@ bool objfn_file_read(VMState* vm, int argcount, Value* args)
         {
             FILE_ERROR(Unsupported, "cannot read from output file");
         }
+
         // for non-file objects such as stdin
         // minimum read bytes should be 1
-        if(filesize == (size_t)-1)
+        if(file_size == (size_t)-1)
         {
-            filesize = 1;
+            file_size = 1;
         }
     }
-    buffer = (char*)ALLOCATE(char, filesize + 1);// +1 for terminator '\0'
-    if(buffer == NULL && filesize != 0)
+
+    char* buffer = (char*)ALLOCATE(char, file_size + 1);// +1 for terminator '\0'
+
+    if(buffer == NULL && file_size != 0)
     {
         FILE_ERROR(Buffer, "not enough memory to read file");
     }
-    bytesread = fread(buffer, sizeof(char), filesize, file->file);
-    if(bytesread == 0 && filesize != 0 && filesize == filesizereal)
+
+    size_t bytes_read = fread(buffer, sizeof(char), file_size, file->file);
+
+    if(bytes_read == 0 && file_size != 0 && file_size == file_size_real)
     {
         FILE_ERROR(Read, "could not read file contents");
     }
 
     // we made use of +1 so we can terminate the string.
     if(buffer != NULL)
-        buffer[bytesread] = '\0';
+        buffer[bytes_read] = '\0';
 
     // close file
-    /*if (bytesread == filesize) {
+    /*if (bytes_read == file_size) {
     file_close(file);
   }*/
     file_close(file);
 
-    if(!inbinarymode)
+    if(!in_binary_mode)
     {
-        RETURN_T_STRING(buffer, bytesread);
+        RETURN_T_STRING(buffer, bytes_read);
     }
 
-    RETURN_OBJ(take_bytes(vm, (unsigned char*)buffer, bytesread));
+    RETURN_OBJ(take_bytes(vm, (unsigned char*)buffer, bytes_read));
 }
 
-bool objfn_file_gets(VMState* vm, int argcount, Value* args)
+bool objfn_file_gets(VMState* vm, int arg_count, Value* args)
 {
-    bool inbinarymode;
-    long length;
-    long end;
-    long currentpos;
-    size_t bytesread;
-    char* buffer;
-    ObjFile* file;
     ENFORCE_ARG_RANGE(gets, 0, 1);
-    length = -1;
-    if(argcount == 1)
+    size_t length = -1;
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(read, 0, IS_NUMBER);
         length = (size_t)AS_NUMBER(args[0]);
     }
-    file = AS_FILE(METHOD_OBJECT);
-    inbinarymode = strstr(file->mode->chars, "b") != NULL;
+
+    ObjFile* file = AS_FILE(METHOD_OBJECT);
+
+    bool in_binary_mode = strstr(file->mode->chars, "b") != NULL;
+
     if(!is_std_file(file))
     {
         // file is in read mode and file does not exist
@@ -10470,22 +10434,27 @@ bool objfn_file_gets(VMState* vm, int argcount, Value* args)
         {
             FILE_ERROR(Unsupported, "cannot read file in write mode");
         }
-        if(!file->isopen)
+
+        if(!file->is_open)
         {// open the file if it isn't open
             FILE_ERROR(Read, "file not open");
         }
+
         if(file->file == NULL)
         {
             FILE_ERROR(Read, "could not read file");
         }
+
         if(length == -1)
         {
-            currentpos = ftell(file->file);
+            long current_pos = ftell(file->file);
             fseek(file->file, 0L, SEEK_END);
-            end = ftell(file->file);
+            long end = ftell(file->file);
+
             // go back to where we were before.
-            fseek(file->file, currentpos, SEEK_SET);
-            length = end - currentpos;
+            fseek(file->file, current_pos, SEEK_SET);
+
+            length = end - current_pos;
         }
     }
     else
@@ -10498,39 +10467,39 @@ bool objfn_file_gets(VMState* vm, int argcount, Value* args)
 
         // for non-file objects such as stdin
         // minimum read bytes should be 1
-        if(length == -1)
+        if(length == (size_t)-1)
         {
             length = 1;
         }
     }
 
-    buffer = (char*)ALLOCATE(char, length + 1);// +1 for terminator '\0'
+    char* buffer = (char*)ALLOCATE(char, length + 1);// +1 for terminator '\0'
 
     if(buffer == NULL && length != 0)
     {
         FILE_ERROR(Buffer, "not enough memory to read file");
     }
 
-    bytesread = fread(buffer, sizeof(char), length, file->file);
+    size_t bytes_read = fread(buffer, sizeof(char), length, file->file);
 
-    if(bytesread == 0 && length != 0)
+    if(bytes_read == 0 && length != 0)
     {
         FILE_ERROR(Read, "could not read file contents");
     }
 
     // we made use of +1, so we can terminate the string.
     if(buffer != NULL)
-        buffer[bytesread] = '\0';
+        buffer[bytes_read] = '\0';
 
-    if(!inbinarymode)
+    if(!in_binary_mode)
     {
-        RETURN_T_STRING(buffer, bytesread);
+        RETURN_T_STRING(buffer, bytes_read);
     }
 
-    RETURN_OBJ(take_bytes(vm, (unsigned char*)buffer, bytesread));
+    RETURN_OBJ(take_bytes(vm, (unsigned char*)buffer, bytes_read));
 }
 
-bool objfn_file_write(VMState* vm, int argcount, Value* args)
+bool objfn_file_write(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(write, 1);
 
@@ -10538,12 +10507,12 @@ bool objfn_file_write(VMState* vm, int argcount, Value* args)
     ObjString* string = NULL;
     ObjBytes* bytes = NULL;
 
-    bool inbinarymode = strstr(file->mode->chars, "b") != NULL;
+    bool in_binary_mode = strstr(file->mode->chars, "b") != NULL;
 
     unsigned char* data;
     int length;
 
-    if(!inbinarymode)
+    if(!in_binary_mode)
     {
         ENFORCE_ARG_TYPE(write, 0, IS_STRING);
         string = AS_STRING(args[0]);
@@ -10571,7 +10540,7 @@ bool objfn_file_write(VMState* vm, int argcount, Value* args)
             FILE_ERROR(Write, "cannot write empty buffer to file");
         }
 
-        if(file->file == NULL || !file->isopen)
+        if(file->file == NULL || !file->is_open)
         {// open the file if it isn't open
             file_open(file);
         }
@@ -10602,7 +10571,7 @@ bool objfn_file_write(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool objfn_file_puts(VMState* vm, int argcount, Value* args)
+bool objfn_file_puts(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(puts, 1);
 
@@ -10610,12 +10579,12 @@ bool objfn_file_puts(VMState* vm, int argcount, Value* args)
     ObjString* string = NULL;
     ObjBytes* bytes = NULL;
 
-    bool inbinarymode = strstr(file->mode->chars, "b") != NULL;
+    bool in_binary_mode = strstr(file->mode->chars, "b") != NULL;
 
     unsigned char* data;
     int length;
 
-    if(!inbinarymode)
+    if(!in_binary_mode)
     {
         ENFORCE_ARG_TYPE(write, 0, IS_STRING);
         string = AS_STRING(args[0]);
@@ -10643,7 +10612,7 @@ bool objfn_file_puts(VMState* vm, int argcount, Value* args)
             FILE_ERROR(Write, "cannot write empty buffer to file");
         }
 
-        if(!file->isopen)
+        if(!file->is_open)
         {// open the file if it isn't open
             FILE_ERROR(Write, "file not open");
         }
@@ -10671,7 +10640,7 @@ bool objfn_file_puts(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool objfn_file_number(VMState* vm, int argcount, Value* args)
+bool objfn_file_number(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(number, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -10685,9 +10654,9 @@ bool objfn_file_number(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool objfn_file_istty(VMState* vm, int argcount, Value* args)
+bool objfn_file_istty(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(istty, 0);
+    ENFORCE_ARG_COUNT(is_tty, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     if(is_std_file(file))
     {
@@ -10696,12 +10665,12 @@ bool objfn_file_istty(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool objfn_file_flush(VMState* vm, int argcount, Value* args)
+bool objfn_file_flush(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(flush, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
 
-    if(!file->isopen)
+    if(!file->is_open)
     {
         FILE_ERROR(Unsupported, "i/o operation on closed file");
     }
@@ -10724,7 +10693,7 @@ bool objfn_file_flush(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool objfn_file_stats(VMState* vm, int argcount, Value* args)
+bool objfn_file_stats(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(stats, 0);
 
@@ -10739,16 +10708,16 @@ bool objfn_file_stats(VMState* vm, int argcount, Value* args)
             if(lstat(file->path->chars, &stats) == 0)
             {
                 // read mode
-                SET_DICT_STRING(dict, "isreadable", 11, BOOL_VAL(((stats.st_mode & S_IRUSR) != 0)));
+                SET_DICT_STRING(dict, "is_readable", 11, BOOL_VAL(((stats.st_mode & S_IRUSR) != 0)));
 
                 // write mode
-                SET_DICT_STRING(dict, "iswritable", 11, BOOL_VAL(((stats.st_mode & S_IWUSR) != 0)));
+                SET_DICT_STRING(dict, "is_writable", 11, BOOL_VAL(((stats.st_mode & S_IWUSR) != 0)));
 
                 // execute mode
-                SET_DICT_STRING(dict, "isexecutable", 13, BOOL_VAL(((stats.st_mode & S_IXUSR) != 0)));
+                SET_DICT_STRING(dict, "is_executable", 13, BOOL_VAL(((stats.st_mode & S_IXUSR) != 0)));
 
                 // is symbolic link
-                SET_DICT_STRING(dict, "issymbolic", 11, BOOL_VAL((S_ISLNK(stats.st_mode) != 0)));
+                SET_DICT_STRING(dict, "is_symbolic", 11, BOOL_VAL((S_ISLNK(stats.st_mode) != 0)));
 
 
                 // file details
@@ -10782,21 +10751,21 @@ bool objfn_file_stats(VMState* vm, int argcount, Value* args)
         // we are dealing with an std
         if(fileno(stdin) == fileno(file->file))
         {
-            SET_DICT_STRING(dict, "isreadable", 11, TRUE_VAL);
-            SET_DICT_STRING(dict, "iswritable", 11, FALSE_VAL);
+            SET_DICT_STRING(dict, "is_readable", 11, TRUE_VAL);
+            SET_DICT_STRING(dict, "is_writable", 11, FALSE_VAL);
         }
         else if(fileno(stdout) == fileno(file->file) || fileno(stderr) == fileno(file->file))
         {
-            SET_DICT_STRING(dict, "isreadable", 11, FALSE_VAL);
-            SET_DICT_STRING(dict, "iswritable", 11, TRUE_VAL);
+            SET_DICT_STRING(dict, "is_readable", 11, FALSE_VAL);
+            SET_DICT_STRING(dict, "is_writable", 11, TRUE_VAL);
         }
-        SET_DICT_STRING(dict, "isexecutable", 13, FALSE_VAL);
+        SET_DICT_STRING(dict, "is_executable", 13, FALSE_VAL);
         SET_DICT_STRING(dict, "size", 4, NUMBER_VAL(1));
     }
     RETURN_OBJ(dict);
 }
 
-bool objfn_file_symlink(VMState* vm, int argcount, Value* args)
+bool objfn_file_symlink(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(symlink, 1);
     ENFORCE_ARG_TYPE(symlink, 0, IS_STRING);
@@ -10814,7 +10783,7 @@ bool objfn_file_symlink(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool objfn_file_delete(VMState* vm, int argcount, Value* args)
+bool objfn_file_delete(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(delete, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -10827,7 +10796,7 @@ bool objfn_file_delete(VMState* vm, int argcount, Value* args)
     RETURN_STATUS(unlink(file->path->chars));
 }
 
-bool objfn_file_rename(VMState* vm, int argcount, Value* args)
+bool objfn_file_rename(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(rename, 1);
     ENFORCE_ARG_TYPE(rename, 0, IS_STRING);
@@ -10837,13 +10806,13 @@ bool objfn_file_rename(VMState* vm, int argcount, Value* args)
 
     if(file_exists(file->path->chars))
     {
-        ObjString* newname = AS_STRING(args[0]);
-        if(newname->length == 0)
+        ObjString* new_name = AS_STRING(args[0]);
+        if(new_name->length == 0)
         {
             FILE_ERROR(Operation, "file name cannot be empty");
         }
         file_close(file);
-        RETURN_STATUS(rename(file->path->chars, newname->chars));
+        RETURN_STATUS(rename(file->path->chars, new_name->chars));
     }
     else
     {
@@ -10851,7 +10820,7 @@ bool objfn_file_rename(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool objfn_file_path(VMState* vm, int argcount, Value* args)
+bool objfn_file_path(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(path, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -10859,7 +10828,7 @@ bool objfn_file_path(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(file->path);
 }
 
-bool objfn_file_mode(VMState* vm, int argcount, Value* args)
+bool objfn_file_mode(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(mode, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -10867,7 +10836,7 @@ bool objfn_file_mode(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(file->mode);
 }
 
-bool objfn_file_name(VMState* vm, int argcount, Value* args)
+bool objfn_file_name(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(name, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -10876,19 +10845,19 @@ bool objfn_file_name(VMState* vm, int argcount, Value* args)
     RETURN_STRING(name);
 }
 
-bool objfn_file_abspath(VMState* vm, int argcount, Value* args)
+bool objfn_file_abspath(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(abspath, 0);
+    ENFORCE_ARG_COUNT(abs_path, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
 
-    char* abspath = realpath(file->path->chars, NULL);
-    if(abspath != NULL)
-        RETURN_STRING(abspath);
+    char* abs_path = realpath(file->path->chars, NULL);
+    if(abs_path != NULL)
+        RETURN_STRING(abs_path);
     RETURN_STRING("");
 }
 
-bool objfn_file_copy(VMState* vm, int argcount, Value* args)
+bool objfn_file_copy(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(copy, 1);
     ENFORCE_ARG_TYPE(copy, 0, IS_STRING);
@@ -10917,22 +10886,22 @@ bool objfn_file_copy(VMState* vm, int argcount, Value* args)
             FILE_ERROR(Permission, "unable to create new file");
         }
 
-        size_t nread, nwrite;
+        size_t n_read, n_write;
         unsigned char buffer[8192];
         do
         {
-            nread = fread(buffer, 1, sizeof(buffer), file->file);
-            if(nread > 0)
+            n_read = fread(buffer, 1, sizeof(buffer), file->file);
+            if(n_read > 0)
             {
-                nwrite = fwrite(buffer, 1, nread, fp);
+                n_write = fwrite(buffer, 1, n_read, fp);
             }
             else
             {
-                nwrite = 0;
+                n_write = 0;
             }
-        } while((nread > 0) && (nread == nwrite));
+        } while((n_read > 0) && (n_read == n_write));
 
-        if(nwrite > 0)
+        if(n_write > 0)
         {
             FILE_ERROR(Operation, "error copying file");
         }
@@ -10941,7 +10910,7 @@ bool objfn_file_copy(VMState* vm, int argcount, Value* args)
         fclose(fp);
         file_close(file);
 
-        RETURN_BOOL(nread == nwrite);
+        RETURN_BOOL(n_read == n_write);
     }
     else
     {
@@ -10949,23 +10918,23 @@ bool objfn_file_copy(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool objfn_file_truncate(VMState* vm, int argcount, Value* args)
+bool objfn_file_truncate(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(truncate, 0, 1);
 
-    off_t finalsize = 0;
-    if(argcount == 1)
+    off_t final_size = 0;
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(truncate, 0, IS_NUMBER);
-        finalsize = (off_t)AS_NUMBER(args[0]);
+        final_size = (off_t)AS_NUMBER(args[0]);
     }
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
 
-    RETURN_STATUS(truncate(file->path->chars, finalsize));
+    RETURN_STATUS(truncate(file->path->chars, final_size));
 }
 
-bool objfn_file_chmod(VMState* vm, int argcount, Value* args)
+bool objfn_file_chmod(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(chmod, 1);
     ENFORCE_ARG_TYPE(chmod, 0, IS_NUMBER);
@@ -10985,11 +10954,11 @@ bool objfn_file_chmod(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool objfn_file_settimes(VMState* vm, int argcount, Value* args)
+bool objfn_file_settimes(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(settimes, 2);
-    ENFORCE_ARG_TYPE(settimes, 0, IS_NUMBER);
-    ENFORCE_ARG_TYPE(settimes, 1, IS_NUMBER);
+    ENFORCE_ARG_COUNT(set_times, 2);
+    ENFORCE_ARG_TYPE(set_times, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(set_times, 1, IS_NUMBER);
 
 #ifdef HAVE_UTIME
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -11004,31 +10973,31 @@ bool objfn_file_settimes(VMState* vm, int argcount, Value* args)
         int status = lstat(file->path->chars, &stats);
         if(status == 0)
         {
-            struct utimbuf newtimes;
+            struct utimbuf new_times;
 
     #if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || defined(_DARWIN_C_SOURCE))
             if(atime == (time_t)-1)
-                newtimes.actime = stats.st_atimespec.tv_sec;
+                new_times.actime = stats.st_atimespec.tv_sec;
             else
-                newtimes.actime = atime;
+                new_times.actime = atime;
 
             if(mtime == (time_t)-1)
-                newtimes.modtime = stats.st_mtimespec.tv_sec;
+                new_times.modtime = stats.st_mtimespec.tv_sec;
             else
-                newtimes.modtime = mtime;
+                new_times.modtime = mtime;
     #else
             if(atime == (time_t)-1)
-                newtimes.actime = stats.st_atime;
+                new_times.actime = stats.st_atime;
             else
-                newtimes.actime = atime;
+                new_times.actime = atime;
 
             if(mtime == (time_t)-1)
-                newtimes.modtime = stats.st_mtime;
+                new_times.modtime = stats.st_mtime;
             else
-                newtimes.modtime = mtime;
+                new_times.modtime = mtime;
     #endif
 
-            RETURN_STATUS(utime(file->path->chars, &newtimes));
+            RETURN_STATUS(utime(file->path->chars, &new_times));
         }
         else
         {
@@ -11044,7 +11013,7 @@ bool objfn_file_settimes(VMState* vm, int argcount, Value* args)
 #endif /* ifdef HAVE_UTIME */
 }
 
-bool objfn_file_seek(VMState* vm, int argcount, Value* args)
+bool objfn_file_seek(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(seek, 2);
     ENFORCE_ARG_TYPE(seek, 0, IS_NUMBER);
@@ -11054,11 +11023,11 @@ bool objfn_file_seek(VMState* vm, int argcount, Value* args)
     DENY_STD();
 
     long position = (long)AS_NUMBER(args[0]);
-    int seektype = AS_NUMBER(args[1]);
-    RETURN_STATUS(fseek(file->file, position, seektype));
+    int seek_type = AS_NUMBER(args[1]);
+    RETURN_STATUS(fseek(file->file, position, seek_type));
 }
 
-bool objfn_file_tell(VMState* vm, int argcount, Value* args)
+bool objfn_file_tell(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(tell, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -11071,22 +11040,22 @@ bool objfn_file_tell(VMState* vm, int argcount, Value* args)
 #undef SET_DICT_STRING
 #undef DENY_STD
 
-static const ModInitFunc builtinmodules[] = {
-    &bl_modload_os,//
-    &bl_modload_io,//
-    //&bl_modload_base64,//
-    &bl_modload_math,//
-    &bl_modload_date,//
-    //&bl_modload_socket,//
-    //&bl_modload_hash,//
-    &bl_modload_reflect,//
-    &bl_modload_array,//
-    &bl_modload_process,//
-    &bl_modload_struct,//
+static const ModInitFunc builtin_modules[] = {
+    &blade_module_loader_os,//
+    &blade_module_loader_io,//
+    //&blade_module_loader_base64,//
+    &blade_module_loader_math,//
+    &blade_module_loader_date,//
+    //&blade_module_loader_socket,//
+    //&blade_module_loader_hash,//
+    &blade_module_loader_reflect,//
+    &blade_module_loader_array,//
+    &blade_module_loader_process,//
+    &blade_module_loader_struct,//
     NULL,
 };
 
-bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* source, void* handle)
+bool load_module(VMState* vm, ModInitFunc init_fn, char* import_name, char* source, void* handle)
 {
     char* sdup;
     RegModule* module = init_fn(vm);
@@ -11094,21 +11063,21 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
     if(module != NULL)
     {
         sdup = strdup(module->name);
-        ObjModule* themodule = (ObjModule*)gc_protect(vm, (Object*)new_module(vm, sdup, source));
+        ObjModule* the_module = (ObjModule*)gc_protect(vm, (Object*)new_module(vm, sdup, source));
 
-        themodule->preloader = module->preloader;
-        themodule->unloader = module->unloader;
+        the_module->preloader = module->preloader;
+        the_module->unloader = module->unloader;
 
         if(module->fields != NULL)
         {
             for(int j = 0; module->fields[j].name != NULL; j++)
             {
                 RegField field = module->fields[j];
-                Value fieldname = GC_STRING(field.name);
+                Value field_name = GC_STRING(field.name);
 
                 Value v = field.fieldfunc(vm);
                 push(vm, v);
-                table_set(vm, &themodule->values, fieldname, v);
+                table_set(vm, &the_module->values, field_name, v);
                 pop(vm);
             }
         }
@@ -11118,11 +11087,11 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
             for(int j = 0; module->functions[j].name != NULL; j++)
             {
                 RegFunc func = module->functions[j];
-                Value funcname = GC_STRING(func.name);
+                Value func_name = GC_STRING(func.name);
 
-                Value funcrealvalue = OBJ_VAL(gc_protect(vm, (Object*)new_native(vm, func.natfn, func.name)));
-                push(vm, funcrealvalue);
-                table_set(vm, &themodule->values, funcname, funcrealvalue);
+                Value func_real_value = OBJ_VAL(gc_protect(vm, (Object*)new_native(vm, func.natfn, func.name)));
+                push(vm, func_real_value);
+                table_set(vm, &the_module->values, func_name, func_real_value);
                 pop(vm);
             }
         }
@@ -11131,23 +11100,23 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
         {
             for(int j = 0; module->classes[j].name != NULL; j++)
             {
-                RegClass klassreg = module->classes[j];
+                RegClass klass_reg = module->classes[j];
 
-                ObjString* classname = (ObjString*)gc_protect(vm, (Object*)copy_string(vm, klassreg.name, (int)strlen(klassreg.name)));
+                ObjString* class_name = (ObjString*)gc_protect(vm, (Object*)copy_string(vm, klass_reg.name, (int)strlen(klass_reg.name)));
 
-                ObjClass* klass = (ObjClass*)gc_protect(vm, (Object*)new_class(vm, classname));
+                ObjClass* klass = (ObjClass*)gc_protect(vm, (Object*)new_class(vm, class_name));
 
-                if(klassreg.functions != NULL)
+                if(klass_reg.functions != NULL)
                 {
-                    for(int k = 0; klassreg.functions[k].name != NULL; k++)
+                    for(int k = 0; klass_reg.functions[k].name != NULL; k++)
                     {
-                        RegFunc func = klassreg.functions[k];
+                        RegFunc func = klass_reg.functions[k];
 
-                        Value funcname = GC_STRING(func.name);
+                        Value func_name = GC_STRING(func.name);
 
                         ObjNativeFunction* native = (ObjNativeFunction*)gc_protect(vm, (Object*)new_native(vm, func.natfn, func.name));
 
-                        if(func.isstatic)
+                        if(func.is_static)
                         {
                             native->type = TYPE_STATIC;
                         }
@@ -11156,33 +11125,33 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
                             native->type = TYPE_PRIVATE;
                         }
 
-                        table_set(vm, &klass->methods, funcname, OBJ_VAL(native));
+                        table_set(vm, &klass->methods, func_name, OBJ_VAL(native));
                     }
                 }
 
-                if(klassreg.fields != NULL)
+                if(klass_reg.fields != NULL)
                 {
-                    for(int k = 0; klassreg.fields[k].name != NULL; k++)
+                    for(int k = 0; klass_reg.fields[k].name != NULL; k++)
                     {
-                        RegField field = klassreg.fields[k];
-                        Value fieldname = GC_STRING(field.name);
+                        RegField field = klass_reg.fields[k];
+                        Value field_name = GC_STRING(field.name);
 
                         Value v = field.fieldfunc(vm);
                         push(vm, v);
-                        table_set(vm, field.isstatic ? &klass->staticproperties : &klass->properties, fieldname, v);
+                        table_set(vm, field.is_static ? &klass->static_properties : &klass->properties, field_name, v);
                         pop(vm);
                     }
                 }
 
-                table_set(vm, &themodule->values, OBJ_VAL(classname), OBJ_VAL(klass));
+                table_set(vm, &the_module->values, OBJ_VAL(class_name), OBJ_VAL(klass));
             }
         }
 
         if(handle != NULL)
         {
-            themodule->handle = handle;// set handle for shared library modules
+            the_module->handle = handle;// set handle for shared library modules
         }
-        add_native_module(vm, themodule, themodule->name);
+        add_native_module(vm, the_module, the_module->name);
         free(sdup);
         gc_clear_protection(vm);
         return true;
@@ -11190,7 +11159,7 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
     else
     {
         // @TODO: Warn about module loading error...
-        printf("Error loading module: _%s\n", importname);
+        printf("Error loading module: _%s\n", import_name);
     }
 
     return false;
@@ -11209,56 +11178,50 @@ void add_native_module(VMState* vm, ObjModule* module, const char* as)
     pop_n(vm, 2);
 }
 
-void bind_user_modules(VMState* vm, char* pkgroot)
+void bind_user_modules(VMState* vm, char* pkg_root)
 {
-    size_t dlen;
-    int extlength;
-    int pathlength;
-    int namelength;
-    char* dnam;
-    char* path;
-    char* name;
-    char* error;
-    char* filename;
-    struct stat sb;
-    DIR* dir;
-    struct dirent* ent;
-    if(pkgroot == NULL)
-    {
+    if(pkg_root == NULL)
         return;
-    }
-    if((dir = opendir(pkgroot)) != NULL)
+
+    DIR* dir;
+    if((dir = opendir(pkg_root)) != NULL)
     {
+        struct dirent* ent;
         while((ent = readdir(dir)) != NULL)
         {
-            extlength = (int)strlen(LIBRARY_FILE_EXTENSION);
+            int ext_length = (int)strlen(LIBRARY_FILE_EXTENSION);
+
             // skip . and .. in path
-            dlen = strlen(ent->d_name);
-            dnam = ent->d_name;
-            if(((dlen == 1) && (dnam[0] == '.')) || ((dlen == 2) && ((dnam[0] == '.') && (dnam[1] == '.'))) || dlen < (size_t)(extlength + 1))
+            if((strlen(ent->d_name) == 1 && ent->d_name[0] == '.')// .
+               || (strlen(ent->d_name) == 2 && ent->d_name[0] == '.' && ent->d_name[1] == '.')// ..
+               || strlen(ent->d_name) < ext_length + 1)
             {
                 continue;
             }
-            path = merge_paths(pkgroot, ent->d_name);
+
+            char* path = merge_paths(pkg_root, ent->d_name);
             if(!path)
-            {
                 continue;
-            }
-            pathlength = (int)strlen(path);
+
+            int path_length = (int)strlen(path);
+
+            struct stat sb;
             if(stat(path, &sb) == 0)
             {
                 // it's not a directory
                 if(S_ISDIR(sb.st_mode) < 1)
                 {
-                    if(memcmp(path + (pathlength - extlength), LIBRARY_FILE_EXTENSION, extlength) == 0)
+                    if(memcmp(path + (path_length - ext_length), LIBRARY_FILE_EXTENSION, ext_length) == 0)
                     {// library file
 
-                        filename = get_real_file_name(path);
-                        namelength = (int)strlen(filename) - extlength;
-                        name = ALLOCATE(char, namelength + 1);
-                        memcpy(name, filename, namelength);
-                        name[namelength] = '\0';
-                        error = load_user_module(vm, path, name);
+                        char* filename = get_real_file_name(path);
+
+                        int name_length = (int)strlen(filename) - ext_length;
+                        char* name = ALLOCATE(char, name_length + 1);
+                        memcpy(name, filename, name_length);
+                        name[name_length] = '\0';
+
+                        char* error = load_user_module(vm, path, name);
                         if(error != NULL)
                         {
                             // @TODO: handle appropriately
@@ -11269,15 +11232,15 @@ void bind_user_modules(VMState* vm, char* pkgroot)
         }
         closedir(dir);
     }
+
     gc_clear_protection(vm);
 }
 
 void bind_native_modules(VMState* vm)
 {
-    int i;
-    for(i = 0; builtinmodules[i] != NULL; i++)
+    for(int i = 0; builtin_modules[i] != NULL; i++)
     {
-        load_module(vm, builtinmodules[i], NULL, strdup("<__native__>"), NULL);
+        load_module(vm, builtin_modules[i], NULL, strdup("<__native__>"), NULL);
     }
     //bind_user_modules(vm, merge_paths(get_exe_dir(), "dist"));
     //bind_user_modules(vm, merge_paths(getcwd(NULL, 0), LOCAL_PACKAGES_DIRECTORY LOCAL_EXT_DIRECTORY));
@@ -11285,37 +11248,38 @@ void bind_native_modules(VMState* vm)
 
 char* load_user_module(VMState* vm, const char* path, char* name)
 {
-    int length;
-    char* fnname;
-    void* handle;
-    ModInitFunc fn;
-    length = (int)strlen(name) + 20;// 20 == strlen("blademoduleloader")
-    fnname = ALLOCATE(char, length + 1);
-    if(fnname == NULL)
+    int length = (int)strlen(name) + 20;// 20 == strlen("blade_module_loader_")
+    char* fn_name = ALLOCATE(char, length + 1);
+
+    if(fn_name == NULL)
     {
         return "failed to load module";
     }
-    sprintf(fnname, "blademoduleloader%s", name);
-    fnname[length] = '\0';// terminate the raw string
+
+    sprintf(fn_name, "blade_module_loader_%s", name);
+    fn_name[length] = '\0';// terminate the raw string
+
+    void* handle;
     if((handle = dlopen(path, RTLD_LAZY)) == NULL)
     {
         return (char*)dlerror();
     }
-    fn = dlsym(handle, fnname);
+
+    ModInitFunc fn = dlsym(handle, fn_name);
     if(fn == NULL)
     {
         return (char*)dlerror();
     }
 
-    int pathlength = (int)strlen(path);
-    char* modulefile = ALLOCATE(char, pathlength + 1);
-    memcpy(modulefile, path, pathlength);
-    modulefile[pathlength] = '\0';
+    int path_length = (int)strlen(path);
+    char* module_file = ALLOCATE(char, path_length + 1);
+    memcpy(module_file, path, path_length);
+    module_file[path_length] = '\0';
 
-    if(!load_module(vm, fn, name, modulefile, handle))
+    if(!load_module(vm, fn, name, module_file, handle))
     {
-        FREE_ARRAY(char, fnname, length + 1);
-        FREE_ARRAY(char, modulefile, pathlength + 1);
+        FREE_ARRAY(char, fn_name, length + 1);
+        FREE_ARRAY(char, module_file, path_length + 1);
         dlclose(handle);
         return "failed to call module loader";
     }
@@ -11346,23 +11310,23 @@ static ObjString* bin_to_string(VMState* vm, long n)
         str[count++] = rem == 1 ? '1' : '0';
     }
 
-    char newstr[1027];// assume maximum of 1024 bits + 0b (indicator) + sign (-).
+    char new_str[1027];// assume maximum of 1024 bits + 0b (indicator) + sign (-).
     int length = 0;
 
     if(n < 0)
-        newstr[length++] = '-';
+        new_str[length++] = '-';
 
-    newstr[length++] = '0';
-    newstr[length++] = 'b';
+    new_str[length++] = '0';
+    new_str[length++] = 'b';
 
     for(int i = count - 1; i >= 0; i--)
     {
-        newstr[length++] = str[i];
+        new_str[length++] = str[i];
     }
 
-    newstr[length++] = 0;
+    new_str[length++] = 0;
 
-    return copy_string(vm, newstr, length);
+    return copy_string(vm, new_str, length);
 
     //  // To store the binary number
     //  long long number = 0;
@@ -11404,7 +11368,7 @@ static ObjString* number_to_hex(VMState* vm, long long n, bool numeric)
  *
  * returns the current timestamp in seconds
  */
-bool cfn_time(VMState* vm, int argcount, Value* args)
+bool cfn_time(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(time, 0);
 
@@ -11418,7 +11382,7 @@ bool cfn_time(VMState* vm, int argcount, Value* args)
  *
  * returns the current time in microseconds
  */
-bool cfn_microtime(VMState* vm, int argcount, Value* args)
+bool cfn_microtime(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(microtime, 0);
 
@@ -11436,7 +11400,7 @@ bool cfn_microtime(VMState* vm, int argcount, Value* args)
  *
  * returns the unique identifier of value within the system
  */
-bool cfn_id(VMState* vm, int argcount, Value* args)
+bool cfn_id(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(id, 1);
 
@@ -11452,7 +11416,7 @@ bool cfn_id(VMState* vm, int argcount, Value* args)
  *
  * returns true if object has the property name or not
  */
-bool cfn_hasprop(VMState* vm, int argcount, Value* args)
+bool cfn_hasprop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(hasprop, 2);
     ENFORCE_ARG_TYPE(hasprop, 0, IS_INSTANCE);
@@ -11470,7 +11434,7 @@ bool cfn_hasprop(VMState* vm, int argcount, Value* args)
  * or nil if the object contains no property with a matching
  * name
  */
-bool cfn_getprop(VMState* vm, int argcount, Value* args)
+bool cfn_getprop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(getprop, 2);
     ENFORCE_ARG_TYPE(getprop, 0, IS_INSTANCE);
@@ -11494,7 +11458,7 @@ bool cfn_getprop(VMState* vm, int argcount, Value* args)
  * @returns bool: true if a new property was set, false if a property was
  * updated
  */
-bool cfn_setprop(VMState* vm, int argcount, Value* args)
+bool cfn_setprop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(setprop, 3);
     ENFORCE_ARG_TYPE(setprop, 0, IS_INSTANCE);
@@ -11510,7 +11474,7 @@ bool cfn_setprop(VMState* vm, int argcount, Value* args)
  * deletes the named property from the object
  * @returns bool
  */
-bool cfn_delprop(VMState* vm, int argcount, Value* args)
+bool cfn_delprop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(delprop, 2);
     ENFORCE_ARG_TYPE(delprop, 0, IS_INSTANCE);
@@ -11525,14 +11489,14 @@ bool cfn_delprop(VMState* vm, int argcount, Value* args)
  *
  * returns the greatest of the number arguments
  */
-bool cfn_max(VMState* vm, int argcount, Value* args)
+bool cfn_max(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_MIN_ARG(max, 2);
     ENFORCE_ARG_TYPE(max, 0, IS_NUMBER);
 
     double max = AS_NUMBER(args[0]);
 
-    for(int i = 1; i < argcount; i++)
+    for(int i = 1; i < arg_count; i++)
     {
         ENFORCE_ARG_TYPE(max, i, IS_NUMBER);
         double number = AS_NUMBER(args[i]);
@@ -11548,14 +11512,14 @@ bool cfn_max(VMState* vm, int argcount, Value* args)
  *
  * returns the least of the number arguments
  */
-bool cfn_min(VMState* vm, int argcount, Value* args)
+bool cfn_min(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_MIN_ARG(min, 2);
     ENFORCE_ARG_TYPE(min, 0, IS_NUMBER);
 
     double min = AS_NUMBER(args[0]);
 
-    for(int i = 1; i < argcount; i++)
+    for(int i = 1; i < arg_count; i++)
     {
         ENFORCE_ARG_TYPE(min, i, IS_NUMBER);
         double number = AS_NUMBER(args[i]);
@@ -11571,12 +11535,12 @@ bool cfn_min(VMState* vm, int argcount, Value* args)
  *
  * returns the summation of all numbers given
  */
-bool cfn_sum(VMState* vm, int argcount, Value* args)
+bool cfn_sum(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_MIN_ARG(sum, 2);
 
     double sum = 0;
-    for(int i = 0; i < argcount; i++)
+    for(int i = 0; i < arg_count; i++)
     {
         ENFORCE_ARG_TYPE(sum, i, IS_NUMBER);
         sum += AS_NUMBER(args[i]);
@@ -11593,7 +11557,7 @@ bool cfn_sum(VMState* vm, int argcount, Value* args)
  * if x is not a number but it's class defines a method @to_abs(),
  * returns the result of calling x.to_abs()
  */
-bool cfn_abs(VMState* vm, int argcount, Value* args)
+bool cfn_abs(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(abs, 1);
 
@@ -11616,11 +11580,11 @@ bool cfn_abs(VMState* vm, int argcount, Value* args)
  * if i is not a number but it's class defines @to_number(), it
  * returns the result of calling to_number()
  */
-bool cfn_int(VMState* vm, int argcount, Value* args)
+bool cfn_int(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(int, 0, 1);
 
-    if(argcount == 0)
+    if(arg_count == 0)
     {
         RETURN_NUMBER(0);
     }
@@ -11640,7 +11604,7 @@ bool cfn_int(VMState* vm, int argcount, Value* args)
  * if i is not a number but it's class defines @to_bin(), it
  * returns the result of calling bin(x.to_bin())
  */
-bool cfn_bin(VMState* vm, int argcount, Value* args)
+bool cfn_bin(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(bin, 1);
 
@@ -11659,7 +11623,7 @@ bool cfn_bin(VMState* vm, int argcount, Value* args)
  * if i is not a number but it's class defines @to_oct(), it
  * returns the result of calling oct(x.to_oct())
  */
-bool cfn_oct(VMState* vm, int argcount, Value* args)
+bool cfn_oct(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(oct, 1);
 
@@ -11678,7 +11642,7 @@ bool cfn_oct(VMState* vm, int argcount, Value* args)
  * if i is not a number but it's class defines @to_hex(), it
  * returns the result of calling hex(x.to_hex())
  */
-bool cfn_hex(VMState* vm, int argcount, Value* args)
+bool cfn_hex(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(hex, 1);
 
@@ -11697,7 +11661,7 @@ bool cfn_hex(VMState* vm, int argcount, Value* args)
  * classes may override the return value by declaring a @to_bool()
  * function.
  */
-bool cfn_tobool(VMState* vm, int argcount, Value* args)
+bool cfn_tobool(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_bool, 1);
     METHOD_OVERRIDE(to_bool, 7);
@@ -11712,7 +11676,7 @@ bool cfn_tobool(VMState* vm, int argcount, Value* args)
  * native classes may override the return value by declaring a @to_string()
  * function.
  */
-bool cfn_tostring(VMState* vm, int argcount, Value* args)
+bool cfn_tostring(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_string, 1);
     METHOD_OVERRIDE(to_string, 9);
@@ -11728,7 +11692,7 @@ bool cfn_tostring(VMState* vm, int argcount, Value* args)
  * native classes may override the return value by declaring a @to_number()
  * function.
  */
-bool cfn_tonumber(VMState* vm, int argcount, Value* args)
+bool cfn_tonumber(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_number, 1);
     METHOD_OVERRIDE(to_number, 9);
@@ -11787,7 +11751,7 @@ bool cfn_tonumber(VMState* vm, int argcount, Value* args)
  * native classes may override the return value by declaring a @to_int()
  * function.
  */
-bool cfn_toint(VMState* vm, int argcount, Value* args)
+bool cfn_toint(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_int, 1);
     METHOD_OVERRIDE(to_int, 6);
@@ -11803,7 +11767,7 @@ bool cfn_toint(VMState* vm, int argcount, Value* args)
  * native classes may override the return value by declaring a @to_list()
  * function.
  */
-bool cfn_tolist(VMState* vm, int argcount, Value* args)
+bool cfn_tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     METHOD_OVERRIDE(to_list, 0);
@@ -11820,20 +11784,20 @@ bool cfn_tolist(VMState* vm, int argcount, Value* args)
         ObjDict* dict = AS_DICT(args[0]);
         for(int i = 0; i < dict->names.count; i++)
         {
-            ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-            write_value_arr(vm, &nlist->items, dict->names.values[i]);
+            ObjList* n_list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+            write_value_arr(vm, &n_list->items, dict->names.values[i]);
 
             Value value;
             table_get(&dict->items, dict->names.values[i], &value);
-            write_value_arr(vm, &nlist->items, value);
+            write_value_arr(vm, &n_list->items, value);
 
-            write_value_arr(vm, &list->items, OBJ_VAL(nlist));
+            write_value_arr(vm, &list->items, OBJ_VAL(n_list));
         }
     }
     else if(IS_STRING(args[0]))
     {
         ObjString* str = AS_STRING(args[0]);
-        for(int i = 0; i < str->utf8length; i++)
+        for(int i = 0; i < str->utf8_length; i++)
         {
             int start = i, end = i + 1;
             utf8slice(str->chars, &start, &end);
@@ -11875,7 +11839,7 @@ bool cfn_tolist(VMState* vm, int argcount, Value* args)
  * native classes may override the return value by declaring a @to_dict()
  * function.
  */
-bool cfn_todict(VMState* vm, int argcount, Value* args)
+bool cfn_todict(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_dict, 1);
     METHOD_OVERRIDE(to_dict, 7);
@@ -11897,7 +11861,7 @@ bool cfn_todict(VMState* vm, int argcount, Value* args)
  * return the string representing a character whose Unicode
  * code point is the number i.
  */
-bool cfn_chr(VMState* vm, int argcount, Value* args)
+bool cfn_chr(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(chr, 1);
     ENFORCE_ARG_TYPE(chr, 0, IS_NUMBER);
@@ -11910,15 +11874,15 @@ bool cfn_chr(VMState* vm, int argcount, Value* args)
  *
  * return the code point value of a unicode character.
  */
-bool cfn_ord(VMState* vm, int argcount, Value* args)
+bool cfn_ord(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(ord, 1);
     ENFORCE_ARG_TYPE(ord, 0, IS_STRING);
     ObjString* string = AS_STRING(args[0]);
 
-    int maxlength = string->length > 1 && (int)string->chars[0] < 1 ? 3 : 1;
+    int max_length = string->length > 1 && (int)string->chars[0] < 1 ? 3 : 1;
 
-    if(string->length > maxlength)
+    if(string->length > max_length)
     {
         RETURN_ERROR("ord() expects character as argument, string given");
     }
@@ -11941,31 +11905,31 @@ bool cfn_ord(VMState* vm, int argcount, Value* args)
  * - returns a random number between limit and upper if two arguments is
  * given
  */
-bool cfn_rand(VMState* vm, int argcount, Value* args)
+bool cfn_rand(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(rand, 0, 2);
-    int lowerlimit = 0;
-    int upperlimit = 1;
+    int lower_limit = 0;
+    int upper_limit = 1;
 
-    if(argcount > 0)
+    if(arg_count > 0)
     {
         ENFORCE_ARG_TYPE(rand, 0, IS_NUMBER);
-        lowerlimit = AS_NUMBER(args[0]);
+        lower_limit = AS_NUMBER(args[0]);
     }
-    if(argcount == 2)
+    if(arg_count == 2)
     {
         ENFORCE_ARG_TYPE(rand, 1, IS_NUMBER);
-        upperlimit = AS_NUMBER(args[1]);
+        upper_limit = AS_NUMBER(args[1]);
     }
 
-    if(lowerlimit > upperlimit)
+    if(lower_limit > upper_limit)
     {
-        int tmp = upperlimit;
-        upperlimit = lowerlimit;
-        lowerlimit = tmp;
+        int tmp = upper_limit;
+        upper_limit = lower_limit;
+        lower_limit = tmp;
     }
 
-    int n = upperlimit - lowerlimit + 1;
+    int n = upper_limit - lower_limit + 1;
     int remainder = RAND_MAX % n;
     int x;
 
@@ -11973,7 +11937,7 @@ bool cfn_rand(VMState* vm, int argcount, Value* args)
     gettimeofday(&tv, NULL);
     srand((unsigned int)(10000000 * tv.tv_sec + tv.tv_usec + time(NULL)));
 
-    if(lowerlimit == 0 && upperlimit == 1)
+    if(lower_limit == 0 && upper_limit == 1)
     {
         RETURN_NUMBER((double)rand() / RAND_MAX);
     }
@@ -11984,7 +11948,7 @@ bool cfn_rand(VMState* vm, int argcount, Value* args)
             x = rand();
         } while(x >= RAND_MAX - remainder);
 
-        RETURN_NUMBER((double)lowerlimit + x % n);
+        RETURN_NUMBER((double)lower_limit + x % n);
     }
 }
 
@@ -11993,7 +11957,7 @@ bool cfn_rand(VMState* vm, int argcount, Value* args)
  *
  * returns the name of the type of value
  */
-bool cfn_typeof(VMState* vm, int argcount, Value* args)
+bool cfn_typeof(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(typeof, 1);
     char* result = (char*)value_type(args[0]);
@@ -12005,7 +11969,7 @@ bool cfn_typeof(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a callable function or class and false otherwise
  */
-bool cfn_iscallable(VMState* vm, int argcount, Value* args)
+bool cfn_iscallable(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_callable, 1);
     RETURN_BOOL(IS_CLASS(args[0]) || IS_FUNCTION(args[0]) || IS_CLOSURE(args[0]) || IS_BOUND(args[0]) || IS_NATIVE(args[0]));
@@ -12016,7 +11980,7 @@ bool cfn_iscallable(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a boolean or false otherwise
  */
-bool cfn_isbool(VMState* vm, int argcount, Value* args)
+bool cfn_isbool(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_bool, 1);
     RETURN_BOOL(IS_BOOL(args[0]));
@@ -12027,7 +11991,7 @@ bool cfn_isbool(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a number or false otherwise
  */
-bool cfn_isnumber(VMState* vm, int argcount, Value* args)
+bool cfn_isnumber(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_number, 1);
     RETURN_BOOL(IS_NUMBER(args[0]));
@@ -12038,7 +12002,7 @@ bool cfn_isnumber(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is an integer or false otherwise
  */
-bool cfn_isint(VMState* vm, int argcount, Value* args)
+bool cfn_isint(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_int, 1);
     RETURN_BOOL(IS_NUMBER(args[0]) && (((int)AS_NUMBER(args[0])) == AS_NUMBER(args[0])));
@@ -12049,7 +12013,7 @@ bool cfn_isint(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a string or false otherwise
  */
-bool cfn_isstring(VMState* vm, int argcount, Value* args)
+bool cfn_isstring(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_string, 1);
     RETURN_BOOL(IS_STRING(args[0]));
@@ -12060,7 +12024,7 @@ bool cfn_isstring(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a bytes or false otherwise
  */
-bool cfn_isbytes(VMState* vm, int argcount, Value* args)
+bool cfn_isbytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_bytes, 1);
     RETURN_BOOL(IS_BYTES(args[0]));
@@ -12071,7 +12035,7 @@ bool cfn_isbytes(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a list or false otherwise
  */
-bool cfn_islist(VMState* vm, int argcount, Value* args)
+bool cfn_islist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_list, 1);
     RETURN_BOOL(IS_LIST(args[0]));
@@ -12082,7 +12046,7 @@ bool cfn_islist(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a dictionary or false otherwise
  */
-bool cfn_isdict(VMState* vm, int argcount, Value* args)
+bool cfn_isdict(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_dict, 1);
     RETURN_BOOL(IS_DICT(args[0]));
@@ -12093,7 +12057,7 @@ bool cfn_isdict(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is an object or false otherwise
  */
-bool cfn_isobject(VMState* vm, int argcount, Value* args)
+bool cfn_isobject(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_object, 1);
     RETURN_BOOL(IS_OBJ(args[0]));
@@ -12104,7 +12068,7 @@ bool cfn_isobject(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a function or false otherwise
  */
-bool cfn_isfunction(VMState* vm, int argcount, Value* args)
+bool cfn_isfunction(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_function, 1);
     RETURN_BOOL(IS_FUNCTION(args[0]) || IS_CLOSURE(args[0]) || IS_BOUND(args[0]) || IS_NATIVE(args[0]));
@@ -12115,7 +12079,7 @@ bool cfn_isfunction(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is an iterable or false otherwise
  */
-bool cfn_isiterable(VMState* vm, int argcount, Value* args)
+bool cfn_isiterable(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_iterable, 1);
     bool is_iterable = IS_LIST(args[0]) || IS_DICT(args[0]) || IS_STRING(args[0]) || IS_BYTES(args[0]);
@@ -12133,7 +12097,7 @@ bool cfn_isiterable(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a class or false otherwise
  */
-bool cfn_isclass(VMState* vm, int argcount, Value* args)
+bool cfn_isclass(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_class, 1);
     RETURN_BOOL(IS_CLASS(args[0]));
@@ -12144,7 +12108,7 @@ bool cfn_isclass(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is a file or false otherwise
  */
-bool cfn_isfile(VMState* vm, int argcount, Value* args)
+bool cfn_isfile(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_file, 1);
     RETURN_BOOL(IS_FILE(args[0]));
@@ -12155,7 +12119,7 @@ bool cfn_isfile(VMState* vm, int argcount, Value* args)
  *
  * returns true if the value is an instance of a class
  */
-bool cfn_isinstance(VMState* vm, int argcount, Value* args)
+bool cfn_isinstance(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(is_instance, 1);
     RETURN_BOOL(IS_INSTANCE(args[0]));
@@ -12167,7 +12131,7 @@ bool cfn_isinstance(VMState* vm, int argcount, Value* args)
  * returns true if the value is an instance the given class, false
  * otherwise
  */
-bool cfn_instanceof(VMState* vm, int argcount, Value* args)
+bool cfn_instanceof(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(instance_of, 2);
     ENFORCE_ARG_TYPE(instance_of, 0, IS_INSTANCE);
@@ -12183,36 +12147,36 @@ bool cfn_instanceof(VMState* vm, int argcount, Value* args)
  *
  * prints values to the standard output
  */
-bool cfn_print(VMState* vm, int argcount, Value* args)
+bool cfn_print(VMState* vm, int arg_count, Value* args)
 {
-    for(int i = 0; i < argcount; i++)
+    for(int i = 0; i < arg_count; i++)
     {
         print_value(args[i]);
-        if(i != argcount - 1)
+        if(i != arg_count - 1)
         {
             printf(" ");
         }
     }
-    if(vm->isrepl)
+    if(vm->is_repl)
     {
         printf("\n");
     }
     RETURN_NUMBER(0);
 }
 
-bool objfn_range_lower(VMState* vm, int argcount, Value* args)
+bool objfn_range_lower(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(lower, 0);
     RETURN_NUMBER(AS_RANGE(METHOD_OBJECT)->lower);
 }
 
-bool objfn_range_upper(VMState* vm, int argcount, Value* args)
+bool objfn_range_upper(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(upper, 0);
     RETURN_NUMBER(AS_RANGE(METHOD_OBJECT)->upper);
 }
 
-bool objfn_range_iter(VMState* vm, int argcount, Value* args)
+bool objfn_range_iter(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
     ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
@@ -12231,7 +12195,7 @@ bool objfn_range_iter(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool objfn_range_itern(VMState* vm, int argcount, Value* args)
+bool objfn_range_itern(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjRange* range = AS_RANGE(METHOD_OBJECT);
@@ -12270,7 +12234,7 @@ void array_free(void* data)
 ObjPointer* new_array(VMState* vm, DynArray* array)
 {
     ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)new_ptr(vm, array));
-    ptr->fnptrfree = &array_free;
+    ptr->free_fn = &array_free;
     return ptr;
 }
 
@@ -12283,7 +12247,7 @@ DynArray* new_int16_array(VMState* vm, int length)
     return array;
 }
 
-bool modfn_array_int16array(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16array(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(int16array, 1);
     if(IS_NUMBER(args[0]))
@@ -12312,7 +12276,7 @@ bool modfn_array_int16array(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("expected array size or int16 list as argument");
 }
 
-bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
     ENFORCE_ARG_TYPE(append, 0, IS_PTR);
@@ -12320,8 +12284,7 @@ bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
 
     if(IS_NUMBER(args[1]))
     {
-        array->length++;
-        array->buffer = GROW_ARRAY(int16_t, array->buffer, array->length-1, array->length);
+        array->buffer = GROW_ARRAY(int16_t, array->buffer, array->length, array->length++);
 
         int16_t* values = (int16_t*)array->buffer;
         values[array->length - 1] = (int16_t)AS_NUMBER(args[1]);
@@ -12356,7 +12319,7 @@ bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_array_int16get(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
     ENFORCE_ARG_TYPE(get, 0, IS_PTR);
@@ -12374,38 +12337,38 @@ bool modfn_array_int16get(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)data[index]);
 }
 
-bool modfn_array_int16reverse(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 1);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t* data = (int16_t*)array->buffer;
 
-    DynArray* narray = new_int16_array(vm, array->length);
-    int16_t* ndata = (int16_t*)narray->buffer;
+    DynArray* n_array = new_int16_array(vm, array->length);
+    int16_t* n_data = (int16_t*)n_array->buffer;
 
     for(int i = array->length - 1; i >= 0; i--)
     {
-        ndata[i] = data[i];
+        n_data[i] = data[i];
     }
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_int16clone(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
     ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
 
-    DynArray* narray = new_int16_array(vm, array->length);
-    memcpy(narray->buffer, array->buffer, array->length);
+    DynArray* n_array = new_int16_array(vm, array->length);
+    memcpy(n_array->buffer, array->buffer, array->length);
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_int16pop(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
     ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
@@ -12417,7 +12380,7 @@ bool modfn_array_int16pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_int16remove(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
     ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
@@ -12444,7 +12407,7 @@ bool modfn_array_int16remove(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(val);
 }
 
-bool modfn_array_int16tolist(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -12462,7 +12425,7 @@ bool modfn_array_int16tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool modfn_array_int16tobytes(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16tobytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -12475,7 +12438,7 @@ bool modfn_array_int16tobytes(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bytes);
 }
 
-bool modfn_array_int16iter_(VMState* vm, int argcount, Value* args)
+bool modfn_array_int16iter_(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
     ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
@@ -12504,7 +12467,7 @@ DynArray* new_int32_array(VMState* vm, int length)
     return array;
 }
 
-bool modfn_array_int32array(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32array(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(int32array, 1);
     if(IS_NUMBER(args[0]))
@@ -12533,7 +12496,7 @@ bool modfn_array_int32array(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("expected array size or int32 list as argument");
 }
 
-bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
     ENFORCE_ARG_TYPE(append, 0, IS_PTR);
@@ -12541,8 +12504,7 @@ bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
 
     if(IS_NUMBER(args[1]))
     {
-        array->length++;
-        array->buffer = GROW_ARRAY(int32_t, array->buffer, array->length-1, array->length);
+        array->buffer = GROW_ARRAY(int32_t, array->buffer, array->length, array->length++);
 
         int32_t* values = (int32_t*)array->buffer;
         values[array->length - 1] = (int32_t)AS_NUMBER(args[1]);
@@ -12577,7 +12539,7 @@ bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_array_int32get(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
     ENFORCE_ARG_TYPE(get, 0, IS_PTR);
@@ -12595,38 +12557,38 @@ bool modfn_array_int32get(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)data[index]);
 }
 
-bool modfn_array_int32reverse(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 1);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t* data = (int32_t*)array->buffer;
 
-    DynArray* narray = new_int32_array(vm, array->length);
-    int32_t* ndata = (int32_t*)narray->buffer;
+    DynArray* n_array = new_int32_array(vm, array->length);
+    int32_t* n_data = (int32_t*)n_array->buffer;
 
     for(int i = array->length - 1; i >= 0; i--)
     {
-        ndata[i] = data[i];
+        n_data[i] = data[i];
     }
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_int32clone(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
     ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
 
-    DynArray* narray = new_int32_array(vm, array->length);
-    memcpy(narray->buffer, array->buffer, array->length);
+    DynArray* n_array = new_int32_array(vm, array->length);
+    memcpy(n_array->buffer, array->buffer, array->length);
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_int32pop(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
     ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
@@ -12638,7 +12600,7 @@ bool modfn_array_int32pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_int32remove(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
     ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
@@ -12665,7 +12627,7 @@ bool modfn_array_int32remove(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(val);
 }
 
-bool modfn_array_int32tolist(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -12683,7 +12645,7 @@ bool modfn_array_int32tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool modfn_array_int32tobytes(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32tobytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -12696,7 +12658,7 @@ bool modfn_array_int32tobytes(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bytes);
 }
 
-bool modfn_array_int32iter_(VMState* vm, int argcount, Value* args)
+bool modfn_array_int32iter_(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
     ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
@@ -12725,7 +12687,7 @@ DynArray* new_int64_array(VMState* vm, int length)
     return array;
 }
 
-bool modfn_array_int64array(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64array(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(int64array, 1);
     if(IS_NUMBER(args[0]))
@@ -12754,7 +12716,7 @@ bool modfn_array_int64array(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("expected array size or int64 list as argument");
 }
 
-bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
     ENFORCE_ARG_TYPE(append, 0, IS_PTR);
@@ -12762,8 +12724,7 @@ bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
 
     if(IS_NUMBER(args[1]))
     {
-        array->length++;
-        array->buffer = GROW_ARRAY(int64_t, array->buffer, array->length-1, array->length);
+        array->buffer = GROW_ARRAY(int64_t, array->buffer, array->length, array->length++);
 
         int64_t* values = (int64_t*)array->buffer;
         values[array->length - 1] = (int64_t)AS_NUMBER(args[1]);
@@ -12798,7 +12759,7 @@ bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_array_int64get(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
     ENFORCE_ARG_TYPE(get, 0, IS_PTR);
@@ -12816,38 +12777,38 @@ bool modfn_array_int64get(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)data[index]);
 }
 
-bool modfn_array_int64reverse(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 1);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t* data = (int64_t*)array->buffer;
 
-    DynArray* narray = new_int64_array(vm, array->length);
-    int64_t* ndata = (int64_t*)narray->buffer;
+    DynArray* n_array = new_int64_array(vm, array->length);
+    int64_t* n_data = (int64_t*)n_array->buffer;
 
     for(int i = array->length - 1; i >= 0; i--)
     {
-        ndata[i] = data[i];
+        n_data[i] = data[i];
     }
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_int64clone(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
     ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
 
-    DynArray* narray = new_int64_array(vm, array->length);
-    memcpy(narray->buffer, array->buffer, array->length);
+    DynArray* n_array = new_int64_array(vm, array->length);
+    memcpy(n_array->buffer, array->buffer, array->length);
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_int64pop(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
     ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
@@ -12859,7 +12820,7 @@ bool modfn_array_int64pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_int64remove(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
     ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
@@ -12886,7 +12847,7 @@ bool modfn_array_int64remove(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(val);
 }
 
-bool modfn_array_int64tolist(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -12904,7 +12865,7 @@ bool modfn_array_int64tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool modfn_array_int64tobytes(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64tobytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -12917,7 +12878,7 @@ bool modfn_array_int64tobytes(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bytes);
 }
 
-bool modfn_array_int64iter_(VMState* vm, int argcount, Value* args)
+bool modfn_array_int64iter_(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
     ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
@@ -12946,7 +12907,7 @@ DynArray* new_uint16_array(VMState* vm, int length)
     return array;
 }
 
-bool modfn_array_uint16array(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16array(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(uint16array, 1);
     if(IS_NUMBER(args[0]))
@@ -12975,7 +12936,7 @@ bool modfn_array_uint16array(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("expected array size or uint16 list as argument");
 }
 
-bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
     ENFORCE_ARG_TYPE(append, 0, IS_PTR);
@@ -12983,8 +12944,7 @@ bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
 
     if(IS_NUMBER(args[1]))
     {
-        array->length++;
-        array->buffer = GROW_ARRAY(uint16_t, array->buffer, array->length-1, array->length);
+        array->buffer = GROW_ARRAY(uint16_t, array->buffer, array->length, array->length++);
 
         uint16_t* values = (uint16_t*)array->buffer;
         values[array->length - 1] = (uint16_t)AS_NUMBER(args[1]);
@@ -13019,7 +12979,7 @@ bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_array_uint16get(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
     ENFORCE_ARG_TYPE(get, 0, IS_PTR);
@@ -13037,38 +12997,38 @@ bool modfn_array_uint16get(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)data[index]);
 }
 
-bool modfn_array_uint16reverse(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 1);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t* data = (uint16_t*)array->buffer;
 
-    DynArray* narray = new_uint16_array(vm, array->length);
-    uint16_t* ndata = (uint16_t*)narray->buffer;
+    DynArray* n_array = new_uint16_array(vm, array->length);
+    uint16_t* n_data = (uint16_t*)n_array->buffer;
 
     for(int i = array->length - 1; i >= 0; i--)
     {
-        ndata[i] = data[i];
+        n_data[i] = data[i];
     }
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_uint16clone(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
     ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
 
-    DynArray* narray = new_uint16_array(vm, array->length);
-    memcpy(narray->buffer, array->buffer, array->length);
+    DynArray* n_array = new_uint16_array(vm, array->length);
+    memcpy(n_array->buffer, array->buffer, array->length);
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_uint16pop(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
     ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
@@ -13080,7 +13040,7 @@ bool modfn_array_uint16pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_uint16remove(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
     ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
@@ -13107,7 +13067,7 @@ bool modfn_array_uint16remove(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(val);
 }
 
-bool modfn_array_uint16tolist(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -13125,7 +13085,7 @@ bool modfn_array_uint16tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool modfn_array_uint16tobytes(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16tobytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -13138,7 +13098,7 @@ bool modfn_array_uint16tobytes(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bytes);
 }
 
-bool modfn_array_uint16iter_(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint16iter_(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
     ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
@@ -13167,7 +13127,7 @@ DynArray* new_uint32_array(VMState* vm, int length)
     return array;
 }
 
-bool modfn_array_uint32array(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32array(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(uint32array, 1);
     if(IS_NUMBER(args[0]))
@@ -13196,7 +13156,7 @@ bool modfn_array_uint32array(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("expected array size or uint32 list as argument");
 }
 
-bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
     ENFORCE_ARG_TYPE(append, 0, IS_PTR);
@@ -13204,8 +13164,7 @@ bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
 
     if(IS_NUMBER(args[1]))
     {
-        array->length++;
-        array->buffer = GROW_ARRAY(uint32_t, array->buffer, array->length-1, array->length);
+        array->buffer = GROW_ARRAY(uint32_t, array->buffer, array->length, array->length++);
 
         uint32_t* values = (uint32_t*)array->buffer;
         values[array->length - 1] = (uint32_t)AS_NUMBER(args[1]);
@@ -13240,7 +13199,7 @@ bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_array_uint32get(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
     ENFORCE_ARG_TYPE(get, 0, IS_PTR);
@@ -13258,38 +13217,38 @@ bool modfn_array_uint32get(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)data[index]);
 }
 
-bool modfn_array_uint32reverse(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 1);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t* data = (uint32_t*)array->buffer;
 
-    DynArray* narray = new_uint32_array(vm, array->length);
-    uint32_t* ndata = (uint32_t*)narray->buffer;
+    DynArray* n_array = new_uint32_array(vm, array->length);
+    uint32_t* n_data = (uint32_t*)n_array->buffer;
 
     for(int i = array->length - 1; i >= 0; i--)
     {
-        ndata[i] = data[i];
+        n_data[i] = data[i];
     }
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_uint32clone(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
     ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
 
-    DynArray* narray = new_uint32_array(vm, array->length);
-    memcpy(narray->buffer, array->buffer, array->length);
+    DynArray* n_array = new_uint32_array(vm, array->length);
+    memcpy(n_array->buffer, array->buffer, array->length);
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_uint32pop(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
     ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
@@ -13301,7 +13260,7 @@ bool modfn_array_uint32pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_uint32remove(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
     ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
@@ -13328,7 +13287,7 @@ bool modfn_array_uint32remove(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(val);
 }
 
-bool modfn_array_uint32tolist(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -13346,7 +13305,7 @@ bool modfn_array_uint32tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool modfn_array_uint32tobytes(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32tobytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -13359,7 +13318,7 @@ bool modfn_array_uint32tobytes(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bytes);
 }
 
-bool modfn_array_uint32iter_(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint32iter_(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
     ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
@@ -13388,7 +13347,7 @@ DynArray* new_uint64_array(VMState* vm, int length)
     return array;
 }
 
-bool modfn_array_uint64array(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64array(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(uint32array, 1);
     if(IS_NUMBER(args[0]))
@@ -13417,7 +13376,7 @@ bool modfn_array_uint64array(VMState* vm, int argcount, Value* args)
     RETURN_ERROR("expected array size or uint64 list as argument");
 }
 
-bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64append(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
     ENFORCE_ARG_TYPE(append, 0, IS_PTR);
@@ -13425,8 +13384,7 @@ bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
 
     if(IS_NUMBER(args[1]))
     {
-        array->length++;
-        array->buffer = GROW_ARRAY(uint64_t, array->buffer, array->length-1, array->length);
+        array->buffer = GROW_ARRAY(uint64_t, array->buffer, array->length, array->length++);
 
         uint64_t* values = (uint64_t*)array->buffer;
         values[array->length - 1] = (uint64_t)AS_NUMBER(args[1]);
@@ -13461,7 +13419,7 @@ bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_array_uint64get(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64get(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
     ENFORCE_ARG_TYPE(get, 0, IS_PTR);
@@ -13479,38 +13437,38 @@ bool modfn_array_uint64get(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER((double)data[index]);
 }
 
-bool modfn_array_uint64reverse(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64reverse(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 1);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t* data = (uint64_t*)array->buffer;
 
-    DynArray* narray = new_uint64_array(vm, array->length);
-    uint64_t* ndata = (uint64_t*)narray->buffer;
+    DynArray* n_array = new_uint64_array(vm, array->length);
+    uint64_t* n_data = (uint64_t*)n_array->buffer;
 
     for(int i = array->length - 1; i >= 0; i--)
     {
-        ndata[i] = data[i];
+        n_data[i] = data[i];
     }
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_uint64clone(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64clone(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
     ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
 
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
 
-    DynArray* narray = new_uint64_array(vm, array->length);
-    memcpy(narray->buffer, array->buffer, array->length);
+    DynArray* n_array = new_uint64_array(vm, array->length);
+    memcpy(n_array->buffer, array->buffer, array->length);
 
-    RETURN_OBJ(new_array(vm, narray));
+    RETURN_OBJ(new_array(vm, n_array));
 }
 
-bool modfn_array_uint64pop(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64pop(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
     ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
@@ -13522,7 +13480,7 @@ bool modfn_array_uint64pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_uint64remove(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64remove(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
     ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
@@ -13549,7 +13507,7 @@ bool modfn_array_uint64remove(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(val);
 }
 
-bool modfn_array_uint64tolist(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64tolist(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -13567,7 +13525,7 @@ bool modfn_array_uint64tolist(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(list);
 }
 
-bool modfn_array_uint64tobytes(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64tobytes(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
@@ -13580,7 +13538,7 @@ bool modfn_array_uint64tobytes(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bytes);
 }
 
-bool modfn_array_uint64iter_(VMState* vm, int argcount, Value* args)
+bool modfn_array_uint64iter_(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
     ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
@@ -13601,7 +13559,7 @@ bool modfn_array_uint64iter_(VMState* vm, int argcount, Value* args)
 
 //--------- COMMON STARTS -------------------------
 
-bool modfn_array_length(VMState* vm, int argcount, Value* args)
+bool modfn_array_length(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(length, 1);
     ENFORCE_ARG_TYPE(length, 0, IS_PTR);
@@ -13610,14 +13568,14 @@ bool modfn_array_length(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(((DynArray*)ptr->pointer)->length);
 }
 
-bool modfn_array_first(VMState* vm, int argcount, Value* args)
+bool modfn_array_first(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 1);
     ENFORCE_ARG_TYPE(first, 0, IS_PTR);
     RETURN_NUMBER(((double*)((DynArray*)AS_PTR(args[0])->pointer)->buffer)[0]);
 }
 
-bool modfn_array_last(VMState* vm, int argcount, Value* args)
+bool modfn_array_last(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 1);
     ENFORCE_ARG_TYPE(first, 0, IS_PTR);
@@ -13625,7 +13583,7 @@ bool modfn_array_last(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(((double*)array->buffer)[array->length - 1]);
 }
 
-bool modfn_array_extend(VMState* vm, int argcount, Value* args)
+bool modfn_array_extend(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 2);
     ENFORCE_ARG_TYPE(extend, 0, IS_PTR);
@@ -13641,7 +13599,7 @@ bool modfn_array_extend(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_array_tostring(VMState* vm, int argcount, Value* args)
+bool modfn_array_tostring(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(to_string, 1);
     ENFORCE_ARG_TYPE(to_string, 0, IS_PTR);
@@ -13649,7 +13607,7 @@ bool modfn_array_tostring(VMState* vm, int argcount, Value* args)
     RETURN_STRING(array->buffer);
 }
 
-bool modfn_array_itern_(VMState* vm, int argcount, Value* args)
+bool modfn_array_itern_(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(@itern, 2);
     ENFORCE_ARG_TYPE(@itern, 0, IS_PTR);
@@ -13678,75 +13636,74 @@ bool modfn_array_itern_(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-RegModule* bl_modload_array(VMState* vm)
+RegModule* blade_module_loader_array(VMState* vm)
 {
-    (void)vm;
-    static RegFunc modulefunctions[] = {
+    static RegFunc module_functions[] = {
         // int16
         { "Int16Array", false, modfn_array_int16array },
-        { "int16append", false, modfn_array_int16append },
-        { "int16get", false, modfn_array_int16get },
-        { "int16reverse", false, modfn_array_int16reverse },
-        { "int16clone", false, modfn_array_int16clone },
-        { "int16pop", false, modfn_array_int16pop },
-        { "int16tolist", false, modfn_array_int16tolist },
-        { "int16tobytes", false, modfn_array_int16tobytes },
-        { "int16iter", false, modfn_array_int16iter_ },
+        { "int16_append", false, modfn_array_int16append },
+        { "int16_get", false, modfn_array_int16get },
+        { "int16_reverse", false, modfn_array_int16reverse },
+        { "int16_clone", false, modfn_array_int16clone },
+        { "int16_pop", false, modfn_array_int16pop },
+        { "int16_to_list", false, modfn_array_int16tolist },
+        { "int16_to_bytes", false, modfn_array_int16tobytes },
+        { "int16___iter__", false, modfn_array_int16iter_ },
 
         // int32
         { "Int32Array", false, modfn_array_int32array },
-        { "int32append", false, modfn_array_int32append },
-        { "int32get", false, modfn_array_int32get },
-        { "int32reverse", false, modfn_array_int32reverse },
-        { "int32clone", false, modfn_array_int32clone },
-        { "int32pop", false, modfn_array_int32pop },
-        { "int32tolist", false, modfn_array_int32tolist },
-        { "int32tobytes", false, modfn_array_int32tobytes },
-        { "int32iter", false, modfn_array_int32iter_ },
+        { "int32_append", false, modfn_array_int32append },
+        { "int32_get", false, modfn_array_int32get },
+        { "int32_reverse", false, modfn_array_int32reverse },
+        { "int32_clone", false, modfn_array_int32clone },
+        { "int32_pop", false, modfn_array_int32pop },
+        { "int32_to_list", false, modfn_array_int32tolist },
+        { "int32_to_bytes", false, modfn_array_int32tobytes },
+        { "int32___iter__", false, modfn_array_int32iter_ },
 
         // int64
         { "Int64Array", false, modfn_array_int64array },
-        { "int64append", false, modfn_array_int64append },
-        { "int64get", false, modfn_array_int64get },
-        { "int64reverse", false, modfn_array_int64reverse },
-        { "int64clone", false, modfn_array_int64clone },
-        { "int64pop", false, modfn_array_int64pop },
-        { "int64tolist", false, modfn_array_int64tolist },
-        { "int64tobytes", false, modfn_array_int64tobytes },
-        { "int64iter", false, modfn_array_int64iter_ },
+        { "int64_append", false, modfn_array_int64append },
+        { "int64_get", false, modfn_array_int64get },
+        { "int64_reverse", false, modfn_array_int64reverse },
+        { "int64_clone", false, modfn_array_int64clone },
+        { "int64_pop", false, modfn_array_int64pop },
+        { "int64_to_list", false, modfn_array_int64tolist },
+        { "int64_to_bytes", false, modfn_array_int64tobytes },
+        { "int64___iter__", false, modfn_array_int64iter_ },
 
         // uint16
         { "UInt16Array", false, modfn_array_uint16array },
-        { "uint16append", false, modfn_array_uint16append },
-        { "uint16get", false, modfn_array_uint16get },
-        { "uint16reverse", false, modfn_array_uint16reverse },
-        { "uint16clone", false, modfn_array_uint16clone },
-        { "uint16pop", false, modfn_array_uint16pop },
-        { "uint16tolist", false, modfn_array_uint16tolist },
-        { "uint16tobytes", false, modfn_array_uint16tobytes },
-        { "uint16iter", false, modfn_array_uint16iter_ },
+        { "uint16_append", false, modfn_array_uint16append },
+        { "uint16_get", false, modfn_array_uint16get },
+        { "uint16_reverse", false, modfn_array_uint16reverse },
+        { "uint16_clone", false, modfn_array_uint16clone },
+        { "uint16_pop", false, modfn_array_uint16pop },
+        { "uint16_to_list", false, modfn_array_uint16tolist },
+        { "uint16_to_bytes", false, modfn_array_uint16tobytes },
+        { "uint16___iter__", false, modfn_array_uint16iter_ },
 
         // uint32
         { "UInt32Array", false, modfn_array_uint32array },
-        { "uint32append", false, modfn_array_uint32append },
-        { "uint32get", false, modfn_array_uint32get },
-        { "uint32reverse", false, modfn_array_uint32reverse },
-        { "uint32clone", false, modfn_array_uint32clone },
-        { "uint32pop", false, modfn_array_uint32pop },
-        { "uint32tolist", false, modfn_array_uint32tolist },
-        { "uint32tobytes", false, modfn_array_uint32tobytes },
-        { "uint32iter", false, modfn_array_uint32iter_ },
+        { "uint32_append", false, modfn_array_uint32append },
+        { "uint32_get", false, modfn_array_uint32get },
+        { "uint32_reverse", false, modfn_array_uint32reverse },
+        { "uint32_clone", false, modfn_array_uint32clone },
+        { "uint32_pop", false, modfn_array_uint32pop },
+        { "uint32_to_list", false, modfn_array_uint32tolist },
+        { "uint32_to_bytes", false, modfn_array_uint32tobytes },
+        { "uint32___iter__", false, modfn_array_uint32iter_ },
 
         // uint64
         { "UInt64Array", false, modfn_array_uint64array },
-        { "uint64append", false, modfn_array_uint64append },
-        { "uint64get", false, modfn_array_uint64get },
-        { "uint64reverse", false, modfn_array_uint64reverse },
-        { "uint64clone", false, modfn_array_uint64clone },
-        { "uint64pop", false, modfn_array_uint64pop },
-        { "uint64tolist", false, modfn_array_uint64tolist },
-        { "uint64tobytes", false, modfn_array_uint64tobytes },
-        { "uint64iter", false, modfn_array_uint64iter_ },
+        { "uint64_append", false, modfn_array_uint64append },
+        { "uint64_get", false, modfn_array_uint64get },
+        { "uint64_reverse", false, modfn_array_uint64reverse },
+        { "uint64_clone", false, modfn_array_uint64clone },
+        { "uint64_pop", false, modfn_array_uint64pop },
+        { "uint64_to_list", false, modfn_array_uint64tolist },
+        { "uint64_to_bytes", false, modfn_array_uint64tobytes },
+        { "uint64___iter__", false, modfn_array_uint64iter_ },
 
         // common
         { "length", false, modfn_array_length },
@@ -13757,24 +13714,27 @@ RegModule* bl_modload_array(VMState* vm)
         { "itern", false, modfn_array_itern_ },
         { NULL, false, NULL },
     };
-    static RegModule module = { .name = "_array", .fields = NULL, .functions = modulefunctions, .classes = NULL, .preloader = NULL, .unloader = NULL };
+
+    static RegModule module = { .name = "_array", .fields = NULL, .functions = module_functions, .classes = NULL, .preloader = NULL, .unloader = NULL };
+
     return &module;
 }
 
 #define ADD_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), NUMBER_VAL(v))
-#define ADD_B_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), BOOL_VAL(v))
-#define ADD_G_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, (int)strlen(v)))
-#if defined(_WIN32)
-    #define ADD_S_TIME(n, l, v, g) dict_add_entry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, g))
-#endif
 
-bool modfn_io_mktime(VMState* vm, int argcount, Value* args)
+#define ADD_B_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), BOOL_VAL(v))
+
+#define ADD_S_TIME(n, l, v, g) dict_add_entry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, g))
+
+#define ADD_G_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, (int)strlen(v)))
+
+bool modfn_io_mktime(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(mktime, 1, 8);
 
-    if(argcount < 7)
+    if(arg_count < 7)
     {
-        for(int i = 0; i < argcount; i++)
+        for(int i = 0; i < arg_count; i++)
         {
             ENFORCE_ARG_TYPE(mktime, i, IS_NUMBER);
         }
@@ -13788,21 +13748,21 @@ bool modfn_io_mktime(VMState* vm, int argcount, Value* args)
         ENFORCE_ARG_TYPE(mktime, 6, IS_BOOL);
     }
 
-    int year = -1900, month = 1, day = 1, hour = 0, minute = 0, seconds = 0, isdst = 0;
+    int year = -1900, month = 1, day = 1, hour = 0, minute = 0, seconds = 0, is_dst = 0;
     year += AS_NUMBER(args[0]);
 
-    if(argcount > 1)
+    if(arg_count > 1)
         month = AS_NUMBER(args[1]);
-    if(argcount > 2)
+    if(arg_count > 2)
         day = AS_NUMBER(args[2]);
-    if(argcount > 3)
+    if(arg_count > 3)
         hour = AS_NUMBER(args[3]);
-    if(argcount > 4)
+    if(arg_count > 4)
         minute = AS_NUMBER(args[4]);
-    if(argcount > 5)
+    if(arg_count > 5)
         seconds = AS_NUMBER(args[5]);
-    if(argcount > 6)
-        isdst = AS_BOOL(args[5]) ? 1 : 0;
+    if(arg_count > 6)
+        is_dst = AS_BOOL(args[5]) ? 1 : 0;
 
     struct tm t;
     t.tm_year = year;
@@ -13811,25 +13771,25 @@ bool modfn_io_mktime(VMState* vm, int argcount, Value* args)
     t.tm_hour = hour;
     t.tm_min = minute;
     t.tm_sec = seconds;
-    t.tm_isdst = isdst;
+    t.tm_isdst = is_dst;
 
     RETURN_NUMBER((long)mktime(&t));
 }
 
-bool modfn_io_localtime(VMState* vm, int argcount, Value* args)
+bool modfn_io_localtime(VMState* vm, int arg_count, Value* args)
 {
-    struct timeval rawtime;
+    struct timeval raw_time;
+    gettimeofday(&raw_time, NULL);
     struct tm now;
-    ObjDict* dict;
-    (void)argcount;
-    gettimeofday(&rawtime, NULL);
-    localtime_r(&rawtime.tv_sec, &now);
-    dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    localtime_r(&raw_time.tv_sec, &now);
+
+    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+
     ADD_TIME("year", 4, (double)now.tm_year + 1900);
     ADD_TIME("month", 5, (double)now.tm_mon + 1);
     ADD_TIME("day", 3, now.tm_mday);
-    ADD_TIME("weekday", 8, now.tm_wday);
-    ADD_TIME("yearday", 8, now.tm_yday);
+    ADD_TIME("week_day", 8, now.tm_wday);
+    ADD_TIME("year_day", 8, now.tm_yday);
     ADD_TIME("hour", 4, now.tm_hour);
     ADD_TIME("minute", 6, now.tm_min);
     if(now.tm_sec <= 59)
@@ -13840,39 +13800,39 @@ bool modfn_io_localtime(VMState* vm, int argcount, Value* args)
     {
         ADD_TIME("seconds", 7, 59);
     }
-    ADD_TIME("microseconds", 12, (double)rawtime.tv_usec);
+    ADD_TIME("microseconds", 12, (double)raw_time.tv_usec);
 
-    ADD_B_TIME("isdst", 6, now.tm_isdst == 1 ? true : false);
+    ADD_B_TIME("is_dst", 6, now.tm_isdst == 1 ? true : false);
 
 #ifndef _WIN32
     // set time zone
     ADD_G_TIME("zone", 4, now.tm_zone);
     // setting gmt offset
-    ADD_TIME("gmtoffset", 10, now.tm_gmtoff);
+    ADD_TIME("gmt_offset", 10, now.tm_gmtoff);
 #else
     // set time zone
     ADD_S_TIME("zone", 4, "", 0);
     // setting gmt offset
-    ADD_TIME("gmtoffset", 10, 0);
+    ADD_TIME("gmt_offset", 10, 0);
 #endif
 
     RETURN_OBJ(dict);
 }
 
-bool modfn_io_gmtime(VMState* vm, int argcount, Value* args)
+bool modfn_io_gmtime(VMState* vm, int arg_count, Value* args)
 {
-    struct timeval rawtime;
+    struct timeval raw_time;
+    gettimeofday(&raw_time, NULL);
     struct tm now;
-    ObjDict* dict;
-    (void)argcount;
-    gettimeofday(&rawtime, NULL);
-    gmtime_r(&rawtime.tv_sec, &now);
-    dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    gmtime_r(&raw_time.tv_sec, &now);
+
+    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+
     ADD_TIME("year", 4, (double)now.tm_year + 1900);
     ADD_TIME("month", 5, (double)now.tm_mon + 1);
     ADD_TIME("day", 3, now.tm_mday);
-    ADD_TIME("weekday", 8, now.tm_wday);
-    ADD_TIME("yearday", 8, now.tm_yday);
+    ADD_TIME("week_day", 8, now.tm_wday);
+    ADD_TIME("year_day", 8, now.tm_yday);
     ADD_TIME("hour", 4, now.tm_hour);
     ADD_TIME("minute", 6, now.tm_min);
     if(now.tm_sec <= 59)
@@ -13883,36 +13843,35 @@ bool modfn_io_gmtime(VMState* vm, int argcount, Value* args)
     {
         ADD_TIME("seconds", 7, 59);
     }
-    ADD_TIME("microseconds", 12, (double)rawtime.tv_usec);
+    ADD_TIME("microseconds", 12, (double)raw_time.tv_usec);
 
-    ADD_B_TIME("isdst", 6, now.tm_isdst == 1 ? true : false);
+    ADD_B_TIME("is_dst", 6, now.tm_isdst == 1 ? true : false);
 
 #ifndef _WIN32
     // set time zone
     ADD_G_TIME("zone", 4, now.tm_zone);
     // setting gmt offset
-    ADD_TIME("gmtoffset", 10, now.tm_gmtoff);
+    ADD_TIME("gmt_offset", 10, now.tm_gmtoff);
 #else
     // set time zone
     ADD_S_TIME("zone", 4, "", 0);
     // setting gmt offset
-    ADD_TIME("gmtoffset", 10, 0);
+    ADD_TIME("gmt_offset", 10, 0);
 #endif
 
     RETURN_OBJ(dict);
 }
 
-RegModule* bl_modload_date(VMState* vm)
+RegModule* blade_module_loader_date(VMState* vm)
 {
-    (void)vm;
-    static RegFunc modulefunctions[] = {
+    static RegFunc module_functions[] = {
         { "localtime", true, modfn_io_localtime },
         { "gmtime", true, modfn_io_gmtime },
         { "mktime", false, modfn_io_mktime },
         { NULL, false, NULL },
     };
 
-    static RegModule module = { .name = "_date", .fields = NULL, .functions = modulefunctions, .classes = NULL, .preloader = NULL, .unloader = NULL };
+    static RegModule module = { .name = "_date", .fields = NULL, .functions = module_functions, .classes = NULL, .preloader = NULL, .unloader = NULL };
     return &module;
 }
 
@@ -13920,26 +13879,26 @@ RegModule* bl_modload_date(VMState* vm)
 #undef ADD_B_TIME
 #undef ADD_S_TIME
 
-static struct termios origtermios;
-static bool setattrwascalled = false;
+static struct termios orig_termios;
+static bool set_attr_was_called = false;
 
 void disable_raw_mode(void)
 {
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &origtermios);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
-static struct termios nterm;
-static struct termios oterm;
+static struct termios n_term;
+static struct termios o_term;
 
 static int cbreak(int fd)
 {
-    if((tcgetattr(fd, &oterm)) == -1)
+    if((tcgetattr(fd, &o_term)) == -1)
         return -1;
-    nterm = oterm;
-    nterm.c_lflag = nterm.c_lflag & ~(ECHO | ICANON);
-    nterm.c_cc[VMIN] = 1;
-    nterm.c_cc[VTIME] = 0;
-    if((tcsetattr(fd, TCSAFLUSH, &nterm)) == -1)
+    n_term = o_term;
+    n_term.c_lflag = n_term.c_lflag & ~(ECHO | ICANON);
+    n_term.c_cc[VMIN] = 1;
+    n_term.c_cc[VTIME] = 0;
+    if((tcsetattr(fd, TCSAFLUSH, &n_term)) == -1)
         return -1;
     return 1;
 }
@@ -13954,7 +13913,7 @@ int getch()
         exit(EXIT_FAILURE);
     }
     cinput = getchar();
-    tcsetattr(STDIN_FILENO, TCSANOW, &oterm);
+    tcsetattr(STDIN_FILENO, TCSANOW, &o_term);
 
     return cinput;
 }
@@ -13991,7 +13950,7 @@ static int read_line(char line[], int max)
  *
  * returns the configuration of the current tty input
  */
-bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
+bool modfn_io_ttytcgetattr(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(_tcgetattr, 1);
     ENFORCE_ARG_TYPE(_tcsetattr, 0, IS_FILE);
@@ -14004,20 +13963,20 @@ bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
         RETURN_ERROR("can only use tty on std objects");
     }
 
-    struct termios rawattr;
-    if(tcgetattr(fileno(file->file), &rawattr) != 0)
+    struct termios raw_attr;
+    if(tcgetattr(fileno(file->file), &raw_attr) != 0)
     {
         RETURN_ERROR(strerror(errno));
     }
 
     // we have our attributes already
     ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    dict_add_entry(vm, dict, NUMBER_VAL(0), NUMBER_VAL(rawattr.c_iflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(1), NUMBER_VAL(rawattr.c_oflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(2), NUMBER_VAL(rawattr.c_cflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(3), NUMBER_VAL(rawattr.c_lflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(4), NUMBER_VAL(rawattr.c_ispeed));
-    dict_add_entry(vm, dict, NUMBER_VAL(5), NUMBER_VAL(rawattr.c_ospeed));
+    dict_add_entry(vm, dict, NUMBER_VAL(0), NUMBER_VAL(raw_attr.c_iflag));
+    dict_add_entry(vm, dict, NUMBER_VAL(1), NUMBER_VAL(raw_attr.c_oflag));
+    dict_add_entry(vm, dict, NUMBER_VAL(2), NUMBER_VAL(raw_attr.c_cflag));
+    dict_add_entry(vm, dict, NUMBER_VAL(3), NUMBER_VAL(raw_attr.c_lflag));
+    dict_add_entry(vm, dict, NUMBER_VAL(4), NUMBER_VAL(raw_attr.c_ispeed));
+    dict_add_entry(vm, dict, NUMBER_VAL(5), NUMBER_VAL(raw_attr.c_ospeed));
 
     RETURN_OBJ(dict);
 #else
@@ -14032,7 +13991,7 @@ bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
  * @return true if succeed or false otherwise
  * TODO: support the c_cc flag
  */
-bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
+bool modfn_io_ttytcsetattr(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(_tcsetattr, 3);
     ENFORCE_ARG_TYPE(_tcsetattr, 0, IS_FILE);
@@ -14062,22 +14021,22 @@ bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
         {// ospeed
             RETURN_ERROR("attributes must be one of io TTY flags");
         }
-        Value dummyvalue;
-        if(dict_get_entry(dict, dict->names.values[i], &dummyvalue))
+        Value dummy_value;
+        if(dict_get_entry(dict, dict->names.values[i], &dummy_value))
         {
-            if(!IS_NUMBER(dummyvalue))
+            if(!IS_NUMBER(dummy_value))
             {
-                RETURN_ERROR("TTY attribute cannot be %s", value_type(dummyvalue));
+                RETURN_ERROR("TTY attribute cannot be %s", value_type(dummy_value));
             }
         }
     }
 
     Value iflag = NIL_VAL, oflag = NIL_VAL, cflag = NIL_VAL, lflag = NIL_VAL, ispeed = NIL_VAL, ospeed = NIL_VAL;
 
-    tcgetattr(STDIN_FILENO, &origtermios);
+    tcgetattr(STDIN_FILENO, &orig_termios);
     atexit(disable_raw_mode);
 
-    struct termios raw = origtermios;
+    struct termios raw = orig_termios;
 
     if(dict_get_entry(dict, NUMBER_VAL(0), &iflag))
     {
@@ -14104,7 +14063,7 @@ bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
         raw.c_ospeed = (long)AS_NUMBER(ospeed);
     }
 
-    setattrwascalled = true;
+    set_attr_was_called = true;
 
     int result = tcsetattr(fileno(file->file), type, &raw);
     RETURN_BOOL(result != -1);
@@ -14118,11 +14077,11 @@ bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
  * exits raw mode
  * @return nil
  */
-bool modfn_io_ttyexitraw(VMState* vm, int argcount, Value* args)
+bool modfn_io_ttyexitraw(VMState* vm, int arg_count, Value* args)
 {
 #ifdef HAVE_TERMIOS_H
     ENFORCE_ARG_COUNT(TTY.exit_raw, 0);
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &origtermios);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
     RETURN;
 #else
     RETURN_ERROR("exit_raw() is not supported on this platform");
@@ -14134,7 +14093,7 @@ bool modfn_io_ttyexitraw(VMState* vm, int argcount, Value* args)
  * flushes the standard output and standard error interface
  * @return nil
  */
-bool modfn_io_ttyflush(VMState* vm, int argcount, Value* args)
+bool modfn_io_ttyflush(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(TTY.flush, 0);
     fflush(stdout);
@@ -14147,13 +14106,13 @@ bool modfn_io_ttyflush(VMState* vm, int argcount, Value* args)
  * flushes the given file handle
  * @return nil
  */
-bool modfn_io_flush(VMState* vm, int argcount, Value* args)
+bool modfn_io_flush(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(flush, 1);
     ENFORCE_ARG_TYPE(flush, 0, IS_FILE);
     ObjFile* file = AS_FILE(args[0]);
 
-    if(file->isopen)
+    if(file->is_open)
     {
         fflush(file->file);
     }
@@ -14169,12 +14128,12 @@ bool modfn_io_flush(VMState* vm, int argcount, Value* args)
  * else, gets a single character
  * @returns char
  */
-bool modfn_io_getc(VMState* vm, int argcount, Value* args)
+bool modfn_io_getc(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(getc, 0, 1);
 
     int length = 1;
-    if(argcount == 1)
+    if(arg_count == 1)
     {
         ENFORCE_ARG_TYPE(getc, 0, IS_NUMBER);
         length = AS_NUMBER(args[0]);
@@ -14194,7 +14153,7 @@ bool modfn_io_getc(VMState* vm, int argcount, Value* args)
  * else, gets a single character
  * @returns char
  */
-bool modfn_io_getch(VMState* vm, int argcount, Value* args)
+bool modfn_io_getch(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(getch, 0);
     char* result = ALLOCATE(char, 2);
@@ -14208,7 +14167,7 @@ bool modfn_io_getch(VMState* vm, int argcount, Value* args)
  * writes character c to the screen
  * @return nil
  */
-bool modfn_io_putc(VMState* vm, int argcount, Value* args)
+bool modfn_io_putc(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(putc, 1);
     ENFORCE_ARG_TYPE(putc, 0, IS_STRING);
@@ -14248,7 +14207,7 @@ Value io_module_stdin(VMState* vm)
     mode = copy_string(vm, "rb", 2);
     file = new_file(vm, name, mode);
     file->file = stdin;
-    file->isopen = true;
+    file->is_open = true;
     //file->mode = mode;
     return OBJ_VAL(file);
 }
@@ -14267,7 +14226,7 @@ Value io_module_stdout(VMState* vm)
     mode = copy_string(vm, "wb", 2);
     file = new_file(vm, name, mode);
     file->file = stdout;
-    file->isopen = true;
+    file->is_open = true;
     return OBJ_VAL(file);
 }
 
@@ -14285,32 +14244,30 @@ Value io_module_stderr(VMState* vm)
     mode = copy_string(vm, "wb", 2);
     file = new_file(vm, name, mode);
     file->file = stderr;
-    file->isopen = true;
+    file->is_open = true;
     return OBJ_VAL(file);
 }
 
-void modfn_io_unload(VMState* vm)
+void __io_module_unload(VMState* vm)
 {
-    (void)vm;
 #ifdef HAVE_TERMIOS_H
-    if(setattrwascalled)
+    if(set_attr_was_called)
     {
         disable_raw_mode();
     }
 #endif /* ifdef HAVE_TERMIOS_H */
 }
 
-RegModule* bl_modload_io(VMState* vm)
+RegModule* blade_module_loader_io(VMState* vm)
 {
-    (void)vm;
-    static RegField iomodulefields[] = {
+    static RegField io_module_fields[] = {
         { "stdin", false, io_module_stdin },
         { "stdout", false, io_module_stdout },
         { "stderr", false, io_module_stderr },
         { NULL, false, NULL },
     };
 
-    static RegFunc iofunctions[] = {
+    static RegFunc io_functions[] = {
         { "getc", false, modfn_io_getc },
         { "getch", false, modfn_io_getch },
         { "putc", false, modfn_io_putc },
@@ -14318,7 +14275,7 @@ RegModule* bl_modload_io(VMState* vm)
         { NULL, false, NULL },
     };
 
-    static RegFunc ttyclassfunctions[] = {
+    static RegFunc tty_class_functions[] = {
         { "tcgetattr", false, modfn_io_ttytcgetattr },
         { "tcsetattr", false, modfn_io_ttytcsetattr },
         { "flush", false, modfn_io_ttyflush },
@@ -14327,80 +14284,80 @@ RegModule* bl_modload_io(VMState* vm)
     };
 
     static RegClass classes[] = {
-        { "TTY", NULL, ttyclassfunctions },
+        { "TTY", NULL, tty_class_functions },
         { NULL, NULL, NULL },
     };
 
     static RegModule module
-    = { .name = "_io", .fields = iomodulefields, .functions = iofunctions, .classes = classes, .preloader = NULL, .unloader = &modfn_io_unload };
+    = { .name = "_io", .fields = io_module_fields, .functions = io_functions, .classes = classes, .preloader = NULL, .unloader = &__io_module_unload };
 
     return &module;
 }
 
-bool modfn_math_sin(VMState* vm, int argcount, Value* args)
+bool modfn_math_sin(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(sin, 1);
     ENFORCE_ARG_TYPE(sin, 0, IS_NUMBER);
     RETURN_NUMBER(sin(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_cos(VMState* vm, int argcount, Value* args)
+bool modfn_math_cos(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(cos, 1);
     ENFORCE_ARG_TYPE(cos, 0, IS_NUMBER);
     RETURN_NUMBER(cos(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_tan(VMState* vm, int argcount, Value* args)
+bool modfn_math_tan(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(tan, 1);
     ENFORCE_ARG_TYPE(tan, 0, IS_NUMBER);
     RETURN_NUMBER(tan(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_sinh(VMState* vm, int argcount, Value* args)
+bool modfn_math_sinh(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(sinh, 1);
     ENFORCE_ARG_TYPE(sinh, 0, IS_NUMBER);
     RETURN_NUMBER(sinh(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_cosh(VMState* vm, int argcount, Value* args)
+bool modfn_math_cosh(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(cosh, 1);
     ENFORCE_ARG_TYPE(cosh, 0, IS_NUMBER);
     RETURN_NUMBER(cosh(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_tanh(VMState* vm, int argcount, Value* args)
+bool modfn_math_tanh(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(tanh, 1);
     ENFORCE_ARG_TYPE(tanh, 0, IS_NUMBER);
     RETURN_NUMBER(tanh(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_asin(VMState* vm, int argcount, Value* args)
+bool modfn_math_asin(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(asin, 1);
     ENFORCE_ARG_TYPE(asin, 0, IS_NUMBER);
     RETURN_NUMBER(asin(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_acos(VMState* vm, int argcount, Value* args)
+bool modfn_math_acos(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(acos, 1);
     ENFORCE_ARG_TYPE(acos, 0, IS_NUMBER);
     RETURN_NUMBER(acos(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_atan(VMState* vm, int argcount, Value* args)
+bool modfn_math_atan(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(atan, 1);
     ENFORCE_ARG_TYPE(atan, 0, IS_NUMBER);
     RETURN_NUMBER(atan(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_atan2(VMState* vm, int argcount, Value* args)
+bool modfn_math_atan2(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(atan2, 2);
     ENFORCE_ARG_TYPE(atan2, 0, IS_NUMBER);
@@ -14408,84 +14365,84 @@ bool modfn_math_atan2(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(atan2(AS_NUMBER(args[0]), AS_NUMBER(args[1])));
 }
 
-bool modfn_math_asinh(VMState* vm, int argcount, Value* args)
+bool modfn_math_asinh(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(asinh, 1);
     ENFORCE_ARG_TYPE(asinh, 0, IS_NUMBER);
     RETURN_NUMBER(asinh(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_acosh(VMState* vm, int argcount, Value* args)
+bool modfn_math_acosh(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(acosh, 1);
     ENFORCE_ARG_TYPE(acosh, 0, IS_NUMBER);
     RETURN_NUMBER(acosh(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_atanh(VMState* vm, int argcount, Value* args)
+bool modfn_math_atanh(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(atanh, 1);
     ENFORCE_ARG_TYPE(atanh, 0, IS_NUMBER);
     RETURN_NUMBER(atanh(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_exp(VMState* vm, int argcount, Value* args)
+bool modfn_math_exp(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(exp, 1);
     ENFORCE_ARG_TYPE(exp, 0, IS_NUMBER);
     RETURN_NUMBER(exp(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_expm1(VMState* vm, int argcount, Value* args)
+bool modfn_math_expm1(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(expm1, 1);
     ENFORCE_ARG_TYPE(expm1, 0, IS_NUMBER);
     RETURN_NUMBER(expm1(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_ceil(VMState* vm, int argcount, Value* args)
+bool modfn_math_ceil(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(ceil, 1);
     ENFORCE_ARG_TYPE(ceil, 0, IS_NUMBER);
     RETURN_NUMBER(ceil(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_round(VMState* vm, int argcount, Value* args)
+bool modfn_math_round(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(round, 1);
     ENFORCE_ARG_TYPE(round, 0, IS_NUMBER);
     RETURN_NUMBER(round(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_log(VMState* vm, int argcount, Value* args)
+bool modfn_math_log(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(log, 1);
     ENFORCE_ARG_TYPE(log, 0, IS_NUMBER);
     RETURN_NUMBER(log(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_log10(VMState* vm, int argcount, Value* args)
+bool modfn_math_log10(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(log10, 1);
     ENFORCE_ARG_TYPE(log10, 0, IS_NUMBER);
     RETURN_NUMBER(log10(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_log2(VMState* vm, int argcount, Value* args)
+bool modfn_math_log2(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(log2, 1);
     ENFORCE_ARG_TYPE(log2, 0, IS_NUMBER);
     RETURN_NUMBER(log2(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_log1p(VMState* vm, int argcount, Value* args)
+bool modfn_math_log1p(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(log1p, 1);
     ENFORCE_ARG_TYPE(log1p, 0, IS_NUMBER);
     RETURN_NUMBER(log1p(AS_NUMBER(args[0])));
 }
 
-bool modfn_math_floor(VMState* vm, int argcount, Value* args)
+bool modfn_math_floor(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(floor, 1);
     if(IS_NIL(args[0]))
@@ -14496,10 +14453,9 @@ bool modfn_math_floor(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(floor(AS_NUMBER(args[0])));
 }
 
-RegModule* bl_modload_math(VMState* vm)
+RegModule* blade_module_loader_math(VMState* vm)
 {
-    (void)vm;
-    static RegFunc modulefunctions[] = {
+    static RegFunc module_functions[] = {
         { "sin", true, modfn_math_sin },
         { "cos", true, modfn_math_cos },
         { "tan", true, modfn_math_tan },
@@ -14525,13 +14481,13 @@ RegModule* bl_modload_math(VMState* vm)
         { NULL, false, NULL },
     };
 
-    static RegModule module = { .name = "_math", .fields = NULL, .functions = modulefunctions, .classes = NULL, .preloader = NULL, .unloader = NULL };
+    static RegModule module = { .name = "_math", .fields = NULL, .functions = module_functions, .classes = NULL, .preloader = NULL, .unloader = NULL };
 
     return &module;
 }
 
 
-bool modfn_os_exec(VMState* vm, int argcount, Value* args)
+bool modfn_os_exec(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(exec, 1);
     ENFORCE_ARG_TYPE(exec, 0, IS_STRING);
@@ -14547,35 +14503,35 @@ bool modfn_os_exec(VMState* vm, int argcount, Value* args)
         RETURN_NIL;
 
     char buffer[256];
-    size_t nread;
-    size_t outputsize = 256;
+    size_t n_read;
+    size_t output_size = 256;
     int length = 0;
-    char* output = ALLOCATE(char, outputsize);
+    char* output = ALLOCATE(char, output_size);
 
     if(output != NULL)
     {
-        while((nread = fread(buffer, 1, sizeof(buffer), fd)) != 0)
+        while((n_read = fread(buffer, 1, sizeof(buffer), fd)) != 0)
         {
-            if(length + nread >= outputsize)
+            if(length + n_read >= output_size)
             {
-                size_t old = outputsize;
-                outputsize *= 2;
-                char* temp = GROW_ARRAY(char, output, old, outputsize);
+                size_t old = output_size;
+                output_size *= 2;
+                char* temp = GROW_ARRAY(char, output, old, output_size);
                 if(temp == NULL)
                 {
                     RETURN_ERROR("device out of memory");
                 }
                 else
                 {
-                    vm->bytesallocated += outputsize / 2;
+                    vm->bytes_allocated += output_size / 2;
                     output = temp;
                 }
             }
             if((output + length) != NULL)
             {
-                strncat(output + length, buffer, nread);
+                strncat(output + length, buffer, n_read);
             }
-            length += (int)nread;
+            length += (int)n_read;
         }
 
         if(length == 0)
@@ -14594,7 +14550,7 @@ bool modfn_os_exec(VMState* vm, int argcount, Value* args)
     RETURN_STRING("");
 }
 
-bool modfn_os_info(VMState* vm, int argcount, Value* args)
+bool modfn_os_info(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(info, 0);
 
@@ -14619,7 +14575,7 @@ bool modfn_os_info(VMState* vm, int argcount, Value* args)
 #endif /* HAVE_SYS_UTSNAME_H */
 }
 
-bool modfn_os_sleep(VMState* vm, int argcount, Value* args)
+bool modfn_os_sleep(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(sleep, 1);
     ENFORCE_ARG_TYPE(sleep, 0, IS_NUMBER);
@@ -14674,11 +14630,11 @@ Value get_os_platform(VMState* vm)
 Value get_blade_os_args(VMState* vm)
 {
     ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    if(vm->stdargs != NULL)
+    if(vm->std_args != NULL)
     {
-        for(int i = 0; i < vm->stdargscount; i++)
+        for(int i = 0; i < vm->std_args_count; i++)
         {
-            write_list(vm, list, GC_STRING(vm->stdargs[i]));
+            write_list(vm, list, GC_STRING(vm->std_args[i]));
         }
     }
     gc_clear_protection(vm);
@@ -14690,10 +14646,10 @@ Value get_blade_os_path_separator(VMState* vm)
     return STRING_L_VAL(BLADE_PATH_SEPARATOR, 1);
 }
 
-bool modfn_os_getenv(VMState* vm, int argcount, Value* args)
+bool modfn_os_getenv(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(getenv, 1);
-    ENFORCE_ARG_TYPE(getenv, 0, IS_STRING);
+    ENFORCE_ARG_COUNT(get_env, 1);
+    ENFORCE_ARG_TYPE(get_env, 0, IS_STRING);
 
     char* env = getenv(AS_C_STRING(args[0]));
     if(env != NULL)
@@ -14706,14 +14662,14 @@ bool modfn_os_getenv(VMState* vm, int argcount, Value* args)
     }
 }
 
-bool modfn_os_setenv(VMState* vm, int argcount, Value* args)
+bool modfn_os_setenv(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_RANGE(setenv, 2, 3);
-    ENFORCE_ARG_TYPE(setenv, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(setenv, 1, IS_STRING);
+    ENFORCE_ARG_RANGE(set_env, 2, 3);
+    ENFORCE_ARG_TYPE(set_env, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(set_env, 1, IS_STRING);
 
     int overwrite = 1;
-    if(argcount == 3)
+    if(arg_count == 3)
     {
         ENFORCE_ARG_TYPE(setenv, 2, IS_BOOL);
         overwrite = AS_BOOL(args[2]) ? 1 : 0;
@@ -14730,21 +14686,21 @@ bool modfn_os_setenv(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool modfn_os_createdir(VMState* vm, int argcount, Value* args)
+bool modfn_os_createdir(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(createdir, 3);
-    ENFORCE_ARG_TYPE(createdir, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(createdir, 1, IS_NUMBER);
-    ENFORCE_ARG_TYPE(createdir, 2, IS_BOOL);
+    ENFORCE_ARG_COUNT(create_dir, 3);
+    ENFORCE_ARG_TYPE(create_dir, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(create_dir, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(create_dir, 2, IS_BOOL);
 
     ObjString* path = AS_STRING(args[0]);
     int mode = AS_NUMBER(args[1]);
-    bool isrecursive = AS_BOOL(args[2]);
+    bool is_recursive = AS_BOOL(args[2]);
 
     char sep = BLADE_PATH_SEPARATOR[0];
     bool exists = false;
 
-    if(isrecursive)
+    if(is_recursive)
     {
         for(char* p = strchr(path->chars + 1, sep); p; p = strchr(p + 1, sep))
         {
@@ -14789,10 +14745,10 @@ bool modfn_os_createdir(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(!exists);
 }
 
-bool modfn_os_readdir(VMState* vm, int argcount, Value* args)
+bool modfn_os_readdir(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(readdir, 1);
-    ENFORCE_ARG_TYPE(readdir, 0, IS_STRING);
+    ENFORCE_ARG_COUNT(read_dir, 1);
+    ENFORCE_ARG_TYPE(read_dir, 0, IS_STRING);
     ObjString* path = AS_STRING(args[0]);
 
     DIR* dir;
@@ -14810,7 +14766,7 @@ bool modfn_os_readdir(VMState* vm, int argcount, Value* args)
     RETURN_ERROR(strerror(errno));
 }
 
-static int remove_directory(char* path, int pathlength, bool recursive)
+static int remove_directory(char* path, int path_length, bool recursive)
 {
     DIR* dir;
     if((dir = opendir(path)) != NULL)
@@ -14824,36 +14780,36 @@ static int remove_directory(char* path, int pathlength, bool recursive)
                 continue;
             }
 
-            int pathstringlength = pathlength + (int)strlen(ent->d_name) + 2;
-            char* pathstring = merge_paths(path, ent->d_name);
-            if(pathstring == NULL)
+            int path_string_length = path_length + (int)strlen(ent->d_name) + 2;
+            char* path_string = merge_paths(path, ent->d_name);
+            if(path_string == NULL)
                 return -1;
 
             struct stat sb;
-            if(stat(pathstring, &sb) == 0)
+            if(stat(path_string, &sb) == 0)
             {
                 if(S_ISDIR(sb.st_mode) > 0 && recursive)
                 {
                     // recurse
-                    if(remove_directory(pathstring, pathstringlength, recursive) == -1)
+                    if(remove_directory(path_string, path_string_length, recursive) == -1)
                     {
-                        free(pathstring);
+                        free(path_string);
                         return -1;
                     }
                 }
-                else if(unlink(pathstring) == -1)
+                else if(unlink(path_string) == -1)
                 {
-                    free(pathstring);
+                    free(path_string);
                     return -1;
                 }
                 else
                 {
-                    free(pathstring);
+                    free(path_string);
                 }
             }
             else
             {
-                free(pathstring);
+                free(path_string);
                 return -1;
             }
         }
@@ -14863,11 +14819,11 @@ static int remove_directory(char* path, int pathlength, bool recursive)
     return -1;
 }
 
-bool modfn_os_removedir(VMState* vm, int argcount, Value* args)
+bool modfn_os_removedir(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(removedir, 2);
-    ENFORCE_ARG_TYPE(removedir, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(removedir, 1, IS_BOOL);
+    ENFORCE_ARG_COUNT(remove_dir, 2);
+    ENFORCE_ARG_TYPE(remove_dir, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(remove_dir, 1, IS_BOOL);
 
     ObjString* path = AS_STRING(args[0]);
     bool recursive = AS_BOOL(args[1]);
@@ -14878,7 +14834,7 @@ bool modfn_os_removedir(VMState* vm, int argcount, Value* args)
     RETURN_ERROR(strerror(errno));
 }
 
-bool modfn_os_chmod(VMState* vm, int argcount, Value* args)
+bool modfn_os_chmod(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(chmod, 2);
     ENFORCE_ARG_TYPE(chmod, 0, IS_STRING);
@@ -14893,10 +14849,10 @@ bool modfn_os_chmod(VMState* vm, int argcount, Value* args)
     RETURN_TRUE;
 }
 
-bool modfn_os_isdir(VMState* vm, int argcount, Value* args)
+bool modfn_os_isdir(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isdir, 1);
-    ENFORCE_ARG_TYPE(isdir, 0, IS_STRING);
+    ENFORCE_ARG_COUNT(is_dir, 1);
+    ENFORCE_ARG_TYPE(is_dir, 0, IS_STRING);
     ObjString* path = AS_STRING(args[0]);
     struct stat sb;
     if(stat(path->chars, &sb) == 0)
@@ -14906,7 +14862,7 @@ bool modfn_os_isdir(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool modfn_os_exit(VMState* vm, int argcount, Value* args)
+bool modfn_os_exit(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(exit, 1);
     ENFORCE_ARG_TYPE(exit, 0, IS_NUMBER);
@@ -14914,7 +14870,7 @@ bool modfn_os_exit(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_os_cwd(VMState* vm, int argcount, Value* args)
+bool modfn_os_cwd(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(cwd, 0);
     char* cwd = getcwd(NULL, 0);
@@ -14925,7 +14881,7 @@ bool modfn_os_cwd(VMState* vm, int argcount, Value* args)
     RETURN_L_STRING("", 1);
 }
 
-bool modfn_os_realpath(VMState* vm, int argcount, Value* args)
+bool modfn_os_realpath(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(_realpath, 1);
     ENFORCE_ARG_TYPE(_realpath, 0, IS_STRING);
@@ -14937,14 +14893,14 @@ bool modfn_os_realpath(VMState* vm, int argcount, Value* args)
     RETURN_VALUE(args[0]);
 }
 
-bool modfn_os_chdir(VMState* vm, int argcount, Value* args)
+bool modfn_os_chdir(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(chdir, 1);
     ENFORCE_ARG_TYPE(chdir, 0, IS_STRING);
     RETURN_BOOL(chdir(AS_STRING(args[0])->chars) == 0);
 }
 
-bool modfn_os_exists(VMState* vm, int argcount, Value* args)
+bool modfn_os_exists(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(exists, 1);
     ENFORCE_ARG_TYPE(exists, 0, IS_STRING);
@@ -14956,7 +14912,7 @@ bool modfn_os_exists(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool modfn_os_dirname(VMState* vm, int argcount, Value* args)
+bool modfn_os_dirname(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(dirname, 1);
     ENFORCE_ARG_TYPE(dirname, 0, IS_STRING);
@@ -14968,7 +14924,7 @@ bool modfn_os_dirname(VMState* vm, int argcount, Value* args)
     RETURN_STRING(dir);
 }
 
-bool modfn_os_basename(VMState* vm, int argcount, Value* args)
+bool modfn_os_basename(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(basename, 1);
     ENFORCE_ARG_TYPE(basename, 0, IS_STRING);
@@ -14984,61 +14940,51 @@ bool modfn_os_basename(VMState* vm, int argcount, Value* args)
 
 Value modfield_os_dtunknown(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_UNKNOWN);
 }
 
 Value modfield_os_dtreg(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_REG);
 }
 
 Value modfield_os_dtdir(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_DIR);
 }
 
 Value modfield_os_dtfifo(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_FIFO);
 }
 
 Value modfield_os_dtsock(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_SOCK);
 }
 
 Value modfield_os_dtchr(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_CHR);
 }
 
 Value modfield_os_dtblk(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_BLK);
 }
 
 Value modfield_os_dtlnk(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(DT_LNK);
 }
 
 Value modfield_os_dtwht(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(-1);
 }
 
 void __os_module_preloader(VMState* vm)
 {
-    (void)vm;
 #if defined WIN32 || defined _WIN32 || defined WIN64 || defined _WIN64
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     DWORD dwMode = 0;
@@ -15056,10 +15002,9 @@ void __os_module_preloader(VMState* vm)
 
 /** DIR TYPES ENDS */
 
-RegModule* bl_modload_os(VMState* vm)
+RegModule* blade_module_loader_os(VMState* vm)
 {
-    (void)vm;
-    static RegFunc osmodulefunctions[] = {
+    static RegFunc os_module_functions[] = {
         { "info", true, modfn_os_info },          { "exec", true, modfn_os_exec },
         { "sleep", true, modfn_os_sleep },        { "getenv", true, modfn_os_getenv },
         { "setenv", true, modfn_os_setenv },      { "createdir", true, modfn_os_createdir },
@@ -15071,10 +15016,10 @@ RegModule* bl_modload_os(VMState* vm)
         { "basename", true, modfn_os_basename }, { NULL, false, NULL },
     };
 
-    static RegField osmodulefields[] = {
+    static RegField os_module_fields[] = {
         { "platform", true, get_os_platform },
         { "args", true, get_blade_os_args },
-        { "pathseparator", true, get_blade_os_path_separator },
+        { "path_separator", true, get_blade_os_path_separator },
         { "DT_UNKNOWN", true, modfield_os_dtunknown },
         { "DT_BLK", true, modfield_os_dtblk },
         { "DT_CHR", true, modfield_os_dtchr },
@@ -15088,7 +15033,7 @@ RegModule* bl_modload_os(VMState* vm)
     };
 
     static RegModule module
-    = { .name = "_os", .fields = osmodulefields, .functions = osmodulefunctions, .classes = NULL, .preloader = &__os_module_preloader, .unloader = NULL };
+    = { .name = "_os", .fields = os_module_fields, .functions = os_module_functions, .classes = NULL, .preloader = &__os_module_preloader, .unloader = NULL };
 
     return &module;
 }
@@ -15097,20 +15042,19 @@ RegModule* bl_modload_os(VMState* vm)
 
 Value modfield_process_cpucount(VMState* vm)
 {
-    (void)vm;
     return NUMBER_VAL(1);
 }
 
 void b__free_shared_memory(void* data)
 {
     BProcessShared* shared = (BProcessShared*)data;
-    munmap(shared->format, shared->formatlength * sizeof(char));
-    munmap(shared->getformat, shared->getformatlength * sizeof(char));
+    munmap(shared->format, shared->format_length * sizeof(char));
+    munmap(shared->get_format, shared->get_format_length * sizeof(char));
     munmap(shared->bytes, shared->length * sizeof(unsigned char));
     munmap(shared, sizeof(BProcessShared));
 }
 
-bool modfn_process_process(VMState* vm, int argcount, Value* args)
+bool modfn_process_process(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_RANGE(Process, 0, 1);
     BProcess* process = ALLOCATE(BProcess, 1);
@@ -15120,7 +15064,7 @@ bool modfn_process_process(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(ptr);
 }
 
-bool modfn_process_create(VMState* vm, int argcount, Value* args)
+bool modfn_process_create(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
     ENFORCE_ARG_TYPE(create, 0, IS_PTR);
@@ -15138,7 +15082,7 @@ bool modfn_process_create(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(getpid());
 }
 
-bool modfn_process_isalive(VMState* vm, int argcount, Value* args)
+bool modfn_process_isalive(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
     ENFORCE_ARG_TYPE(create, 0, IS_PTR);
@@ -15146,7 +15090,7 @@ bool modfn_process_isalive(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(waitpid(process->pid, NULL, WNOHANG) == 0);
 }
 
-bool modfn_process_kill(VMState* vm, int argcount, Value* args)
+bool modfn_process_kill(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(kill, 1);
     ENFORCE_ARG_TYPE(kill, 0, IS_PTR);
@@ -15154,7 +15098,7 @@ bool modfn_process_kill(VMState* vm, int argcount, Value* args)
     RETURN_BOOL(kill(process->pid, SIGKILL) == 0);
 }
 
-bool modfn_process_wait(VMState* vm, int argcount, Value* args)
+bool modfn_process_wait(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
     ENFORCE_ARG_TYPE(create, 0, IS_PTR);
@@ -15182,7 +15126,7 @@ bool modfn_process_wait(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(-1);
 }
 
-bool modfn_process_id(VMState* vm, int argcount, Value* args)
+bool modfn_process_id(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
     ENFORCE_ARG_TYPE(create, 0, IS_PTR);
@@ -15190,40 +15134,40 @@ bool modfn_process_id(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(process->pid);
 }
 
-bool modfn_process_newshared(VMState* vm, int argcount, Value* args)
+bool modfn_process_newshared(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(newshared, 0);
+    ENFORCE_ARG_COUNT(new_shared, 0);
     BProcessShared* shared = mmap(NULL, sizeof(BProcessShared), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     shared->bytes = mmap(NULL, sizeof(unsigned char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     shared->format = mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    shared->getformat = mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    shared->length = shared->getformatlength = shared->formatlength = 0;
+    shared->get_format = mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    shared->length = shared->get_format_length = shared->format_length = 0;
     ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)new_ptr(vm, shared));
     ptr->name = "<*Process::SharedValue>";
-    ptr->fnptrfree = b__free_shared_memory;
+    ptr->free_fn = b__free_shared_memory;
     RETURN_OBJ(ptr);
 }
 
-bool modfn_process_sharedwrite(VMState* vm, int argcount, Value* args)
+bool modfn_process_sharedwrite(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(sharedwrite, 4);
-    ENFORCE_ARG_TYPE(sharedwrite, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(sharedwrite, 1, IS_STRING);
-    ENFORCE_ARG_TYPE(sharedwrite, 2, IS_STRING);
-    ENFORCE_ARG_TYPE(sharedwrite, 3, IS_BYTES);
+    ENFORCE_ARG_COUNT(shared_write, 4);
+    ENFORCE_ARG_TYPE(shared_write, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(shared_write, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(shared_write, 2, IS_STRING);
+    ENFORCE_ARG_TYPE(shared_write, 3, IS_BYTES);
 
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     if(!shared->locked)
     {
         ObjString* format = AS_STRING(args[1]);
-        ObjString* getformat = AS_STRING(args[2]);
+        ObjString* get_format = AS_STRING(args[2]);
         ByteArray bytes = AS_BYTES(args[3])->bytes;
 
         memcpy(shared->format, format->chars, format->length);
-        shared->formatlength = format->length;
+        shared->format_length = format->length;
 
-        memcpy(shared->getformat, getformat->chars, getformat->length);
-        shared->getformatlength = getformat->length;
+        memcpy(shared->get_format, get_format->chars, get_format->length);
+        shared->get_format_length = get_format->length;
 
         memcpy(shared->bytes, bytes.bytes, bytes.count);
         shared->length = bytes.count;
@@ -15235,19 +15179,19 @@ bool modfn_process_sharedwrite(VMState* vm, int argcount, Value* args)
     RETURN_FALSE;
 }
 
-bool modfn_process_sharedread(VMState* vm, int argcount, Value* args)
+bool modfn_process_sharedread(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(sharedread, 1);
-    ENFORCE_ARG_TYPE(sharedread, 0, IS_PTR);
+    ENFORCE_ARG_COUNT(shared_read, 1);
+    ENFORCE_ARG_TYPE(shared_read, 0, IS_PTR);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
 
-    if(shared->length > 0 || shared->formatlength > 0)
+    if(shared->length > 0 || shared->format_length > 0)
     {
         ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)copy_bytes(vm, shared->bytes, shared->length));
 
         // return [format, bytes]
         ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-        write_list(vm, list, GC_L_STRING(shared->getformat, shared->getformatlength));
+        write_list(vm, list, GC_L_STRING(shared->get_format, shared->get_format_length));
         write_list(vm, list, OBJ_VAL(bytes));
 
         RETURN_OBJ(list);
@@ -15255,73 +15199,72 @@ bool modfn_process_sharedread(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool modfn_process_sharedlock(VMState* vm, int argcount, Value* args)
+bool modfn_process_sharedlock(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(sharedlock, 1);
-    ENFORCE_ARG_TYPE(sharedlock, 0, IS_PTR);
+    ENFORCE_ARG_COUNT(shared_lock, 1);
+    ENFORCE_ARG_TYPE(shared_lock, 0, IS_PTR);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = true;
     RETURN;
 }
 
-bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args)
+bool modfn_process_sharedunlock(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(sharedunlock, 1);
-    ENFORCE_ARG_TYPE(sharedunlock, 0, IS_PTR);
+    ENFORCE_ARG_COUNT(shared_unlock, 1);
+    ENFORCE_ARG_TYPE(shared_unlock, 0, IS_PTR);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = false;
     RETURN;
 }
 
-bool modfn_process_sharedislocked(VMState* vm, int argcount, Value* args)
+bool modfn_process_sharedislocked(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(sharedislocked, 1);
-    ENFORCE_ARG_TYPE(sharedislocked, 0, IS_PTR);
+    ENFORCE_ARG_COUNT(shared_islocked, 1);
+    ENFORCE_ARG_TYPE(shared_islocked, 0, IS_PTR);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     RETURN_BOOL(shared->locked);
 }
 
-RegModule* bl_modload_process(VMState* vm)
+RegModule* blade_module_loader_process(VMState* vm)
 {
-    (void)vm;
-    static RegFunc osmodulefunctions[] = {
+    static RegFunc os_module_functions[] = {
         { "Process", false, modfn_process_process },
         { "create", false, modfn_process_create },
-        { "isalive", false, modfn_process_isalive },
+        { "is_alive", false, modfn_process_isalive },
         { "wait", false, modfn_process_wait },
         { "id", false, modfn_process_id },
         { "kill", false, modfn_process_kill },
-        { "newshared", false, modfn_process_newshared },
-        { "sharedwrite", false, modfn_process_sharedwrite },
-        { "sharedread", false, modfn_process_sharedread },
-        { "sharedlock", false, modfn_process_sharedlock },
-        { "sharedunlock", false, modfn_process_sharedunlock },
+        { "new_shared", false, modfn_process_newshared },
+        { "shared_write", false, modfn_process_sharedwrite },
+        { "shared_read", false, modfn_process_sharedread },
+        { "shared_lock", false, modfn_process_sharedlock },
+        { "shared_unlock", false, modfn_process_sharedunlock },
         { NULL, false, NULL },
     };
 
-    static RegField osmodulefields[] = {
-        { "cpucount", true, modfield_process_cpucount },
+    static RegField os_module_fields[] = {
+        { "cpu_count", true, modfield_process_cpucount },
         { NULL, false, NULL },
     };
 
     static RegModule module
-    = { .name = "_process", .fields = osmodulefields, .functions = osmodulefunctions, .classes = NULL, .preloader = NULL, .unloader = NULL };
+    = { .name = "_process", .fields = os_module_fields, .functions = os_module_functions, .classes = NULL, .preloader = NULL, .unloader = NULL };
 
     return &module;
 }
 
-extern bool call_value(VMState* vm, Value callee, int argcount);
+extern bool call_value(VMState* vm, Value callee, int arg_count);
 
 /**
  * hasprop(object: instance, name: string)
  *
  * returns true if object has the property name or false if not
  */
-bool modfn_reflect_hasprop(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_hasprop(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(hasprop, 2);
-    ENFORCE_ARG_TYPE(hasprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(hasprop, 1, IS_STRING);
+    ENFORCE_ARG_COUNT(has_prop, 2);
+    ENFORCE_ARG_TYPE(has_prop, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(has_prop, 1, IS_STRING);
 
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value dummy;
@@ -15335,11 +15278,11 @@ bool modfn_reflect_hasprop(VMState* vm, int argcount, Value* args)
  * or nil if the object contains no property with a matching
  * name
  */
-bool modfn_reflect_getprop(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_getprop(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(getprop, 2);
-    ENFORCE_ARG_TYPE(getprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(getprop, 1, IS_STRING);
+    ENFORCE_ARG_COUNT(get_prop, 2);
+    ENFORCE_ARG_TYPE(get_prop, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(get_prop, 1, IS_STRING);
 
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value value;
@@ -15359,12 +15302,12 @@ bool modfn_reflect_getprop(VMState* vm, int argcount, Value* args)
  * @returns bool: true if a new property was set, false if a property was
  * updated
  */
-bool modfn_reflect_setprop(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_setprop(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(setprop, 3);
-    ENFORCE_ARG_TYPE(setprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(setprop, 1, IS_STRING);
-    ENFORCE_ARG_TYPE(setprop, 2, IS_STRING);
+    ENFORCE_ARG_COUNT(set_prop, 3);
+    ENFORCE_ARG_TYPE(set_prop, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(set_prop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(set_prop, 2, IS_STRING);
 
     ObjInstance* instance = AS_INSTANCE(args[0]);
     RETURN_BOOL(table_set(vm, &instance->properties, args[1], args[2]));
@@ -15376,11 +15319,11 @@ bool modfn_reflect_setprop(VMState* vm, int argcount, Value* args)
  * deletes the named property from the object
  * @returns bool
  */
-bool modfn_reflect_delprop(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_delprop(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(delprop, 2);
-    ENFORCE_ARG_TYPE(delprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(delprop, 1, IS_STRING);
+    ENFORCE_ARG_COUNT(del_prop, 2);
+    ENFORCE_ARG_TYPE(del_prop, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(del_prop, 1, IS_STRING);
 
     ObjInstance* instance = AS_INSTANCE(args[0]);
     RETURN_BOOL(table_delete(&instance->properties, args[1]));
@@ -15392,11 +15335,11 @@ bool modfn_reflect_delprop(VMState* vm, int argcount, Value* args)
  * returns true if class of the instance has the method name or
  * false if not
  */
-bool modfn_reflect_hasmethod(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_hasmethod(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(hasmethod, 2);
-    ENFORCE_ARG_TYPE(hasmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(hasmethod, 1, IS_STRING);
+    ENFORCE_ARG_COUNT(has_method, 2);
+    ENFORCE_ARG_TYPE(has_method, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(has_method, 1, IS_STRING);
 
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value dummy;
@@ -15410,11 +15353,11 @@ bool modfn_reflect_hasmethod(VMState* vm, int argcount, Value* args)
  * or nil if the class of the instance contains no method with
  * a matching name
  */
-bool modfn_reflect_getmethod(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_getmethod(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(getmethod, 2);
-    ENFORCE_ARG_TYPE(getmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(getmethod, 1, IS_STRING);
+    ENFORCE_ARG_COUNT(get_method, 2);
+    ENFORCE_ARG_TYPE(get_method, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(get_method, 1, IS_STRING);
 
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value value;
@@ -15425,12 +15368,12 @@ bool modfn_reflect_getmethod(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_callmethod(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_MIN_ARG(callmethod, 3);
-    ENFORCE_ARG_TYPE(callmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(callmethod, 1, IS_STRING);
-    ENFORCE_ARG_TYPE(callmethod, 2, IS_LIST);
+    ENFORCE_MIN_ARG(call_method, 3);
+    ENFORCE_ARG_TYPE(call_method, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(call_method, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(call_method, 2, IS_LIST);
 
     Value value;
     if(table_get(&AS_INSTANCE(args[0])->klass->methods, args[1], &value))
@@ -15456,7 +15399,7 @@ bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
     RETURN;
 }
 
-bool modfn_reflect_bindmethod(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_bindmethod(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(delist, 2);
     ENFORCE_ARG_TYPE(delist, 0, IS_INSTANCE);
@@ -15466,11 +15409,11 @@ bool modfn_reflect_bindmethod(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bound);
 }
 
-bool modfn_reflect_getboundmethod(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_getboundmethod(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(getmethod, 2);
-    ENFORCE_ARG_TYPE(getmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(getmethod, 1, IS_STRING);
+    ENFORCE_ARG_COUNT(get_method, 2);
+    ENFORCE_ARG_TYPE(get_method, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(get_method, 1, IS_STRING);
 
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value value;
@@ -15482,40 +15425,39 @@ bool modfn_reflect_getboundmethod(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-bool modfn_reflect_gettype(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_gettype(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(gettype, 1);
-    ENFORCE_ARG_TYPE(gettype, 0, IS_INSTANCE);
+    ENFORCE_ARG_COUNT(get_type, 1);
+    ENFORCE_ARG_TYPE(get_type, 0, IS_INSTANCE);
     RETURN_OBJ(AS_INSTANCE(args[0])->klass->name);
 }
 
-bool modfn_reflect_isptr(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_isptr(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(isptr, 1);
+    ENFORCE_ARG_COUNT(is_ptr, 1);
     RETURN_BOOL(IS_PTR(args[0]));
 }
 
-bool modfn_reflect_getfunctionmetadata(VMState* vm, int argcount, Value* args)
+bool modfn_reflect_getfunctionmetadata(VMState* vm, int arg_count, Value* args)
 {
-    ENFORCE_ARG_COUNT(getfunctionmetadata, 1);
-    ENFORCE_ARG_TYPE(getfunctionmetadata, 0, IS_CLOSURE);
+    ENFORCE_ARG_COUNT(get_function_metadata, 1);
+    ENFORCE_ARG_TYPE(get_function_metadata, 0, IS_CLOSURE);
     ObjClosure* closure = AS_CLOSURE(args[0]);
 
     ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
     dict_set_entry(vm, result, GC_STRING("name"), OBJ_VAL(closure->fnptr->name));
     dict_set_entry(vm, result, GC_STRING("arity"), NUMBER_VAL(closure->fnptr->arity));
-    dict_set_entry(vm, result, GC_STRING("isvariadic"), NUMBER_VAL(closure->fnptr->isvariadic));
-    dict_set_entry(vm, result, GC_STRING("capturedvars"), NUMBER_VAL(closure->upvaluecount));
+    dict_set_entry(vm, result, GC_STRING("is_variadic"), NUMBER_VAL(closure->fnptr->is_variadic));
+    dict_set_entry(vm, result, GC_STRING("captured_vars"), NUMBER_VAL(closure->up_value_count));
     dict_set_entry(vm, result, GC_STRING("module"), STRING_VAL(closure->fnptr->module->name));
     dict_set_entry(vm, result, GC_STRING("file"), STRING_VAL(closure->fnptr->module->file));
 
     RETURN_OBJ(result);
 }
 
-RegModule* bl_modload_reflect(VMState* vm)
+RegModule* blade_module_loader_reflect(VMState* vm)
 {
-    (void)vm;
-    static RegFunc modulefunctions[] = {
+    static RegFunc module_functions[] = {
         { "hasprop", true, modfn_reflect_hasprop },
         { "getprop", true, modfn_reflect_getprop },
         { "setprop", true, modfn_reflect_setprop },
@@ -15531,7 +15473,7 @@ RegModule* bl_modload_reflect(VMState* vm)
         { NULL, false, NULL },
     };
 
-    static RegModule module = { .name = "_reflect", .fields = NULL, .functions = modulefunctions, .classes = NULL, .preloader = NULL, .unloader = NULL };
+    static RegModule module = { .name = "_reflect", .fields = NULL, .functions = module_functions, .classes = NULL, .preloader = NULL, .unloader = NULL };
 
     return &module;
 }
@@ -15550,7 +15492,7 @@ RegModule* bl_modload_reflect(VMState* vm)
    | This source file is subject to version 3.01 of the PHP license,      |
    | that is bundled with this package in the file LICENSE, and is        |
    | available through the world-wide-web at the following url:           |
-   | https://www.php.net/license/301.txt                                 |
+   | https://www.php.net/license/3_01.txt                                 |
    | If you did not receive a copy of the PHP license and are unable to   |
    | obtain it through the world-wide-web, please send a note to          |
    | license@php.net so we can mail you a copy immediately.               |
@@ -15572,7 +15514,7 @@ RegModule* bl_modload_reflect(VMState* vm)
 #define MAX_LENGTH_OF_LONG 20
 //#define LONG_FMT "%" PRId64
 
-#define UNPACK_REAL_NAME() (strspn(realname, "0123456789") == strlen(realname) ? NUMBER_VAL(strtod(realname, NULL)) : (GC_STRING(realname)))
+#define UNPACK_REAL_NAME() (strspn(real_name, "0123456789") == strlen(real_name) ? NUMBER_VAL(strtod(real_name, NULL)) : (GC_STRING(real_name)))
 
 #ifndef MAX
     #define MAX(a, b) (a > b ? a : b)
@@ -15593,7 +15535,7 @@ static uint32_t reverse_int32(uint32_t arg)
 
 static uint64_t reverse_int64(uint64_t arg)
 {
-    union swaptag
+    union swap_tag
     {
         uint64_t i;
         uint32_t ul[2];
@@ -15706,8 +15648,8 @@ static void do_pack(VMState* vm, Value val, size_t size, const int* map, unsigne
 {
     size_t i;
 
-    long aslong = to_long(vm, val);
-    char* v = (char*)&aslong;
+    long as_long = to_long(vm, val);
+    char* v = (char*)&as_long;
 
     for(i = 0; i < size; i++)
     {
@@ -15715,9 +15657,9 @@ static void do_pack(VMState* vm, Value val, size_t size, const int* map, unsigne
     }
 }
 
-static void copy_float(int islittleendian, void* dst, float f)
+static void copy_float(int is_little_endian, void* dst, float f)
 {
-    union floattag
+    union float_tag
     {
         float f;
         uint32_t i;
@@ -15726,10 +15668,10 @@ static void copy_float(int islittleendian, void* dst, float f)
     m.f = f;
 
 #if IS_BIG_ENDIAN
-    if(islittleendian)
+    if(is_little_endian)
     {
 #else
-    if(!islittleendian)
+    if(!is_little_endian)
     {
 #endif
         m.i = reverse_int32(m.i);
@@ -15738,9 +15680,9 @@ static void copy_float(int islittleendian, void* dst, float f)
     memcpy(dst, &m.f, sizeof(float));
 }
 
-static void copy_double(int islittleendian, void* dst, double d)
+static void copy_double(int is_little_endian, void* dst, double d)
 {
-    union doubletag
+    union double_tag
     {
         double d;
         uint64_t i;
@@ -15749,10 +15691,10 @@ static void copy_double(int islittleendian, void* dst, double d)
     m.d = d;
 
 #if IS_BIG_ENDIAN
-    if(islittleendian)
+    if(is_little_endian)
     {
 #else
-    if(!islittleendian)
+    if(!is_little_endian)
     {
 #endif
         m.i = reverse_int64(m.i);
@@ -15772,9 +15714,9 @@ static char* ulong_to_buffer(char* buf, long num)
     return buf;
 }
 
-static float parse_float(int islittleendian, void* src)
+static float parse_float(int is_little_endian, void* src)
 {
-    union floattag
+    union float_tag
     {
         float f;
         uint32_t i;
@@ -15783,10 +15725,10 @@ static float parse_float(int islittleendian, void* src)
     memcpy(&m.i, src, sizeof(float));
 
 #if IS_BIG_ENDIAN
-    if(islittleendian)
+    if(is_little_endian)
     {
 #else
-    if(!islittleendian)
+    if(!is_little_endian)
     {
 #endif
         m.i = reverse_int32(m.i);
@@ -15795,9 +15737,9 @@ static float parse_float(int islittleendian, void* src)
     return m.f;
 }
 
-static double parse_double(int islittleendian, void* src)
+static double parse_double(int is_little_endian, void* src)
 {
-    union doubletag
+    union double_tag
     {
         double d;
         uint64_t i;
@@ -15806,10 +15748,10 @@ static double parse_double(int islittleendian, void* src)
     memcpy(&m.i, src, sizeof(double));
 
 #if IS_BIG_ENDIAN
-    if(islittleendian)
+    if(is_little_endian)
     {
 #else
-    if(!islittleendian)
+    if(!is_little_endian)
     {
 #endif
         m.i = reverse_int64(m.i);
@@ -15819,29 +15761,29 @@ static double parse_double(int islittleendian, void* src)
 }
 
 /* Mapping of byte from char (8bit) to long for machine endian */
-static int bytemap[1];
+static int byte_map[1];
 
 /* Mappings of bytes from int (machine dependent) to int for machine endian */
-static int intmap[sizeof(int)];
+static int int_map[sizeof(int)];
 
 /* Mappings of bytes from shorts (16bit) for all endian environments */
-static int machineendianshortmap[2];
-static int bigendianshortmap[2];
-static int littleendianshortmap[2];
+static int machine_endian_short_map[2];
+static int big_endian_short_map[2];
+static int little_endian_short_map[2];
 
 /* Mappings of bytes from longs (32bit) for all endian environments */
-static int machineendianlongmap[4];
-static int bigendianlongmap[4];
-static int littleendianlongmap[4];
+static int machine_endian_long_map[4];
+static int big_endian_long_map[4];
+static int little_endian_long_map[4];
 
 #if IS_64_BIT
 /* Mappings of bytes from quads (64bit) for all endian environments */
-static int machineendianlonglongmap[8];
-static int bigendianlonglongmap[8];
-static int littleendianlonglongmap[8];
+static int machine_endian_longlong_map[8];
+static int big_endian_longlong_map[8];
+static int little_endian_longlong_map[8];
 #endif
 
-bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
+bool modfn_struct_pack(VMState* vm, int arg_count, Value* args)
 {
     ENFORCE_ARG_COUNT(pack, 2);
     ENFORCE_ARG_TYPE(pack, 0, IS_STRING);
@@ -15850,8 +15792,8 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
     ObjString* string = AS_STRING(args[0]);
     ObjList* params = AS_LIST(args[1]);
 
-    Value* argslist = params->items.values;
-    int paramcount = params->items.count;
+    Value* args_list = params->items.values;
+    int param_count = params->items.count;
 
     size_t i;
     int currentarg;
@@ -15894,7 +15836,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
         /* Handle special arg '*' for all codes and check argv overflows */
         switch((int)code)
         {
-            /* Never uses any argslist */
+            /* Never uses any args_list */
             case 'x':
             case 'X':
             case '@':
@@ -15912,7 +15854,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'Z':
             case 'h':
             case 'H':
-                if(currentarg >= paramcount)
+                if(currentarg >= param_count)
                 {
                     free(formatcodes);
                     free(formatargs);
@@ -15921,8 +15863,8 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
 
                 if(arg < 0)
                 {
-                    char* asstring = value_to_string(vm, argslist[currentarg]);
-                    arg = (int)strlen(asstring);
+                    char* as_string = value_to_string(vm, args_list[currentarg]);
+                    arg = (int)strlen(as_string);
                     if(code == 'Z')
                     {
                         /* add one because Z is always NUL-terminated:
@@ -15935,7 +15877,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 currentarg++;
                 break;
 
-                /* Use as many argslist as specified */
+                /* Use as many args_list as specified */
             case 'q':
             case 'Q':
             case 'J':
@@ -15965,17 +15907,17 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'E': /* big endian double */
                 if(arg < 0)
                 {
-                    arg = paramcount - currentarg;
+                    arg = param_count - currentarg;
                 }
                 if(currentarg > INT_MAX - arg)
                 {
-                    goto toofewargs;
+                    goto too_few_args;
                 }
                 currentarg += arg;
 
-                if(currentarg > paramcount)
+                if(currentarg > param_count)
                 {
-                toofewargs:
+                too_few_args:
                     free(formatcodes);
                     free(formatargs);
                     RETURN_ERROR("Type %c: too few arguments", code);
@@ -15992,10 +15934,10 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
         formatargs[formatcount] = arg;
     }
 
-    if(currentarg < paramcount)
+    if(currentarg < param_count)
     {
         // TODO: Give warning...
-        //    RETURN_ERROR("%d arguments unused", (paramcount - currentarg));
+        //    RETURN_ERROR("%d arguments unused", (param_count - currentarg));
     }
 
     /* Calculate output length and upper bound while processing*/
@@ -16097,11 +16039,11 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'A':
             case 'Z':
             {
-                size_t argcp = (code != 'Z') ? arg : MAX(0, arg - 1);
-                char* str = value_to_string(vm, argslist[currentarg++]);
+                size_t arg_cp = (code != 'Z') ? arg : MAX(0, arg - 1);
+                char* str = value_to_string(vm, args_list[currentarg++]);
 
                 memset(&output[outputpos], (code == 'a' || code == 'Z') ? '\0' : ' ', arg);
-                memcpy(&output[outputpos], str, (strlen(str) < argcp) ? strlen(str) : argcp);
+                memcpy(&output[outputpos], str, (strlen(str) < arg_cp) ? strlen(str) : arg_cp);
 
                 outputpos += arg;
                 break;
@@ -16112,7 +16054,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             {
                 int nibbleshift = (code == 'h') ? 0 : 4;
                 int first = 1;
-                char* str = value_to_string(vm, argslist[currentarg++]);
+                char* str = value_to_string(vm, args_list[currentarg++]);
 
                 outputpos--;
                 if((size_t)arg > strlen(str))
@@ -16166,7 +16108,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'C':
                 while(arg-- > 0)
                 {
-                    do_pack(vm, argslist[currentarg++], 1, bytemap, &output[outputpos]);
+                    do_pack(vm, args_list[currentarg++], 1, byte_map, &output[outputpos]);
                     outputpos++;
                 }
                 break;
@@ -16176,20 +16118,20 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'n':
             case 'v':
             {
-                int* map = machineendianshortmap;
+                int* map = machine_endian_short_map;
 
                 if(code == 'n')
                 {
-                    map = bigendianshortmap;
+                    map = big_endian_short_map;
                 }
                 else if(code == 'v')
                 {
-                    map = littleendianshortmap;
+                    map = little_endian_short_map;
                 }
 
                 while(arg-- > 0)
                 {
-                    do_pack(vm, argslist[currentarg++], 2, map, &output[outputpos]);
+                    do_pack(vm, args_list[currentarg++], 2, map, &output[outputpos]);
                     outputpos += 2;
                 }
                 break;
@@ -16199,7 +16141,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'I':
                 while(arg-- > 0)
                 {
-                    do_pack(vm, argslist[currentarg++], sizeof(int), intmap, &output[outputpos]);
+                    do_pack(vm, args_list[currentarg++], sizeof(int), int_map, &output[outputpos]);
                     outputpos += sizeof(int);
                 }
                 break;
@@ -16209,20 +16151,20 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'N':
             case 'V':
             {
-                int* map = machineendianlongmap;
+                int* map = machine_endian_long_map;
 
                 if(code == 'N')
                 {
-                    map = bigendianlongmap;
+                    map = big_endian_long_map;
                 }
                 else if(code == 'V')
                 {
-                    map = littleendianlongmap;
+                    map = little_endian_long_map;
                 }
 
                 while(arg-- > 0)
                 {
-                    do_pack(vm, argslist[currentarg++], 4, map, &output[outputpos]);
+                    do_pack(vm, args_list[currentarg++], 4, map, &output[outputpos]);
                     outputpos += 4;
                 }
                 break;
@@ -16234,20 +16176,20 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'P':
             {
 #if IS_64_BIT
-                int* map = machineendianlonglongmap;
+                int* map = machine_endian_longlong_map;
 
                 if(code == 'J')
                 {
-                    map = bigendianlonglongmap;
+                    map = big_endian_longlong_map;
                 }
                 else if(code == 'P')
                 {
-                    map = littleendianlonglongmap;
+                    map = little_endian_longlong_map;
                 }
 
                 while(arg-- > 0)
                 {
-                    do_pack(vm, argslist[currentarg++], 8, map, &output[outputpos]);
+                    do_pack(vm, args_list[currentarg++], 8, map, &output[outputpos]);
                     outputpos += 8;
                 }
                 break;
@@ -16260,7 +16202,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             {
                 while(arg-- > 0)
                 {
-                    float v = (float)to_double(vm, argslist[currentarg++]);
+                    float v = (float)to_double(vm, args_list[currentarg++]);
                     memcpy(&output[outputpos], &v, sizeof(v));
                     outputpos += sizeof(v);
                 }
@@ -16272,7 +16214,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 /* pack little endian float */
                 while(arg-- > 0)
                 {
-                    float v = (float)to_double(vm, argslist[currentarg++]);
+                    float v = (float)to_double(vm, args_list[currentarg++]);
                     copy_float(1, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
@@ -16284,7 +16226,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 /* pack big endian float */
                 while(arg-- > 0)
                 {
-                    float v = (float)to_double(vm, argslist[currentarg++]);
+                    float v = (float)to_double(vm, args_list[currentarg++]);
                     copy_float(0, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
@@ -16295,7 +16237,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             {
                 while(arg-- > 0)
                 {
-                    double v = to_double(vm, argslist[currentarg++]);
+                    double v = to_double(vm, args_list[currentarg++]);
                     memcpy(&output[outputpos], &v, sizeof(v));
                     outputpos += sizeof(v);
                 }
@@ -16307,7 +16249,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 /* pack little endian double */
                 while(arg-- > 0)
                 {
-                    double v = to_double(vm, argslist[currentarg++]);
+                    double v = to_double(vm, args_list[currentarg++]);
                     copy_double(1, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
@@ -16319,7 +16261,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 /* pack big endian double */
                 while(arg-- > 0)
                 {
-                    double v = to_double(vm, argslist[currentarg++]);
+                    double v = to_double(vm, args_list[currentarg++]);
                     copy_double(0, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
@@ -16358,60 +16300,50 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(bytes);
 }
 
-bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
+bool modfn_struct_unpack(VMState* vm, int arg_count, Value* args)
 {
-    int i;
-    int size;
-    int argb;
-    int offset;
-    int namelen;
-    int repetitions;
-    size_t formatlen;
-    size_t inputpos;
-    size_t inputlen;
-     
-    char type;
-    char c;
-    char* name;
-    char* input;
-    char* format;    
-    ObjDict* returnvalue;
-    ObjString* string;
-    ObjBytes* data;
-
     ENFORCE_ARG_COUNT(unpack, 3);
     ENFORCE_ARG_TYPE(unpack, 0, IS_STRING);
     ENFORCE_ARG_TYPE(unpack, 1, IS_BYTES);
     ENFORCE_ARG_TYPE(unpack, 2, IS_NUMBER);
 
-    string = AS_STRING(args[0]);
-    data = AS_BYTES(args[1]);
-    offset = AS_NUMBER(args[2]);
+    int i;
+    ObjString* string = AS_STRING(args[0]);
+    ObjBytes* data = AS_BYTES(args[1]);
+    int offset = AS_NUMBER(args[2]);
 
-    format = string->chars;
-    input = (char*)data->bytes.bytes;
-    formatlen = string->length;
-    inputpos = 0;
-    inputlen = data->bytes.count;
-    if((offset < 0) || (offset > (int)inputlen))
+    char* format = string->chars;
+    char* input = (char*)data->bytes.bytes;
+    size_t formatlen = string->length, inputpos = 0, inputlen = data->bytes.count;
+
+    if(offset < 0 || offset > inputlen)
     {
         RETURN_ERROR("argument 3 (offset) must be within the range of argument 2 (data)");
     }
+
     input += offset;
     inputlen -= offset;
-    returnvalue = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+
+    ObjDict* return_value = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+
     while(formatlen-- > 0)
     {
-        type = *(format++);
-        repetitions = 1;
-        size = 0;
+        char type = *(format++);
+        char c;
+        int repetitions = 1, argb;
+        char* name;
+        int namelen;
+        int size = 0;
+
         /* Handle format arguments if any */
         if(formatlen > 0)
         {
             c = *format;
+
             if(c >= '0' && c <= '9')
             {
                 repetitions = (int)strtol(format, NULL, 10);
+
                 while(formatlen > 0 && *format >= '0' && *format <= '9')
                 {
                     format++;
@@ -16425,121 +16357,109 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                 formatlen--;
             }
         }
+
         /* Get of new value in array */
         name = format;
         argb = repetitions;
+
         while(formatlen > 0 && *format != '/')
         {
             formatlen--;
             format++;
         }
+
         namelen = format - name;
+
         if(namelen > 200)
-        {
             namelen = 200;
-        }
+
         switch((int)type)
         {
             /* Never use any input */
             case 'X':
+                size = -1;
+                if(repetitions < 0)
                 {
-                    size = -1;
-                    if(repetitions < 0)
-                    {
-                        // TODO: Give warning...
-                        //          RETURN_ERROR("Type %c: '*' ignored", type);
-                        repetitions = 1;
-                    }
+                    // TODO: Give warning...
+                    //          RETURN_ERROR("Type %c: '*' ignored", type);
+                    repetitions = 1;
                 }
                 break;
+
             case '@':
-                {
-                    size = 0;
-                }
+                size = 0;
                 break;
+
             case 'a':
             case 'A':
             case 'Z':
-                {
-                    size = repetitions;
-                    repetitions = 1;
-                }
+                size = repetitions;
+                repetitions = 1;
                 break;
+
             case 'h':
             case 'H':
-                {
-                    size = (repetitions > 0) ? (repetitions + (repetitions % 2)) / 2 : repetitions;
-                    repetitions = 1;
-                }
+                size = (repetitions > 0) ? (repetitions + (repetitions % 2)) / 2 : repetitions;
+                repetitions = 1;
                 break;
+
                 /* Use 1 byte of input */
             case 'c':
             case 'C':
             case 'x':
-                {
-                    size = 1;
-                }
+                size = 1;
                 break;
+
                 /* Use 2 bytes of input */
             case 's':
             case 'S':
             case 'n':
             case 'v':
-                {
-                    size = 2;
-                }
+                size = 2;
                 break;
+
                 /* Use sizeof(int) bytes of input */
             case 'i':
             case 'I':
-                {
-                    size = sizeof(int);
-                }
+                size = sizeof(int);
                 break;
+
                 /* Use 4 bytes of input */
             case 'l':
             case 'L':
             case 'N':
             case 'V':
-                {
-                    size = 4;
-                }
+                size = 4;
                 break;
+
                 /* Use 8 bytes of input */
             case 'q':
             case 'Q':
             case 'J':
             case 'P':
-                {
-                    #if IS_64_BIT
-                                    size = 8;
-                                    break;
-                    #else
-                                    RETURN_ERROR("64-bit format codes are not available for 32-bit Blade");
-                    #endif
-                }
+#if IS_64_BIT
+                size = 8;
                 break;
+#else
+                RETURN_ERROR("64-bit format codes are not available for 32-bit Blade");
+#endif
+
                 /* Use sizeof(float) bytes of input */
             case 'f':
             case 'g':
             case 'G':
-                {
-                    size = sizeof(float);
-                }
+                size = sizeof(float);
                 break;
+
                 /* Use sizeof(double) bytes of input */
             case 'd':
             case 'e':
             case 'E':
-                {
-                    size = sizeof(double);
-                }
+                size = sizeof(double);
                 break;
+
             default:
-                {
-                    RETURN_ERROR("Invalid format type %c", type);
-                }
-                break;
+                RETURN_ERROR("Invalid format type %c", type);
         }
 
         if(size != 0 && size != -1 && size < 0)
@@ -16552,7 +16472,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
         /* Do actual unpacking */
         for(i = 0; i != repetitions; i++)
         {
-            if(((size != 0) && (size != -1)) && (((INT_MAX - size) + 1) < (int)inputpos))
+            if(size != 0 && size != -1 && INT_MAX - size + 1 < inputpos)
             {
                 // TODO: Give warning...
                 //        RETURN_ERROR("Type %c: integer overflow", type);
@@ -16561,14 +16481,14 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
 
             if((inputpos + size) <= inputlen)
             {
-                char* realname;
+                char* real_name;
 
                 if(repetitions == 1 && namelen > 0)
                 {
                     /* Use a part of the formatarg argument directly as the name. */
-                    realname = ALLOCATE(char, namelen);
-                    memcpy(realname, name, namelen);
-                    realname[namelen] = '\0';
+                    real_name = ALLOCATE(char, namelen);
+                    memcpy(real_name, name, namelen);
+                    real_name[namelen] = '\0';
                 }
                 else
                 {
@@ -16578,32 +16498,35 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                     char* res = ulong_to_buffer(buf + sizeof(buf) - 1, i + 1);
                     size_t digits = buf + sizeof(buf) - 1 - res;
 
-                    realname = ALLOCATE(char, namelen + digits);
-                    if(realname == NULL)
+                    real_name = ALLOCATE(char, namelen + digits);
+                    if(real_name == NULL)
                     {
                         RETURN_ERROR("out of memory");
                     }
 
-                    memcpy(realname, name, namelen);
-                    memcpy(realname + namelen, res, digits);
-                    realname[namelen + digits] = '\0';
+                    memcpy(real_name, name, namelen);
+                    memcpy(real_name + namelen, res, digits);
+                    real_name[namelen + digits] = '\0';
                 }
 
                 switch((int)type)
                 {
                     case 'a':
+                    {
+                        /* a will not strip any trailing whitespace or null padding */
+                        size_t len = inputlen - inputpos; /* Remaining string */
+
+                        /* If size was given take minimum of len and size */
+                        if((size >= 0) && (len > size))
                         {
-                            /* a will not strip any trailing whitespace or null padding */
-                            size_t len = inputlen - inputpos; /* Remaining string */
-                            /* If size was given take minimum of len and size */
-                            if((size >= 0) && (len > (size_t)size))
-                            {
-                                len = size;
-                            }
-                            size = (int)len;
-                            dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
+                            len = size;
                         }
+
+                        size = (int)len;
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
                         break;
+                    }
                     case 'A':
                     {
                         /* A will strip any trailing whitespace */
@@ -16615,7 +16538,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         size_t len = inputlen - inputpos; /* Remaining string */
 
                         /* If size was given take minimum of len and size */
-                        if(((int)size >= 0) && (len > (size_t)size))
+                        if((size >= 0) && (len > size))
                         {
                             len = size;
                         }
@@ -16623,16 +16546,14 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         size = (int)len;
 
                         /* Remove trailing white space and nulls chars from unpacked data */
-                        while((int)--len >= 0)
+                        while(--len >= 0)
                         {
-                            char inpc;
-                            inpc = input[inputpos + len];
-                            if(inpc != padn && inpc != pads && inpc != padt && inpc != padc && inpc != padl)
-                            {
+                            if(input[inputpos + len] != padn && input[inputpos + len] != pads && input[inputpos + len] != padt && input[inputpos + len] != padc
+                               && input[inputpos + len] != padl)
                                 break;
-                            }
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len + 1));
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len + 1));
                         break;
                     }
                         /* New option added for Z to remain in-line with the Perl implementation */
@@ -16643,7 +16564,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         size_t s, len = inputlen - inputpos; /* Remaining string */
 
                         /* If size was given take minimum of len and size */
-                        if((size >= 0) && (len > (size_t)size))
+                        if((size >= 0) && (len > size))
                         {
                             len = size;
                         }
@@ -16658,7 +16579,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         }
                         len = s;
 
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
                         break;
                     }
 
@@ -16671,14 +16592,16 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         size_t ipos, opos;
 
                         /* If size was given take minimum of len and size */
-                        if((size >= 0) && (len > (size_t)(size * 2)))
+                        if(size >= 0 && len > (size * 2))
                         {
                             len = size * 2;
                         }
-                        if((len > 0) && (argb > 0))
+
+                        if(len > 0 && argb > 0)
                         {
                             len -= argb % 2;
                         }
+
                         char* buf = ALLOCATE(char, len);
 
                         for(ipos = opos = 0; opos < len; opos++)
@@ -16706,7 +16629,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
 
                         buf[len] = '\0';
 
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(buf, len));
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), GC_L_STRING(buf, len));
                         break;
                     }
 
@@ -16716,7 +16639,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         uint8_t x = input[inputpos];
                         long v = (type == 'c') ? (int8_t)x : x;
 
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
                     }
 
@@ -16724,160 +16647,165 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                     case 'S': /* unsigned machine endian */
                     case 'n': /* unsigned big endian     */
                     case 'v':
-                        { /* unsigned little endian  */
-                            long v = 0;
-                            uint16_t x = *((uint16_t*)&input[inputpos]);
+                    { /* unsigned little endian  */
+                        long v = 0;
+                        uint16_t x = *((uint16_t*)&input[inputpos]);
 
-                            if(type == 's')
-                            {
-                                v = (int16_t)x;
-                            }
-                            else if((type == 'n' && IS_LITTLE_ENDIAN) || (type == 'v' && !IS_LITTLE_ENDIAN))
-                            {
-                                v = reverse_int16(x);
-                            }
-                            else
-                            {
-                                v = x;
-                            }
-
-                            dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        if(type == 's')
+                        {
+                            v = (int16_t)x;
                         }
+                        else if((type == 'n' && IS_LITTLE_ENDIAN) || (type == 'v' && !IS_LITTLE_ENDIAN))
+                        {
+                            v = reverse_int16(x);
+                        }
+                        else
+                        {
+                            v = x;
+                        }
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
+                    }
 
                     case 'i': /* signed integer, machine size, machine endian */
                     case 'I':
-                        { /* unsigned integer, machine size, machine endian */
-                            long v;
-                            if(type == 'i')
-                            {
-                                int x = *((int*)&input[inputpos]);
-                                v = x;
-                            }
-                            else
-                            {
-                                unsigned int x = *((unsigned int*)&input[inputpos]);
-                                v = x;
-                            }
-                            dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                    { /* unsigned integer, machine size, machine endian */
+                        long v;
+                        if(type == 'i')
+                        {
+                            int x = *((int*)&input[inputpos]);
+                            v = x;
                         }
+                        else
+                        {
+                            unsigned int x = *((unsigned int*)&input[inputpos]);
+                            v = x;
+                        }
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
+                    }
+
                     case 'l': /* signed machine endian   */
                     case 'L': /* unsigned machine endian */
                     case 'N': /* unsigned big endian     */
                     case 'V':
-                        { /* unsigned little endian  */
-                            long v = 0;
-                            uint32_t x = *((uint32_t*)&input[inputpos]);
-                            if(type == 'l')
-                            {
-                                v = (int32_t)x;
-                            }
-                            else if((type == 'N' && IS_LITTLE_ENDIAN) || (type == 'V' && !IS_LITTLE_ENDIAN))
-                            {
-                                v = reverse_int32(x);
-                            }
-                            else
-                            {
-                                v = x;
-                            }
-                            dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                    { /* unsigned little endian  */
+                        long v = 0;
+                        uint32_t x = *((uint32_t*)&input[inputpos]);
+
+                        if(type == 'l')
+                        {
+                            v = (int32_t)x;
                         }
+                        else if((type == 'N' && IS_LITTLE_ENDIAN) || (type == 'V' && !IS_LITTLE_ENDIAN))
+                        {
+                            v = reverse_int32(x);
+                        }
+                        else
+                        {
+                            v = x;
+                        }
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
+                    }
 
                     case 'q': /* signed machine endian   */
                     case 'Q': /* unsigned machine endian */
                     case 'J': /* unsigned big endian     */
                     case 'P':
-                        { /* unsigned little endian  */
-                            #if IS_64_BIT
-                                long v = 0;
-                                uint64_t x = *((uint64_t*)&input[inputpos]);
+                    { /* unsigned little endian  */
+#if IS_64_BIT
+                        long v = 0;
+                        uint64_t x = *((uint64_t*)&input[inputpos]);
 
-                                if(type == 'q')
-                                {
-                                    v = (int64_t)x;
-                                }
-                                else if((type == 'J' && IS_LITTLE_ENDIAN) || (type == 'P' && !IS_LITTLE_ENDIAN))
-                                {
-                                    v = reverse_int64(x);
-                                }
-                                else
-                                {
-                                    v = x;
-                                }
-
-                                dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
-                            #else
-                                RETURN_ERROR("q, Q, J and P are only valid on 64 bit build of Blade");
-                            #endif
+                        if(type == 'q')
+                        {
+                            v = (int64_t)x;
                         }
+                        else if((type == 'J' && IS_LITTLE_ENDIAN) || (type == 'P' && !IS_LITTLE_ENDIAN))
+                        {
+                            v = reverse_int64(x);
+                        }
+                        else
+                        {
+                            v = x;
+                        }
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
+#else
+                        RETURN_ERROR("q, Q, J and P are only valid on 64 bit build of Blade");
+#endif
+                    }
+
                     case 'f': /* float */
                     case 'g': /* little endian float*/
                     case 'G': /* big endian float*/
-                        {
-                            float v;
+                    {
+                        float v;
 
-                            if(type == 'g')
-                            {
-                                v = parse_float(1, &input[inputpos]);
-                            }
-                            else if(type == 'G')
-                            {
-                                v = parse_float(0, &input[inputpos]);
-                            }
-                            else
-                            {
-                                memcpy(&v, &input[inputpos], sizeof(float));
-                            }
-                            dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        if(type == 'g')
+                        {
+                            v = parse_float(1, &input[inputpos]);
                         }
+                        else if(type == 'G')
+                        {
+                            v = parse_float(0, &input[inputpos]);
+                        }
+                        else
+                        {
+                            memcpy(&v, &input[inputpos], sizeof(float));
+                        }
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
+                    }
 
                     case 'd': /* double */
                     case 'e': /* little endian float */
                     case 'E': /* big endian float */
+                    {
+                        double v;
+                        if(type == 'e')
                         {
-                            double v;
-                            if(type == 'e')
-                            {
-                                v = parse_double(1, &input[inputpos]);
-                            }
-                            else if(type == 'E')
-                            {
-                                v = parse_double(0, &input[inputpos]);
-                            }
-                            else
-                            {
-                                memcpy(&v, &input[inputpos], sizeof(double));
-                            }
-
-                            dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                            v = parse_double(1, &input[inputpos]);
                         }
+                        else if(type == 'E')
+                        {
+                            v = parse_double(0, &input[inputpos]);
+                        }
+                        else
+                        {
+                            memcpy(&v, &input[inputpos], sizeof(double));
+                        }
+
+                        dict_set_entry(vm, return_value, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
+                    }
+
                     case 'x':
-                        {
-                            /* Do nothing with input, just skip it */
-                        }
+                        /* Do nothing with input, just skip it */
                         break;
-                    case 'X':
-                        {
-                            if((int)inputpos < size)
-                            {
-                                inputpos = -size;
-                                i = repetitions - 1; /* Break out of for loop */
 
-                                if(repetitions >= 0)
-                                {
-                                    // TODO: Give warning...
-                                    //                RETURN_ERROR("Type %c: outside of string", type);
-                                }
+                    case 'X':
+                        if(inputpos < size)
+                        {
+                            inputpos = -size;
+                            i = repetitions - 1; /* Break out of for loop */
+
+                            if(repetitions >= 0)
+                            {
+                                // TODO: Give warning...
+                                //                RETURN_ERROR("Type %c: outside of string", type);
                             }
                         }
                         break;
+
                     case '@':
-                        if(repetitions <= (int)inputlen)
+                        if(repetitions <= inputlen)
                         {
                             inputpos = repetitions;
                         }
@@ -16892,7 +16820,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                 }
 
                 inputpos += size;
-                if((int)inputpos < 0)
+                if(inputpos < 0)
                 {
                     if(size != -1)
                     { /* only print warning if not working with * */
@@ -16922,130 +16850,138 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
         }
     }
 
-    RETURN_OBJ(returnvalue);
+    RETURN_OBJ(return_value);
 }
 
 void __struct_module_preloader(VMState* vm)
 {
     int i;
-    (void)vm;
-    #if IS_LITTLE_ENDIAN
-        /* Where to get lo to hi bytes from */
-        bytemap[0] = 0;
-        for(i = 0; i < (int)sizeof(int); i++)
-        {
-            intmap[i] = i;
-        }
-        machineendianshortmap[0] = 0;
-        machineendianshortmap[1] = 1;
-        bigendianshortmap[0] = 1;
-        bigendianshortmap[1] = 0;
-        littleendianshortmap[0] = 0;
-        littleendianshortmap[1] = 1;
-        machineendianlongmap[0] = 0;
-        machineendianlongmap[1] = 1;
-        machineendianlongmap[2] = 2;
-        machineendianlongmap[3] = 3;
-        bigendianlongmap[0] = 3;
-        bigendianlongmap[1] = 2;
-        bigendianlongmap[2] = 1;
-        bigendianlongmap[3] = 0;
-        littleendianlongmap[0] = 0;
-        littleendianlongmap[1] = 1;
-        littleendianlongmap[2] = 2;
-        littleendianlongmap[3] = 3;
-        #if IS_64_BIT
-            machineendianlonglongmap[0] = 0;
-            machineendianlonglongmap[1] = 1;
-            machineendianlonglongmap[2] = 2;
-            machineendianlonglongmap[3] = 3;
-            machineendianlonglongmap[4] = 4;
-            machineendianlonglongmap[5] = 5;
-            machineendianlonglongmap[6] = 6;
-            machineendianlonglongmap[7] = 7;
-            bigendianlonglongmap[0] = 7;
-            bigendianlonglongmap[1] = 6;
-            bigendianlonglongmap[2] = 5;
-            bigendianlonglongmap[3] = 4;
-            bigendianlonglongmap[4] = 3;
-            bigendianlonglongmap[5] = 2;
-            bigendianlonglongmap[6] = 1;
-            bigendianlonglongmap[7] = 0;
-            littleendianlonglongmap[0] = 0;
-            littleendianlonglongmap[1] = 1;
-            littleendianlonglongmap[2] = 2;
-            littleendianlonglongmap[3] = 3;
-            littleendianlonglongmap[4] = 4;
-            littleendianlonglongmap[5] = 5;
-            littleendianlonglongmap[6] = 6;
-            littleendianlonglongmap[7] = 7;
-        #endif
-    #else
-        int size = sizeof(long);
-        /* Where to get hi to lo bytes from */
-        bytemap[0] = size - 1;
-        for(i = 0; i < (int)sizeof(int); i++)
-        {
-            intmap[i] = size - (sizeof(int) - i);
-        }
-        machineendianshortmap[0] = size - 2;
-        machineendianshortmap[1] = size - 1;
-        bigendianshortmap[0] = size - 2;
-        bigendianshortmap[1] = size - 1;
-        littleendianshortmap[0] = size - 1;
-        littleendianshortmap[1] = size - 2;
-        machineendianlongmap[0] = size - 4;
-        machineendianlongmap[1] = size - 3;
-        machineendianlongmap[2] = size - 2;
-        machineendianlongmap[3] = size - 1;
-        bigendianlongmap[0] = size - 4;
-        bigendianlongmap[1] = size - 3;
-        bigendianlongmap[2] = size - 2;
-        bigendianlongmap[3] = size - 1;
-        littleendianlongmap[0] = size - 1;
-        littleendianlongmap[1] = size - 2;
-        littleendianlongmap[2] = size - 3;
-        littleendianlongmap[3] = size - 4;
-        #if ISIS_64_BIT
-            machineendianlonglongmap[0] = size - 8;
-            machineendianlonglongmap[1] = size - 7;
-            machineendianlonglongmap[2] = size - 6;
-            machineendianlonglongmap[3] = size - 5;
-            machineendianlonglongmap[4] = size - 4;
-            machineendianlonglongmap[5] = size - 3;
-            machineendianlonglongmap[6] = size - 2;
-            machineendianlonglongmap[7] = size - 1;
-            bigendianlonglongmap[0] = size - 8;
-            bigendianlonglongmap[1] = size - 7;
-            bigendianlonglongmap[2] = size - 6;
-            bigendianlonglongmap[3] = size - 5;
-            bigendianlonglongmap[4] = size - 4;
-            bigendianlonglongmap[5] = size - 3;
-            bigendianlonglongmap[6] = size - 2;
-            bigendianlonglongmap[7] = size - 1;
-            littleendianlonglongmap[0] = size - 1;
-            littleendianlonglongmap[1] = size - 2;
-            littleendianlonglongmap[2] = size - 3;
-            littleendianlonglongmap[3] = size - 4;
-            littleendianlonglongmap[4] = size - 5;
-            littleendianlonglongmap[5] = size - 6;
-            littleendianlonglongmap[6] = size - 7;
-            littleendianlonglongmap[7] = size - 8;
-        #endif
+
+#if IS_LITTLE_ENDIAN
+    /* Where to get lo to hi bytes from */
+    byte_map[0] = 0;
+
+    for(i = 0; i < (int)sizeof(int); i++)
+    {
+        int_map[i] = i;
+    }
+
+    machine_endian_short_map[0] = 0;
+    machine_endian_short_map[1] = 1;
+    big_endian_short_map[0] = 1;
+    big_endian_short_map[1] = 0;
+    little_endian_short_map[0] = 0;
+    little_endian_short_map[1] = 1;
+
+    machine_endian_long_map[0] = 0;
+    machine_endian_long_map[1] = 1;
+    machine_endian_long_map[2] = 2;
+    machine_endian_long_map[3] = 3;
+    big_endian_long_map[0] = 3;
+    big_endian_long_map[1] = 2;
+    big_endian_long_map[2] = 1;
+    big_endian_long_map[3] = 0;
+    little_endian_long_map[0] = 0;
+    little_endian_long_map[1] = 1;
+    little_endian_long_map[2] = 2;
+    little_endian_long_map[3] = 3;
+
+    #if IS_64_BIT
+    machine_endian_longlong_map[0] = 0;
+    machine_endian_longlong_map[1] = 1;
+    machine_endian_longlong_map[2] = 2;
+    machine_endian_longlong_map[3] = 3;
+    machine_endian_longlong_map[4] = 4;
+    machine_endian_longlong_map[5] = 5;
+    machine_endian_longlong_map[6] = 6;
+    machine_endian_longlong_map[7] = 7;
+    big_endian_longlong_map[0] = 7;
+    big_endian_longlong_map[1] = 6;
+    big_endian_longlong_map[2] = 5;
+    big_endian_longlong_map[3] = 4;
+    big_endian_longlong_map[4] = 3;
+    big_endian_longlong_map[5] = 2;
+    big_endian_longlong_map[6] = 1;
+    big_endian_longlong_map[7] = 0;
+    little_endian_longlong_map[0] = 0;
+    little_endian_longlong_map[1] = 1;
+    little_endian_longlong_map[2] = 2;
+    little_endian_longlong_map[3] = 3;
+    little_endian_longlong_map[4] = 4;
+    little_endian_longlong_map[5] = 5;
+    little_endian_longlong_map[6] = 6;
+    little_endian_longlong_map[7] = 7;
     #endif
+#else
+    int size = sizeof(long);
+
+    /* Where to get hi to lo bytes from */
+    byte_map[0] = size - 1;
+
+    for(i = 0; i < (int)sizeof(int); i++)
+    {
+        int_map[i] = size - (sizeof(int) - i);
+    }
+
+    machine_endian_short_map[0] = size - 2;
+    machine_endian_short_map[1] = size - 1;
+    big_endian_short_map[0] = size - 2;
+    big_endian_short_map[1] = size - 1;
+    little_endian_short_map[0] = size - 1;
+    little_endian_short_map[1] = size - 2;
+
+    machine_endian_long_map[0] = size - 4;
+    machine_endian_long_map[1] = size - 3;
+    machine_endian_long_map[2] = size - 2;
+    machine_endian_long_map[3] = size - 1;
+    big_endian_long_map[0] = size - 4;
+    big_endian_long_map[1] = size - 3;
+    big_endian_long_map[2] = size - 2;
+    big_endian_long_map[3] = size - 1;
+    little_endian_long_map[0] = size - 1;
+    little_endian_long_map[1] = size - 2;
+    little_endian_long_map[2] = size - 3;
+    little_endian_long_map[3] = size - 4;
+
+    #if ISIS_64_BIT
+    machine_endian_longlong_map[0] = size - 8;
+    machine_endian_longlong_map[1] = size - 7;
+    machine_endian_longlong_map[2] = size - 6;
+    machine_endian_longlong_map[3] = size - 5;
+    machine_endian_longlong_map[4] = size - 4;
+    machine_endian_longlong_map[5] = size - 3;
+    machine_endian_longlong_map[6] = size - 2;
+    machine_endian_longlong_map[7] = size - 1;
+    big_endian_longlong_map[0] = size - 8;
+    big_endian_longlong_map[1] = size - 7;
+    big_endian_longlong_map[2] = size - 6;
+    big_endian_longlong_map[3] = size - 5;
+    big_endian_longlong_map[4] = size - 4;
+    big_endian_longlong_map[5] = size - 3;
+    big_endian_longlong_map[6] = size - 2;
+    big_endian_longlong_map[7] = size - 1;
+    little_endian_longlong_map[0] = size - 1;
+    little_endian_longlong_map[1] = size - 2;
+    little_endian_longlong_map[2] = size - 3;
+    little_endian_longlong_map[3] = size - 4;
+    little_endian_longlong_map[4] = size - 5;
+    little_endian_longlong_map[5] = size - 6;
+    little_endian_longlong_map[6] = size - 7;
+    little_endian_longlong_map[7] = size - 8;
+    #endif
+#endif
 }
 
-RegModule* bl_modload_struct(VMState* vm)
+RegModule* blade_module_loader_struct(VMState* vm)
 {
-    (void)vm;
-    static RegFunc modulefunctions[] = {
+    static RegFunc module_functions[] = {
         { "pack", true, modfn_struct_pack },
         { "unpack", true, modfn_struct_unpack },
         { NULL, false, NULL },
     };
 
     static RegModule module
-    = { .name = "_struct", .fields = NULL, .functions = modulefunctions, .classes = NULL, .preloader = &__struct_module_preloader, .unloader = NULL };
+    = { .name = "_struct", .fields = NULL, .functions = module_functions, .classes = NULL, .preloader = &__struct_module_preloader, .unloader = NULL };
 
     return &module;
 }
@@ -17054,9 +16990,9 @@ RegModule* bl_modload_struct(VMState* vm)
 
 static void reset_stack(VMState* vm)
 {
-    vm->stacktop = vm->stack;
-    vm->framecount = 0;
-    vm->openupvalues = NULL;
+    vm->stack_top = vm->stack;
+    vm->frame_count = 0;
+    vm->open_up_values = NULL;
 }
 
 static Value get_stack_trace(VMState* vm)
@@ -17065,7 +17001,7 @@ static Value get_stack_trace(VMState* vm)
 
     if(trace != NULL)
     {
-        for(int i = 0; i < vm->framecount; i++)
+        for(int i = 0; i < vm->frame_count; i++)
         {
             CallFrame* frame = &vm->frames[i];
             ObjFunction* function = frame->closure->fnptr;
@@ -17074,19 +17010,19 @@ static Value get_stack_trace(VMState* vm)
             size_t instruction = frame->ip - function->blob.code - 1;
             int line = function->blob.lines[instruction];
 
-            const char* traceformat = i != vm->framecount - 1 ? "    %s:%d -> %s()\n" : "    %s:%d -> %s()";
-            char* fnname = function->name == NULL ? "@.script" : function->name->chars;
-            size_t tracelinelength = snprintf(NULL, 0, traceformat, function->module->file, line, fnname);
+            const char* trace_format = i != vm->frame_count - 1 ? "    %s:%d -> %s()\n" : "    %s:%d -> %s()";
+            char* fn_name = function->name == NULL ? "@.script" : function->name->chars;
+            size_t trace_line_length = snprintf(NULL, 0, trace_format, function->module->file, line, fn_name);
 
-            char* traceline = ALLOCATE(char, tracelinelength + 1);
-            if(traceline != NULL)
+            char* trace_line = ALLOCATE(char, trace_line_length + 1);
+            if(trace_line != NULL)
             {
-                sprintf(traceline, traceformat, function->module->file, line, fnname);
-                traceline[(int)tracelinelength] = '\0';
+                sprintf(trace_line, trace_format, function->module->file, line, fn_name);
+                trace_line[(int)trace_line_length] = '\0';
             }
 
-            trace = append_strings(trace, traceline);
-            free(traceline);
+            trace = append_strings(trace, trace_line);
+            free(trace_line);
         }
 
         return STRING_TT_VAL(trace);
@@ -17095,14 +17031,14 @@ static Value get_stack_trace(VMState* vm)
     return STRING_L_VAL("", 0);
 }
 
-bool bl_vm_propagateexception(VMState* vm, bool isassert)
+bool bl_vm_propagateexception(VMState* vm, bool is_assert)
 {
     ObjInstance* exception = AS_INSTANCE(peek(vm, 0));
 
-    while(vm->framecount > 0)
+    while(vm->frame_count > 0)
     {
-        CallFrame* frame = &vm->frames[vm->framecount - 1];
-        for(int i = frame->handlerscount; i > 0; i--)
+        CallFrame* frame = &vm->frames[vm->frame_count - 1];
+        for(int i = frame->handlers_count; i > 0; i--)
         {
             ExceptionFrame handler = frame->handlers[i - 1];
             ObjFunction* function = frame->closure->fnptr;
@@ -17112,21 +17048,21 @@ bool bl_vm_propagateexception(VMState* vm, bool isassert)
                 frame->ip = &function->blob.code[handler.address];
                 return true;
             }
-            else if(handler.finallyaddress != 0)
+            else if(handler.finally_address != 0)
             {
                 push(vm, TRUE_VAL);// continue propagating once the 'finally' block completes
-                frame->ip = &function->blob.code[handler.finallyaddress];
+                frame->ip = &function->blob.code[handler.finally_address];
                 return true;
             }
         }
 
-        vm->framecount--;
+        vm->frame_count--;
     }
 
     fflush(stdout);// flush out anything on stdout first
 
     Value message, trace;
-    if(!isassert)
+    if(!is_assert)
     {
         fprintf(stderr, "Unhandled %s", exception->klass->name->chars);
     }
@@ -17136,10 +17072,10 @@ bool bl_vm_propagateexception(VMState* vm, bool isassert)
     }
     if(table_get(&exception->properties, STRING_L_VAL("message", 7), &message))
     {
-        char* errormessage = value_to_string(vm, message);
-        if(strlen(errormessage) > 0)
+        char* error_message = value_to_string(vm, message);
+        if(strlen(error_message) > 0)
         {
-            fprintf(stderr, ": %s", errormessage);
+            fprintf(stderr, ": %s", error_message);
         }
         else
         {
@@ -17154,30 +17090,30 @@ bool bl_vm_propagateexception(VMState* vm, bool isassert)
 
     if(table_get(&exception->properties, STRING_L_VAL("stacktrace", 10), &trace))
     {
-        char* tracestr = value_to_string(vm, trace);
-        fprintf(stderr, "  StackTrace:\n%s\n", tracestr);
-        free(tracestr);
+        char* trace_str = value_to_string(vm, trace);
+        fprintf(stderr, "  StackTrace:\n%s\n", trace_str);
+        free(trace_str);
     }
 
     return false;
 }
 
-bool bl_vm_pushexceptionhandler(VMState* vm, ObjClass* type, int address, int finallyaddress)
+bool bl_vm_pushexceptionhandler(VMState* vm, ObjClass* type, int address, int finally_address)
 {
-    CallFrame* frame = &vm->frames[vm->framecount - 1];
-    if(frame->handlerscount == MAX_EXCEPTION_HANDLERS)
+    CallFrame* frame = &vm->frames[vm->frame_count - 1];
+    if(frame->handlers_count == MAX_EXCEPTION_HANDLERS)
     {
         bl_vm_runtimeerror(vm, "too many nested exception handlers in one function");
         return false;
     }
-    frame->handlers[frame->handlerscount].address = address;
-    frame->handlers[frame->handlerscount].finallyaddress = finallyaddress;
-    frame->handlers[frame->handlerscount].klass = type;
-    frame->handlerscount++;
+    frame->handlers[frame->handlers_count].address = address;
+    frame->handlers[frame->handlers_count].finally_address = finally_address;
+    frame->handlers[frame->handlers_count].klass = type;
+    frame->handlers_count++;
     return true;
 }
 
-bool bl_vm_throwexception(VMState* vm, bool isassert, const char* format, ...)
+bool bl_vm_throwexception(VMState* vm, bool is_assert, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -17190,23 +17126,23 @@ bool bl_vm_throwexception(VMState* vm, bool isassert, const char* format, ...)
 
     Value stacktrace = get_stack_trace(vm);
     table_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
-    return bl_vm_propagateexception(vm, isassert);
+    return bl_vm_propagateexception(vm, is_assert);
 }
 
 static void initialize_exceptions(VMState* vm, ObjModule* module)
 {
     size_t slen;
     const char* sstr;
-    ObjString* classname;
+    ObjString* class_name;
     sstr = "Exception";
     slen = strlen(sstr);
-    //classname = copy_string(vm, sstr, slen);
-    classname = bl_string_fromallocated(vm, strdup(sstr), slen, hash_string(sstr, slen));
+    //class_name = copy_string(vm, sstr, slen);
+    class_name = bl_string_fromallocated(vm, strdup(sstr), slen, hash_string(sstr, slen));
     
     
 
-    push(vm, OBJ_VAL(classname));
-    ObjClass* klass = new_class(vm, classname);
+    push(vm, OBJ_VAL(class_name));
+    ObjClass* klass = new_class(vm, class_name);
     pop(vm);
 
     push(vm, OBJ_VAL(klass));
@@ -17214,29 +17150,29 @@ static void initialize_exceptions(VMState* vm, ObjModule* module)
     pop(vm);
 
     function->arity = 1;
-    function->isvariadic = false;
+    function->is_variadic = false;
 
-    // gloc 0
+    // g_loc 0
     write_blob(vm, &function->blob, OP_GET_LOCAL, 0);
     write_blob(vm, &function->blob, (0 >> 8) & 0xff, 0);
     write_blob(vm, &function->blob, 0 & 0xff, 0);
 
-    // gloc 1
+    // g_loc 1
     write_blob(vm, &function->blob, OP_GET_LOCAL, 0);
     write_blob(vm, &function->blob, (1 >> 8) & 0xff, 0);
     write_blob(vm, &function->blob, 1 & 0xff, 0);
 
-    int messageconst = add_constant(vm, &function->blob, STRING_L_VAL("message", 7));
+    int message_const = add_constant(vm, &function->blob, STRING_L_VAL("message", 7));
 
-    // sprop 1
+    // s_prop 1
     write_blob(vm, &function->blob, OP_SET_PROPERTY, 0);
-    write_blob(vm, &function->blob, (messageconst >> 8) & 0xff, 0);
-    write_blob(vm, &function->blob, messageconst & 0xff, 0);
+    write_blob(vm, &function->blob, (message_const >> 8) & 0xff, 0);
+    write_blob(vm, &function->blob, message_const & 0xff, 0);
 
     // pop
     write_blob(vm, &function->blob, OP_POP, 0);
 
-    // gloc 0
+    // g_loc 0
     write_blob(vm, &function->blob, OP_GET_LOCAL, 0);
     write_blob(vm, &function->blob, (0 >> 8) & 0xff, 0);
     write_blob(vm, &function->blob, 0 & 0xff, 0);
@@ -17250,24 +17186,24 @@ static void initialize_exceptions(VMState* vm, ObjModule* module)
 
     // set class constructor
     push(vm, OBJ_VAL(closure));
-    table_set(vm, &klass->methods, OBJ_VAL(classname), OBJ_VAL(closure));
+    table_set(vm, &klass->methods, OBJ_VAL(class_name), OBJ_VAL(closure));
     klass->initializer = OBJ_VAL(closure);
 
     // set class properties
     table_set(vm, &klass->properties, STRING_L_VAL("message", 7), NIL_VAL);
     table_set(vm, &klass->properties, STRING_L_VAL("stacktrace", 10), NIL_VAL);
 
-    table_set(vm, &vm->globals, OBJ_VAL(classname), OBJ_VAL(klass));
+    table_set(vm, &vm->globals, OBJ_VAL(class_name), OBJ_VAL(klass));
 
     pop(vm);
     pop(vm);// assert error name
 
-    vm->exceptionclass = klass;
+    vm->exception_class = klass;
 }
 
 ObjInstance* create_exception(VMState* vm, ObjString* message)
 {
-    ObjInstance* instance = new_instance(vm, vm->exceptionclass);
+    ObjInstance* instance = new_instance(vm, vm->exception_class);
     push(vm, OBJ_VAL(instance));
     table_set(vm, &instance->properties, STRING_L_VAL("message", 7), OBJ_VAL(message));
     pop(vm);
@@ -17278,7 +17214,7 @@ void bl_vm_runtimeerror(VMState* vm, const char* format, ...)
 {
     fflush(stdout);// flush out anything on stdout first
 
-    CallFrame* frame = &vm->frames[vm->framecount - 1];
+    CallFrame* frame = &vm->frames[vm->frame_count - 1];
     ObjFunction* function = frame->closure->fnptr;
 
     size_t instruction = frame->ip - function->blob.code - 1;
@@ -17294,10 +17230,10 @@ void bl_vm_runtimeerror(VMState* vm, const char* format, ...)
     fprintf(stderr, " -> %s:%d ", function->module->file, line);
     fputs("\n", stderr);
 
-    if(vm->framecount > 1)
+    if(vm->frame_count > 1)
     {
         fprintf(stderr, "StackTrace:\n");
-        for(int i = vm->framecount - 1; i >= 0; i--)
+        for(int i = vm->frame_count - 1; i >= 0; i--)
         {
             frame = &vm->frames[i];
             function = frame->closure->fnptr;
@@ -17323,28 +17259,28 @@ void bl_vm_runtimeerror(VMState* vm, const char* format, ...)
 
 void push(VMState* vm, Value value)
 {
-    *vm->stacktop = value;
-    vm->stacktop++;
+    *vm->stack_top = value;
+    vm->stack_top++;
 }
 
 Value pop(VMState* vm)
 {
-    vm->stacktop--;
-    return *vm->stacktop;
+    vm->stack_top--;
+    return *vm->stack_top;
 }
 
 Value pop_n(VMState* vm, int n)
 {
-    vm->stacktop -= n;
-    return *vm->stacktop;
+    vm->stack_top -= n;
+    return *vm->stack_top;
 }
 
 Value peek(VMState* vm, int distance)
 {
-    return vm->stacktop[-1 - distance];
+    return vm->stack_top[-1 - distance];
 }
 
-static void define_native(VMState* vm, const char* name, bnativefn function)
+static void define_native(VMState* vm, const char* name, b_native_fn function)
 {
     push(vm, STRING_VAL(name));
     push(vm, OBJ_VAL(new_native(vm, function, name)));
@@ -17352,7 +17288,7 @@ static void define_native(VMState* vm, const char* name, bnativefn function)
     pop_n(vm, 2);
 }
 
-void define_native_method(VMState* vm, HashTable* table, const char* name, bnativefn function)
+void define_native_method(VMState* vm, HashTable* table, const char* name, b_native_fn function)
 {
     push(vm, STRING_VAL(name));
     push(vm, OBJ_VAL(new_native(vm, function, name)));
@@ -17418,142 +17354,141 @@ static void init_builtin_methods(VMState* vm)
 #define DEFINE._RANGE_METHOD(name) DEFINE_METHOD(range, name)
 */
     // string methods
-    define_native_method(vm, &vm->methodsstring, "length", objfn_string_length);
-    define_native_method(vm, &vm->methodsstring, "upper", objfn_string_upper);
-    define_native_method(vm, &vm->methodsstring, "lower", objfn_string_lower);
-    define_native_method(vm, &vm->methodsstring, "is_alpha", objfn_string_isalpha);
-    define_native_method(vm, &vm->methodsstring, "isalnum", objfn_string_isalnum);
-    define_native_method(vm, &vm->methodsstring, "is_number", objfn_string_isnumber);
-    define_native_method(vm, &vm->methodsstring, "islower", objfn_string_islower);
-    define_native_method(vm, &vm->methodsstring, "isupper", objfn_string_isupper);
-    define_native_method(vm, &vm->methodsstring, "isspace", objfn_string_isspace);
-    define_native_method(vm, &vm->methodsstring, "trim", objfn_string_trim);
-    define_native_method(vm, &vm->methodsstring, "ltrim", objfn_string_ltrim);
-    define_native_method(vm, &vm->methodsstring, "rtrim", objfn_string_rtrim);
-    define_native_method(vm, &vm->methodsstring, "join", objfn_string_join);
-    define_native_method(vm, &vm->methodsstring, "split", objfn_string_split);
-    define_native_method(vm, &vm->methodsstring, "indexof", objfn_string_indexof);
-    define_native_method(vm, &vm->methodsstring, "startswith", objfn_string_startswith);
-    define_native_method(vm, &vm->methodsstring, "endswith", objfn_string_endswith);
-    define_native_method(vm, &vm->methodsstring, "count", objfn_string_count);
-    define_native_method(vm, &vm->methodsstring, "to_number", objfn_string_tonumber);
-    define_native_method(vm, &vm->methodsstring, "to_list", objfn_string_tolist);
-    define_native_method(vm, &vm->methodsstring, "tobytes", objfn_string_tobytes);
-    define_native_method(vm, &vm->methodsstring, "lpad", objfn_string_lpad);
-    define_native_method(vm, &vm->methodsstring, "rpad", objfn_string_rpad);
-    define_native_method(vm, &vm->methodsstring, "match", objfn_string_match);
-    define_native_method(vm, &vm->methodsstring, "matches", objfn_string_matches);
-    define_native_method(vm, &vm->methodsstring, "replace", objfn_string_replace);
-    define_native_method(vm, &vm->methodsstring, "ascii", objfn_string_ascii);
-    define_native_method(vm, &vm->methodsstring, "@iter", objfn_string_iter);
-    define_native_method(vm, &vm->methodsstring, "@itern", objfn_string_itern);
+    define_native_method(vm, &vm->methods_string, "length", objfn_string_length);
+    define_native_method(vm, &vm->methods_string, "upper", objfn_string_upper);
+    define_native_method(vm, &vm->methods_string, "lower", objfn_string_lower);
+    define_native_method(vm, &vm->methods_string, "is_alpha", objfn_string_isalpha);
+    define_native_method(vm, &vm->methods_string, "is_alnum", objfn_string_isalnum);
+    define_native_method(vm, &vm->methods_string, "is_number", objfn_string_isnumber);
+    define_native_method(vm, &vm->methods_string, "is_lower", objfn_string_islower);
+    define_native_method(vm, &vm->methods_string, "is_upper", objfn_string_isupper);
+    define_native_method(vm, &vm->methods_string, "is_space", objfn_string_isspace);
+    define_native_method(vm, &vm->methods_string, "trim", objfn_string_trim);
+    define_native_method(vm, &vm->methods_string, "ltrim", objfn_string_ltrim);
+    define_native_method(vm, &vm->methods_string, "rtrim", objfn_string_rtrim);
+    define_native_method(vm, &vm->methods_string, "join", objfn_string_join);
+    define_native_method(vm, &vm->methods_string, "split", objfn_string_split);
+    define_native_method(vm, &vm->methods_string, "index_of", objfn_string_indexof);
+    define_native_method(vm, &vm->methods_string, "starts_with", objfn_string_startswith);
+    define_native_method(vm, &vm->methods_string, "ends_with", objfn_string_endswith);
+    define_native_method(vm, &vm->methods_string, "count", objfn_string_count);
+    define_native_method(vm, &vm->methods_string, "to_number", objfn_string_tonumber);
+    define_native_method(vm, &vm->methods_string, "to_list", objfn_string_tolist);
+    define_native_method(vm, &vm->methods_string, "to_bytes", objfn_string_tobytes);
+    define_native_method(vm, &vm->methods_string, "lpad", objfn_string_lpad);
+    define_native_method(vm, &vm->methods_string, "rpad", objfn_string_rpad);
+    define_native_method(vm, &vm->methods_string, "match", objfn_string_match);
+    define_native_method(vm, &vm->methods_string, "matches", objfn_string_matches);
+    define_native_method(vm, &vm->methods_string, "replace", objfn_string_replace);
+    define_native_method(vm, &vm->methods_string, "ascii", objfn_string_ascii);
+    define_native_method(vm, &vm->methods_string, "@iter", objfn_string_iter);
+    define_native_method(vm, &vm->methods_string, "@itern", objfn_string_itern);
 
     // list methods
-    define_native_method(vm, &vm->methodslist, "length", objfn_list_length);
-    define_native_method(vm, &vm->methodslist, "append", objfn_list_append);
-    define_native_method(vm, &vm->methodslist, "push", objfn_list_append);
-    define_native_method(vm, &vm->methodslist, "clear", objfn_list_clear);
-    define_native_method(vm, &vm->methodslist, "clone", objfn_list_clone);
-    define_native_method(vm, &vm->methodslist, "count", objfn_list_count);
-    define_native_method(vm, &vm->methodslist, "extend", objfn_list_extend);
-    define_native_method(vm, &vm->methodslist, "indexof", objfn_list_indexof);
-    define_native_method(vm, &vm->methodslist, "insert", objfn_list_insert);
-    define_native_method(vm, &vm->methodslist, "pop", objfn_list_pop);
-    define_native_method(vm, &vm->methodslist, "shift", objfn_list_shift);
-    define_native_method(vm, &vm->methodslist, "remove_at", objfn_list_removeat);
-    define_native_method(vm, &vm->methodslist, "remove", objfn_list_remove);
-    define_native_method(vm, &vm->methodslist, "reverse", objfn_list_reverse);
-    define_native_method(vm, &vm->methodslist, "sort", objfn_list_sort);
-    define_native_method(vm, &vm->methodslist, "contains", objfn_list_contains);
-    define_native_method(vm, &vm->methodslist, "delete", objfn_list_delete);
-    define_native_method(vm, &vm->methodslist, "first", objfn_list_first);
-    define_native_method(vm, &vm->methodslist, "last", objfn_list_last);
-    define_native_method(vm, &vm->methodslist, "isempty", objfn_list_isempty);
-    define_native_method(vm, &vm->methodslist, "take", objfn_list_take);
-    define_native_method(vm, &vm->methodslist, "get", objfn_list_get);
-    define_native_method(vm, &vm->methodslist, "compact", objfn_list_compact);
-    define_native_method(vm, &vm->methodslist, "unique", objfn_list_unique);
-    define_native_method(vm, &vm->methodslist, "zip", objfn_list_zip);
-    define_native_method(vm, &vm->methodslist, "to_dict", objfn_list_todict);
-    define_native_method(vm, &vm->methodslist, "@iter", objfn_list_iter);
-    define_native_method(vm, &vm->methodslist, "@itern", objfn_list_itern);
+    define_native_method(vm, &vm->methods_list, "length", objfn_list_length);
+    define_native_method(vm, &vm->methods_list, "append", objfn_list_append);
+    define_native_method(vm, &vm->methods_list, "clear", objfn_list_clear);
+    define_native_method(vm, &vm->methods_list, "clone", objfn_list_clone);
+    define_native_method(vm, &vm->methods_list, "count", objfn_list_count);
+    define_native_method(vm, &vm->methods_list, "extend", objfn_list_extend);
+    define_native_method(vm, &vm->methods_list, "index_of", objfn_list_indexof);
+    define_native_method(vm, &vm->methods_list, "insert", objfn_list_insert);
+    define_native_method(vm, &vm->methods_list, "pop", objfn_list_pop);
+    define_native_method(vm, &vm->methods_list, "shift", objfn_list_shift);
+    define_native_method(vm, &vm->methods_list, "remove_at", objfn_list_removeat);
+    define_native_method(vm, &vm->methods_list, "remove", objfn_list_remove);
+    define_native_method(vm, &vm->methods_list, "reverse", objfn_list_reverse);
+    define_native_method(vm, &vm->methods_list, "sort", objfn_list_sort);
+    define_native_method(vm, &vm->methods_list, "contains", objfn_list_contains);
+    define_native_method(vm, &vm->methods_list, "delete", objfn_list_delete);
+    define_native_method(vm, &vm->methods_list, "first", objfn_list_first);
+    define_native_method(vm, &vm->methods_list, "last", objfn_list_last);
+    define_native_method(vm, &vm->methods_list, "is_empty", objfn_list_isempty);
+    define_native_method(vm, &vm->methods_list, "take", objfn_list_take);
+    define_native_method(vm, &vm->methods_list, "get", objfn_list_get);
+    define_native_method(vm, &vm->methods_list, "compact", objfn_list_compact);
+    define_native_method(vm, &vm->methods_list, "unique", objfn_list_unique);
+    define_native_method(vm, &vm->methods_list, "zip", objfn_list_zip);
+    define_native_method(vm, &vm->methods_list, "to_dict", objfn_list_todict);
+    define_native_method(vm, &vm->methods_list, "@iter", objfn_list_iter);
+    define_native_method(vm, &vm->methods_list, "@itern", objfn_list_itern);
 
     // dictionary methods
-    define_native_method(vm, &vm->methodsdict, "length", objfn_dict_length);
-    define_native_method(vm, &vm->methodsdict, "add", objfn_dict_add);
-    define_native_method(vm, &vm->methodsdict, "set", objfn_dict_set);
-    define_native_method(vm, &vm->methodsdict, "clear", objfn_dict_clear);
-    define_native_method(vm, &vm->methodsdict, "clone", objfn_dict_clone);
-    define_native_method(vm, &vm->methodsdict, "compact", objfn_dict_compact);
-    define_native_method(vm, &vm->methodsdict, "contains", objfn_dict_contains);
-    define_native_method(vm, &vm->methodsdict, "extend", objfn_dict_extend);
-    define_native_method(vm, &vm->methodsdict, "get", objfn_dict_get);
-    define_native_method(vm, &vm->methodsdict, "keys", objfn_dict_keys);
-    define_native_method(vm, &vm->methodsdict, "values", objfn_dict_values);
-    define_native_method(vm, &vm->methodsdict, "remove", objfn_dict_remove);
-    define_native_method(vm, &vm->methodsdict, "isempty", objfn_dict_isempty);
-    define_native_method(vm, &vm->methodsdict, "findkey", objfn_dict_findkey);
-    define_native_method(vm, &vm->methodsdict, "to_list", objfn_dict_tolist);
-    define_native_method(vm, &vm->methodsdict, "@iter", objfn_dict_iter);
-    define_native_method(vm, &vm->methodsdict, "@itern", objfn_dict_itern);
+    define_native_method(vm, &vm->methods_dict, "length", objfn_dict_length);
+    define_native_method(vm, &vm->methods_dict, "add", objfn_dict_add);
+    define_native_method(vm, &vm->methods_dict, "set", objfn_dict_set);
+    define_native_method(vm, &vm->methods_dict, "clear", objfn_dict_clear);
+    define_native_method(vm, &vm->methods_dict, "clone", objfn_dict_clone);
+    define_native_method(vm, &vm->methods_dict, "compact", objfn_dict_compact);
+    define_native_method(vm, &vm->methods_dict, "contains", objfn_dict_contains);
+    define_native_method(vm, &vm->methods_dict, "extend", objfn_dict_extend);
+    define_native_method(vm, &vm->methods_dict, "get", objfn_dict_get);
+    define_native_method(vm, &vm->methods_dict, "keys", objfn_dict_keys);
+    define_native_method(vm, &vm->methods_dict, "values", objfn_dict_values);
+    define_native_method(vm, &vm->methods_dict, "remove", objfn_dict_remove);
+    define_native_method(vm, &vm->methods_dict, "is_empty", objfn_dict_isempty);
+    define_native_method(vm, &vm->methods_dict, "find_key", objfn_dict_findkey);
+    define_native_method(vm, &vm->methods_dict, "to_list", objfn_dict_tolist);
+    define_native_method(vm, &vm->methods_dict, "@iter", objfn_dict_iter);
+    define_native_method(vm, &vm->methods_dict, "@itern", objfn_dict_itern);
 
     // file methods
-    define_native_method(vm, &vm->methodsfile, "exists", objfn_file_exists);
-    define_native_method(vm, &vm->methodsfile, "close", objfn_file_close);
-    define_native_method(vm, &vm->methodsfile, "open", objfn_file_open);
-    define_native_method(vm, &vm->methodsfile, "read", objfn_file_read);
-    define_native_method(vm, &vm->methodsfile, "gets", objfn_file_gets);
-    define_native_method(vm, &vm->methodsfile, "write", objfn_file_write);
-    define_native_method(vm, &vm->methodsfile, "puts", objfn_file_puts);
-    define_native_method(vm, &vm->methodsfile, "number", objfn_file_number);
-    define_native_method(vm, &vm->methodsfile, "istty", objfn_file_istty);
-    define_native_method(vm, &vm->methodsfile, "isopen", objfn_file_isopen);
-    define_native_method(vm, &vm->methodsfile, "isclosed", objfn_file_isclosed);
-    define_native_method(vm, &vm->methodsfile, "flush", objfn_file_flush);
-    define_native_method(vm, &vm->methodsfile, "stats", objfn_file_stats);
-    define_native_method(vm, &vm->methodsfile, "symlink", objfn_file_symlink);
-    define_native_method(vm, &vm->methodsfile, "delete", objfn_file_delete);
-    define_native_method(vm, &vm->methodsfile, "rename", objfn_file_rename);
-    define_native_method(vm, &vm->methodsfile, "path", objfn_file_path);
-    define_native_method(vm, &vm->methodsfile, "abspath", objfn_file_abspath);
-    define_native_method(vm, &vm->methodsfile, "copy", objfn_file_copy);
-    define_native_method(vm, &vm->methodsfile, "truncate", objfn_file_truncate);
-    define_native_method(vm, &vm->methodsfile, "chmod", objfn_file_chmod);
-    define_native_method(vm, &vm->methodsfile, "settimes", objfn_file_settimes);
-    define_native_method(vm, &vm->methodsfile, "seek", objfn_file_seek);
-    define_native_method(vm, &vm->methodsfile, "tell", objfn_file_tell);
-    define_native_method(vm, &vm->methodsfile, "mode", objfn_file_mode);
-    define_native_method(vm, &vm->methodsfile, "name", objfn_file_name);
+    define_native_method(vm, &vm->methods_file, "exists", objfn_file_exists);
+    define_native_method(vm, &vm->methods_file, "close", objfn_file_close);
+    define_native_method(vm, &vm->methods_file, "open", objfn_file_open);
+    define_native_method(vm, &vm->methods_file, "read", objfn_file_read);
+    define_native_method(vm, &vm->methods_file, "gets", objfn_file_gets);
+    define_native_method(vm, &vm->methods_file, "write", objfn_file_write);
+    define_native_method(vm, &vm->methods_file, "puts", objfn_file_puts);
+    define_native_method(vm, &vm->methods_file, "number", objfn_file_number);
+    define_native_method(vm, &vm->methods_file, "is_tty", objfn_file_istty);
+    define_native_method(vm, &vm->methods_file, "is_open", objfn_file_isopen);
+    define_native_method(vm, &vm->methods_file, "is_closed", objfn_file_isclosed);
+    define_native_method(vm, &vm->methods_file, "flush", objfn_file_flush);
+    define_native_method(vm, &vm->methods_file, "stats", objfn_file_stats);
+    define_native_method(vm, &vm->methods_file, "symlink", objfn_file_symlink);
+    define_native_method(vm, &vm->methods_file, "delete", objfn_file_delete);
+    define_native_method(vm, &vm->methods_file, "rename", objfn_file_rename);
+    define_native_method(vm, &vm->methods_file, "path", objfn_file_path);
+    define_native_method(vm, &vm->methods_file, "abs_path", objfn_file_abspath);
+    define_native_method(vm, &vm->methods_file, "copy", objfn_file_copy);
+    define_native_method(vm, &vm->methods_file, "truncate", objfn_file_truncate);
+    define_native_method(vm, &vm->methods_file, "chmod", objfn_file_chmod);
+    define_native_method(vm, &vm->methods_file, "set_times", objfn_file_settimes);
+    define_native_method(vm, &vm->methods_file, "seek", objfn_file_seek);
+    define_native_method(vm, &vm->methods_file, "tell", objfn_file_tell);
+    define_native_method(vm, &vm->methods_file, "mode", objfn_file_mode);
+    define_native_method(vm, &vm->methods_file, "name", objfn_file_name);
 
     // bytes
-    define_native_method(vm, &vm->methodsbytes, "length", objfn_bytes_length);
-    define_native_method(vm, &vm->methodsbytes, "append", objfn_bytes_append);
-    define_native_method(vm, &vm->methodsbytes, "clone", objfn_bytes_clone);
-    define_native_method(vm, &vm->methodsbytes, "extend", objfn_bytes_extend);
-    define_native_method(vm, &vm->methodsbytes, "pop", objfn_bytes_pop);
-    define_native_method(vm, &vm->methodsbytes, "remove", objfn_bytes_remove);
-    define_native_method(vm, &vm->methodsbytes, "reverse", objfn_bytes_reverse);
-    define_native_method(vm, &vm->methodsbytes, "first", objfn_bytes_first);
-    define_native_method(vm, &vm->methodsbytes, "last", objfn_bytes_last);
-    define_native_method(vm, &vm->methodsbytes, "get", objfn_bytes_get);
-    define_native_method(vm, &vm->methodsbytes, "split", objfn_bytes_split);
-    define_native_method(vm, &vm->methodsbytes, "dispose", objfn_bytes_dispose);
-    define_native_method(vm, &vm->methodsbytes, "is_alpha", objfn_bytes_isalpha);
-    define_native_method(vm, &vm->methodsbytes, "isalnum", objfn_bytes_isalnum);
-    define_native_method(vm, &vm->methodsbytes, "is_number", objfn_bytes_isnumber);
-    define_native_method(vm, &vm->methodsbytes, "islower", objfn_bytes_islower);
-    define_native_method(vm, &vm->methodsbytes, "isupper", objfn_bytes_isupper);
-    define_native_method(vm, &vm->methodsbytes, "isspace", objfn_bytes_isspace);
-    define_native_method(vm, &vm->methodsbytes, "to_list", objfn_bytes_tolist);
-    define_native_method(vm, &vm->methodsbytes, "to_string", objfn_bytes_tostring);
-    define_native_method(vm, &vm->methodsbytes, "@iter", objfn_bytes_iter);
-    define_native_method(vm, &vm->methodsbytes, "@itern", objfn_bytes_itern);
+    define_native_method(vm, &vm->methods_bytes, "length", objfn_bytes_length);
+    define_native_method(vm, &vm->methods_bytes, "append", objfn_bytes_append);
+    define_native_method(vm, &vm->methods_bytes, "clone", objfn_bytes_clone);
+    define_native_method(vm, &vm->methods_bytes, "extend", objfn_bytes_extend);
+    define_native_method(vm, &vm->methods_bytes, "pop", objfn_bytes_pop);
+    define_native_method(vm, &vm->methods_bytes, "remove", objfn_bytes_remove);
+    define_native_method(vm, &vm->methods_bytes, "reverse", objfn_bytes_reverse);
+    define_native_method(vm, &vm->methods_bytes, "first", objfn_bytes_first);
+    define_native_method(vm, &vm->methods_bytes, "last", objfn_bytes_last);
+    define_native_method(vm, &vm->methods_bytes, "get", objfn_bytes_get);
+    define_native_method(vm, &vm->methods_bytes, "split", objfn_bytes_split);
+    define_native_method(vm, &vm->methods_bytes, "dispose", objfn_bytes_dispose);
+    define_native_method(vm, &vm->methods_bytes, "is_alpha", objfn_bytes_isalpha);
+    define_native_method(vm, &vm->methods_bytes, "is_alnum", objfn_bytes_isalnum);
+    define_native_method(vm, &vm->methods_bytes, "is_number", objfn_bytes_isnumber);
+    define_native_method(vm, &vm->methods_bytes, "is_lower", objfn_bytes_islower);
+    define_native_method(vm, &vm->methods_bytes, "is_upper", objfn_bytes_isupper);
+    define_native_method(vm, &vm->methods_bytes, "is_space", objfn_bytes_isspace);
+    define_native_method(vm, &vm->methods_bytes, "to_list", objfn_bytes_tolist);
+    define_native_method(vm, &vm->methods_bytes, "to_string", objfn_bytes_tostring);
+    define_native_method(vm, &vm->methods_bytes, "@iter", objfn_bytes_iter);
+    define_native_method(vm, &vm->methods_bytes, "@itern", objfn_bytes_itern);
 
     // range
-    define_native_method(vm, &vm->methodsrange, "lower", objfn_range_lower);
-    define_native_method(vm, &vm->methodsrange, "upper", objfn_range_upper);
-    define_native_method(vm, &vm->methodsrange, "@iter", objfn_range_iter);
-    define_native_method(vm, &vm->methodsrange, "@itern", objfn_range_itern);
+    define_native_method(vm, &vm->methods_range, "lower", objfn_range_lower);
+    define_native_method(vm, &vm->methods_range, "upper", objfn_range_upper);
+    define_native_method(vm, &vm->methods_range, "@iter", objfn_range_iter);
+    define_native_method(vm, &vm->methods_range, "@itern", objfn_range_itern);
 
 #undef DEFINE_STRING_METHOD
 #undef DEFINE_LIST_METHOD
@@ -17570,33 +17505,33 @@ void init_vm(VMState* vm)
     vm->compiler = NULL;
     vm->objectlinks = NULL;
     vm->objectcount = 0;
-    vm->exceptionclass = NULL;
-    vm->bytesallocated = 0;
-    vm->gcprotected = 0;
-    vm->nextgc = DEFAULT_GC_START;// default is 1mb. Can be modified via the -g flag.
-    vm->isrepl = false;
-    vm->shoulddebugstack = false;
-    vm->shouldprintbytecode = false;
+    vm->exception_class = NULL;
+    vm->bytes_allocated = 0;
+    vm->gc_protected = 0;
+    vm->next_gc = DEFAULT_GC_START;// default is 1mb. Can be modified via the -g flag.
+    vm->is_repl = false;
+    vm->should_debug_stack = false;
+    vm->should_print_bytecode = false;
 
-    vm->graycount = 0;
-    vm->graycapacity = 0;
-    vm->framecount = 0;
-    vm->graystack = NULL;
+    vm->gray_count = 0;
+    vm->gray_capacity = 0;
+    vm->frame_count = 0;
+    vm->gray_stack = NULL;
 
-    vm->stdargs = NULL;
-    vm->stdargscount = 0;
+    vm->std_args = NULL;
+    vm->std_args_count = 0;
     vm->allowgc = false;
     init_table(&vm->modules);
     init_table(&vm->strings);
     init_table(&vm->globals);
 
     // object methods tables
-    init_table(&vm->methodsstring);
-    init_table(&vm->methodslist);
-    init_table(&vm->methodsdict);
-    init_table(&vm->methodsfile);
-    init_table(&vm->methodsbytes);
-    init_table(&vm->methodsrange);
+    init_table(&vm->methods_string);
+    init_table(&vm->methods_list);
+    init_table(&vm->methods_dict);
+    init_table(&vm->methods_file);
+    init_table(&vm->methods_bytes);
+    init_table(&vm->methods_range);
 
     init_builtin_functions(vm);
     init_builtin_methods(vm);
@@ -17614,134 +17549,134 @@ void free_vm(VMState* vm)
     // it must come after
     clean_free_table(vm, &vm->modules);
 
-    free_table(vm, &vm->methodsstring);
-    free_table(vm, &vm->methodslist);
-    free_table(vm, &vm->methodsdict);
-    free_table(vm, &vm->methodsfile);
-    free_table(vm, &vm->methodsbytes);
+    free_table(vm, &vm->methods_string);
+    free_table(vm, &vm->methods_list);
+    free_table(vm, &vm->methods_dict);
+    free_table(vm, &vm->methods_file);
+    free_table(vm, &vm->methods_bytes);
 }
 
-static bool bl_vm_docall(VMState* vm, ObjClosure* closure, int argcount)
+static bool bl_vm_docall(VMState* vm, ObjClosure* closure, int arg_count)
 {
     // fill empty parameters if not variadic
-    for(; !closure->fnptr->isvariadic && argcount < closure->fnptr->arity; argcount++)
+    for(; !closure->fnptr->is_variadic && arg_count < closure->fnptr->arity; arg_count++)
     {
         push(vm, NIL_VAL);
     }
 
     // handle variadic arguments...
-    if(closure->fnptr->isvariadic && argcount >= closure->fnptr->arity - 1)
+    if(closure->fnptr->is_variadic && arg_count >= closure->fnptr->arity - 1)
     {
-        int vaargsstart = argcount - closure->fnptr->arity;
-        ObjList* argslist = new_list(vm);
-        push(vm, OBJ_VAL(argslist));
+        int va_args_start = arg_count - closure->fnptr->arity;
+        ObjList* args_list = new_list(vm);
+        push(vm, OBJ_VAL(args_list));
 
-        for(int i = vaargsstart; i >= 0; i--)
+        for(int i = va_args_start; i >= 0; i--)
         {
-            write_value_arr(vm, &argslist->items, peek(vm, i + 1));
+            write_value_arr(vm, &args_list->items, peek(vm, i + 1));
         }
-        argcount -= vaargsstart;
-        pop_n(vm, vaargsstart + 2);// +1 for the gc protection push above
-        push(vm, OBJ_VAL(argslist));
+        arg_count -= va_args_start;
+        pop_n(vm, va_args_start + 2);// +1 for the gc protection push above
+        push(vm, OBJ_VAL(args_list));
     }
 
-    if(argcount != closure->fnptr->arity)
+    if(arg_count != closure->fnptr->arity)
     {
-        pop_n(vm, argcount);
-        if(closure->fnptr->isvariadic)
+        pop_n(vm, arg_count);
+        if(closure->fnptr->is_variadic)
         {
-            return bl_vm_throwexception(vm, false, "expected at least %d arguments but got %d", closure->fnptr->arity - 1, argcount);
+            return bl_vm_throwexception(vm, false, "expected at least %d arguments but got %d", closure->fnptr->arity - 1, arg_count);
         }
         else
         {
-            return bl_vm_throwexception(vm, false, "expected %d arguments but got %d", closure->fnptr->arity, argcount);
+            return bl_vm_throwexception(vm, false, "expected %d arguments but got %d", closure->fnptr->arity, arg_count);
         }
     }
 
-    if(vm->framecount == FRAMES_MAX)
+    if(vm->frame_count == FRAMES_MAX)
     {
-        pop_n(vm, argcount);
+        pop_n(vm, arg_count);
         return bl_vm_throwexception(vm, false, "stack overflow");
     }
 
-    CallFrame* frame = &vm->frames[vm->framecount++];
+    CallFrame* frame = &vm->frames[vm->frame_count++];
     frame->closure = closure;
     frame->ip = closure->fnptr->blob.code;
 
-    frame->slots = vm->stacktop - argcount - 1;
+    frame->slots = vm->stack_top - arg_count - 1;
     return true;
 }
 
-static bool call_native_method(VMState* vm, ObjNativeFunction* native, int argcount)
+static bool call_native_method(VMState* vm, ObjNativeFunction* native, int arg_count)
 {
-    if(native->natfn(vm, argcount, vm->stacktop - argcount))
+    if(native->natfn(vm, arg_count, vm->stack_top - arg_count))
     {
         gc_clear_protection(vm);
-        vm->stacktop -= argcount;
+        vm->stack_top -= arg_count;
         return true;
     }/* else {
     gc_clear_protection(vm);
-    bool overridden = AS_BOOL(vm->stacktop[-argcount - 1]);
+    bool overridden = AS_BOOL(vm->stack_top[-arg_count - 1]);
     *//*if (!overridden) {
-      vm->stacktop -= argcount + 1;
+      vm->stack_top -= arg_count + 1;
     }*//*
     return overridden;
   }*/
     return true;
 }
 
-bool call_value(VMState* vm, Value callee, int argcount)
+bool call_value(VMState* vm, Value callee, int arg_count)
 {
     if(IS_OBJ(callee))
     {
         switch(OBJ_TYPE(callee))
         {
             case OBJ_BOUND_METHOD:
-                {
-                    ObjBoundMethod* bound = AS_BOUND(callee);
-                    vm->stacktop[-argcount - 1] = bound->receiver;
-                    return bl_vm_docall(vm, bound->method, argcount);
-                }
-                break;
+            {
+                ObjBoundMethod* bound = AS_BOUND(callee);
+                vm->stack_top[-arg_count - 1] = bound->receiver;
+                return bl_vm_docall(vm, bound->method, arg_count);
+            }
+
             case OBJ_CLASS:
+            {
+                ObjClass* klass = AS_CLASS(callee);
+                vm->stack_top[-arg_count - 1] = OBJ_VAL(new_instance(vm, klass));
+                if(!IS_EMPTY(klass->initializer))
                 {
-                    ObjClass* klass = AS_CLASS(callee);
-                    vm->stacktop[-argcount - 1] = OBJ_VAL(new_instance(vm, klass));
-                    if(!IS_EMPTY(klass->initializer))
-                    {
-                        return bl_vm_docall(vm, AS_CLOSURE(klass->initializer), argcount);
-                    }
-                    else if(klass->superclass != NULL && !IS_EMPTY(klass->superclass->initializer))
-                    {
-                        return bl_vm_docall(vm, AS_CLOSURE(klass->superclass->initializer), argcount);
-                    }
-                    else if(argcount != 0)
-                    {
-                        return bl_vm_throwexception(vm, false, "%s constructor expects 0 arguments, %d given", klass->name->chars, argcount);
-                    }
-                    return true;
+                    return bl_vm_docall(vm, AS_CLOSURE(klass->initializer), arg_count);
                 }
-                break;
+                else if(klass->superclass != NULL && !IS_EMPTY(klass->superclass->initializer))
+                {
+                    return bl_vm_docall(vm, AS_CLOSURE(klass->superclass->initializer), arg_count);
+                }
+                else if(arg_count != 0)
+                {
+                    return bl_vm_throwexception(vm, false, "%s constructor expects 0 arguments, %d given", klass->name->chars, arg_count);
+                }
+                return true;
+            }
+
             case OBJ_MODULE:
+            {
+                ObjModule* module = AS_MODULE(callee);
+                Value callable;
+                if(table_get(&module->values, STRING_VAL(module->name), &callable))
                 {
-                    ObjModule* module = AS_MODULE(callee);
-                    Value callable;
-                    if(table_get(&module->values, STRING_VAL(module->name), &callable))
-                    {
-                        return call_value(vm, callable, argcount);
-                    }
+                    return call_value(vm, callable, arg_count);
                 }
-                break;
+            }
+
             case OBJ_CLOSURE:
-                {
-                    return bl_vm_docall(vm, AS_CLOSURE(callee), argcount);
-                }
-                break;
+            {
+                return bl_vm_docall(vm, AS_CLOSURE(callee), arg_count);
+            }
+
             case OBJ_NATIVE:
-                {
-                    return call_native_method(vm, AS_NATIVE(callee), argcount);
-                }
-                break;
+            {
+                return call_native_method(vm, AS_NATIVE(callee), arg_count);
+            }
+
             default:// non callable
                 break;
         }
@@ -17755,22 +17690,15 @@ static FuncType get_method_type(Value method)
     switch(OBJ_TYPE(method))
     {
         case OBJ_NATIVE:
-            {
-                return AS_NATIVE(method)->type;
-            }
-            break;
+            return AS_NATIVE(method)->type;
         case OBJ_CLOSURE:
-            {
-                return AS_CLOSURE(method)->fnptr->type;
-            }
-            break;
+            return AS_CLOSURE(method)->fnptr->type;
         default:
-            break;
+            return TYPE_FUNCTION;
     }
-    return TYPE_FUNCTION;
 }
 
-bool invoke_from_class(VMState* vm, ObjClass* klass, ObjString* name, int argcount)
+bool invoke_from_class(VMState* vm, ObjClass* klass, ObjString* name, int arg_count)
 {
     Value method;
     if(table_get(&klass->methods, OBJ_VAL(name), &method))
@@ -17780,15 +17708,15 @@ bool invoke_from_class(VMState* vm, ObjClass* klass, ObjString* name, int argcou
             return bl_vm_throwexception(vm, false, "cannot call private method '%s' from instance of %s", name->chars, klass->name->chars);
         }
 
-        return call_value(vm, method, argcount);
+        return call_value(vm, method, arg_count);
     }
 
     return bl_vm_throwexception(vm, false, "undefined method '%s' in %s", name->chars, klass->name->chars);
 }
 
-static bool invoke_self(VMState* vm, ObjString* name, int argcount)
+static bool invoke_self(VMState* vm, ObjString* name, int arg_count)
 {
-    Value receiver = peek(vm, argcount);
+    Value receiver = peek(vm, arg_count);
     Value value;
 
     if(IS_INSTANCE(receiver))
@@ -17797,13 +17725,13 @@ static bool invoke_self(VMState* vm, ObjString* name, int argcount)
 
         if(table_get(&instance->klass->methods, OBJ_VAL(name), &value))
         {
-            return call_value(vm, value, argcount);
+            return call_value(vm, value, arg_count);
         }
 
         if(table_get(&instance->properties, OBJ_VAL(name), &value))
         {
-            vm->stacktop[-argcount - 1] = value;
-            return call_value(vm, value, argcount);
+            vm->stack_top[-arg_count - 1] = value;
+            return call_value(vm, value, arg_count);
         }
     }
     else if(IS_CLASS(receiver))
@@ -17812,7 +17740,7 @@ static bool invoke_self(VMState* vm, ObjString* name, int argcount)
         {
             if(get_method_type(value) == TYPE_STATIC)
             {
-                return call_value(vm, value, argcount);
+                return call_value(vm, value, arg_count);
             }
 
             return bl_vm_throwexception(vm, false, "cannot call non-static method %s() on non instance", name->chars);
@@ -17822,9 +17750,9 @@ static bool invoke_self(VMState* vm, ObjString* name, int argcount)
     return bl_vm_throwexception(vm, false, "cannot call method %s on object of type %s", name->chars, value_type(receiver));
 }
 
-static bool invoke(VMState* vm, ObjString* name, int argcount)
+static bool invoke(VMState* vm, ObjString* name, int arg_count)
 {
-    Value receiver = peek(vm, argcount);
+    Value receiver = peek(vm, arg_count);
     Value value;
 
     if(!IS_OBJ(receiver))
@@ -17845,7 +17773,7 @@ static bool invoke(VMState* vm, ObjString* name, int argcount)
                     {
                         return bl_vm_throwexception(vm, false, "cannot call private module method '%s'", name->chars);
                     }
-                    return call_value(vm, value, argcount);
+                    return call_value(vm, value, arg_count);
                 }
                 return bl_vm_throwexception(vm, false, "module %s does not define class or method %s()", module->name, name->chars);
                 break;
@@ -17858,11 +17786,11 @@ static bool invoke(VMState* vm, ObjString* name, int argcount)
                     {
                         return bl_vm_throwexception(vm, false, "cannot call private method %s() on %s", name->chars, AS_CLASS(receiver)->name->chars);
                     }
-                    return call_value(vm, value, argcount);
+                    return call_value(vm, value, arg_count);
                 }
-                else if(table_get(&AS_CLASS(receiver)->staticproperties, OBJ_VAL(name), &value))
+                else if(table_get(&AS_CLASS(receiver)->static_properties, OBJ_VAL(name), &value))
                 {
-                    return call_value(vm, value, argcount);
+                    return call_value(vm, value, arg_count);
                 }
 
                 return bl_vm_throwexception(vm, false, "unknown method %s() in class %s", name->chars, AS_CLASS(receiver)->name->chars);
@@ -17873,57 +17801,57 @@ static bool invoke(VMState* vm, ObjString* name, int argcount)
 
                 if(table_get(&instance->properties, OBJ_VAL(name), &value))
                 {
-                    vm->stacktop[-argcount - 1] = value;
-                    return call_value(vm, value, argcount);
+                    vm->stack_top[-arg_count - 1] = value;
+                    return call_value(vm, value, arg_count);
                 }
 
-                return invoke_from_class(vm, instance->klass, name, argcount);
+                return invoke_from_class(vm, instance->klass, name, arg_count);
             }
             case OBJ_STRING:
             {
-                if(table_get(&vm->methodsstring, OBJ_VAL(name), &value))
+                if(table_get(&vm->methods_string, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return call_native_method(vm, AS_NATIVE(value), arg_count);
                 }
                 return bl_vm_throwexception(vm, false, "String has no method %s()", name->chars);
             }
             case OBJ_LIST:
             {
-                if(table_get(&vm->methodslist, OBJ_VAL(name), &value))
+                if(table_get(&vm->methods_list, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return call_native_method(vm, AS_NATIVE(value), arg_count);
                 }
                 return bl_vm_throwexception(vm, false, "List has no method %s()", name->chars);
             }
             case OBJ_RANGE:
             {
-                if(table_get(&vm->methodsrange, OBJ_VAL(name), &value))
+                if(table_get(&vm->methods_range, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return call_native_method(vm, AS_NATIVE(value), arg_count);
                 }
                 return bl_vm_throwexception(vm, false, "Range has no method %s()", name->chars);
             }
             case OBJ_DICT:
             {
-                if(table_get(&vm->methodsdict, OBJ_VAL(name), &value))
+                if(table_get(&vm->methods_dict, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return call_native_method(vm, AS_NATIVE(value), arg_count);
                 }
                 return bl_vm_throwexception(vm, false, "Dict has no method %s()", name->chars);
             }
             case OBJ_FILE:
             {
-                if(table_get(&vm->methodsfile, OBJ_VAL(name), &value))
+                if(table_get(&vm->methods_file, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return call_native_method(vm, AS_NATIVE(value), arg_count);
                 }
                 return bl_vm_throwexception(vm, false, "File has no method %s()", name->chars);
             }
             case OBJ_BYTES:
             {
-                if(table_get(&vm->methodsbytes, OBJ_VAL(name), &value))
+                if(table_get(&vm->methods_bytes, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return call_native_method(vm, AS_NATIVE(value), arg_count);
                 }
                 return bl_vm_throwexception(vm, false, "Bytes has no method %s()", name->chars);
             }
@@ -17956,41 +17884,41 @@ static bool bind_method(VMState* vm, ObjClass* klass, ObjString* name)
 
 static ObjUpvalue* capture_up_value(VMState* vm, Value* local)
 {
-    ObjUpvalue* prevupvalue = NULL;
-    ObjUpvalue* upvalue = vm->openupvalues;
+    ObjUpvalue* prev_up_value = NULL;
+    ObjUpvalue* up_value = vm->open_up_values;
 
-    while(upvalue != NULL && upvalue->location > local)
+    while(up_value != NULL && up_value->location > local)
     {
-        prevupvalue = upvalue;
-        upvalue = upvalue->next;
+        prev_up_value = up_value;
+        up_value = up_value->next;
     }
 
-    if(upvalue != NULL && upvalue->location == local)
-        return upvalue;
+    if(up_value != NULL && up_value->location == local)
+        return up_value;
 
-    ObjUpvalue* createdupvalue = new_up_value(vm, local);
-    createdupvalue->next = upvalue;
+    ObjUpvalue* created_up_value = new_up_value(vm, local);
+    created_up_value->next = up_value;
 
-    if(prevupvalue == NULL)
+    if(prev_up_value == NULL)
     {
-        vm->openupvalues = createdupvalue;
+        vm->open_up_values = created_up_value;
     }
     else
     {
-        prevupvalue->next = createdupvalue;
+        prev_up_value->next = created_up_value;
     }
 
-    return createdupvalue;
+    return created_up_value;
 }
 
 static void close_up_values(VMState* vm, const Value* last)
 {
-    while(vm->openupvalues != NULL && vm->openupvalues->location >= last)
+    while(vm->open_up_values != NULL && vm->open_up_values->location >= last)
     {
-        ObjUpvalue* upvalue = vm->openupvalues;
-        upvalue->closed = *upvalue->location;
-        upvalue->location = &upvalue->closed;
-        vm->openupvalues = upvalue->next;
+        ObjUpvalue* up_value = vm->open_up_values;
+        up_value->closed = *up_value->location;
+        up_value->location = &up_value->closed;
+        vm->open_up_values = up_value->next;
     }
 }
 
@@ -18007,18 +17935,18 @@ static void define_method(VMState* vm, ObjString* name)
     pop(vm);
 }
 
-static void define_property(VMState* vm, ObjString* name, bool isstatic)
+static void define_property(VMState* vm, ObjString* name, bool is_static)
 {
     Value property = peek(vm, 0);
     ObjClass* klass = AS_CLASS(peek(vm, 1));
 
-    if(!isstatic)
+    if(!is_static)
     {
         table_set(vm, &klass->properties, OBJ_VAL(name), property);
     }
     else
     {
-        table_set(vm, &klass->staticproperties, OBJ_VAL(name), property);
+        table_set(vm, &klass->static_properties, OBJ_VAL(name), property);
     }
     pop(vm);
 }
@@ -18058,11 +17986,11 @@ bool is_false(Value value)
     return false;
 }
 
-bool bl_class_isinstanceof(ObjClass* klass1, char* klass2name)
+bool bl_class_isinstanceof(ObjClass* klass1, char* klass2_name)
 {
     while(klass1 != NULL)
     {
-        if((int)strlen(klass2name) == klass1->name->length && memcmp(klass1->name->chars, klass2name, klass1->name->length) == 0)
+        if((int)strlen(klass2_name) == klass1->name->length && memcmp(klass1->name->chars, klass2_name, klass1->name->length) == 0)
         {
             return true;
         }
@@ -18081,15 +18009,15 @@ static ObjString* multiply_string(VMState* vm, ObjString* str, double number)
     else if(times == 1)// 'str' * 1 == 'str'
         return str;
 
-    int totallength = str->length * times;
-    char* result = ALLOCATE(char, (size_t)totallength + 1);
+    int total_length = str->length * times;
+    char* result = ALLOCATE(char, (size_t)total_length + 1);
 
     for(int i = 0; i < times; i++)
     {
         memcpy(result + (str->length * i), str->chars, str->length);
     }
-    result[totallength] = '\0';
-    return take_string(vm, result, totallength);
+    result[total_length] = '\0';
+    return take_string(vm, result, total_length);
 }
 
 static ObjList* add_list(VMState* vm, ObjList* a, ObjList* b)
@@ -18132,14 +18060,14 @@ static void multiply_list(VMState* vm, ObjList* a, ObjList* new_list, int times)
     }
 }
 
-static bool module_get_index(VMState* vm, ObjModule* module, bool willassign)
+static bool module_get_index(VMState* vm, ObjModule* module, bool will_assign)
 {
     Value index = peek(vm, 0);
 
     Value result;
     if(table_get(&module->values, index, &result))
     {
-        if(!willassign)
+        if(!will_assign)
         {
             pop_n(vm, 2);// we can safely get rid of the index from the stack
         }
@@ -18151,7 +18079,7 @@ static bool module_get_index(VMState* vm, ObjModule* module, bool willassign)
     return bl_vm_throwexception(vm, false, "%s is undefined in module %s", value_to_string(vm, index), module->name);
 }
 
-static bool string_get_index(VMState* vm, ObjString* string, bool willassign)
+static bool string_get_index(VMState* vm, ObjString* string, bool will_assign)
 {
     Value lower = peek(vm, 0);
 
@@ -18162,20 +18090,20 @@ static bool string_get_index(VMState* vm, ObjString* string, bool willassign)
     }
 
     int index = AS_NUMBER(lower);
-    int length = string->isascii ? string->length : string->utf8length;
-    int realindex = index;
+    int length = string->is_ascii ? string->length : string->utf8_length;
+    int real_index = index;
     if(index < 0)
         index = length + index;
 
     if(index < length && index >= 0)
     {
         int start = index, end = index + 1;
-        if(!string->isascii)
+        if(!string->is_ascii)
         {
             utf8slice(string->chars, &start, &end);
         }
 
-        if(!willassign)
+        if(!will_assign)
         {
             // we can safely get rid of the index from the stack
             pop_n(vm, 2);// +1 for the string itself
@@ -18187,11 +18115,11 @@ static bool string_get_index(VMState* vm, ObjString* string, bool willassign)
     else
     {
         pop_n(vm, 1);
-        return bl_vm_throwexception(vm, false, "string index %d out of range", realindex);
+        return bl_vm_throwexception(vm, false, "string index %d out of range", real_index);
     }
 }
 
-static bool string_get_ranged_index(VMState* vm, ObjString* string, bool willassign)
+static bool string_get_ranged_index(VMState* vm, ObjString* string, bool will_assign)
 {
     Value upper = peek(vm, 0);
     Value lower = peek(vm, 1);
@@ -18201,15 +18129,15 @@ static bool string_get_ranged_index(VMState* vm, ObjString* string, bool willass
         pop_n(vm, 2);
         return bl_vm_throwexception(vm, false, "string are numerically indexed");
     }
-    int length = string->isascii ? string->length : string->utf8length;
+    int length = string->is_ascii ? string->length : string->utf8_length;
 
-    int lowerindex = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = IS_NIL(upper) ? length : AS_NUMBER(upper);
+    int lower_index = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
+    int upper_index = IS_NIL(upper) ? length : AS_NUMBER(upper);
 
-    if(lowerindex < 0 || (upperindex < 0 && ((length + upperindex) < 0)))
+    if(lower_index < 0 || (upper_index < 0 && ((length + upper_index) < 0)))
     {
         // always return an empty string...
-        if(!willassign)
+        if(!will_assign)
         {
             pop_n(vm, 3);// +1 for the string itself
         }
@@ -18217,19 +18145,19 @@ static bool string_get_ranged_index(VMState* vm, ObjString* string, bool willass
         return true;
     }
 
-    if(upperindex < 0)
-        upperindex = length + upperindex;
+    if(upper_index < 0)
+        upper_index = length + upper_index;
 
-    if(upperindex > length)
-        upperindex = length;
+    if(upper_index > length)
+        upper_index = length;
 
-    int start = lowerindex, end = upperindex;
-    if(!string->isascii)
+    int start = lower_index, end = upper_index;
+    if(!string->is_ascii)
     {
         utf8slice(string->chars, &start, &end);
     }
 
-    if(!willassign)
+    if(!will_assign)
     {
         pop_n(vm, 3);// +1 for the string itself
     }
@@ -18238,7 +18166,7 @@ static bool string_get_ranged_index(VMState* vm, ObjString* string, bool willass
     return true;
 }
 
-static bool bytes_get_index(VMState* vm, ObjBytes* bytes, bool willassign)
+static bool bytes_get_index(VMState* vm, ObjBytes* bytes, bool will_assign)
 {
     Value lower = peek(vm, 0);
 
@@ -18249,13 +18177,13 @@ static bool bytes_get_index(VMState* vm, ObjBytes* bytes, bool willassign)
     }
 
     int index = AS_NUMBER(lower);
-    int realindex = index;
+    int real_index = index;
     if(index < 0)
         index = bytes->bytes.count + index;
 
     if(index < bytes->bytes.count && index >= 0)
     {
-        if(!willassign)
+        if(!will_assign)
         {
             // we can safely get rid of the index from the stack
             pop_n(vm, 2);// +1 for the bytes itself
@@ -18267,11 +18195,11 @@ static bool bytes_get_index(VMState* vm, ObjBytes* bytes, bool willassign)
     else
     {
         pop_n(vm, 1);
-        return bl_vm_throwexception(vm, false, "bytes index %d out of range", realindex);
+        return bl_vm_throwexception(vm, false, "bytes index %d out of range", real_index);
     }
 }
 
-static bool bytes_get_ranged_index(VMState* vm, ObjBytes* bytes, bool willassign)
+static bool bytes_get_ranged_index(VMState* vm, ObjBytes* bytes, bool will_assign)
 {
     Value upper = peek(vm, 0);
     Value lower = peek(vm, 1);
@@ -18282,13 +18210,13 @@ static bool bytes_get_ranged_index(VMState* vm, ObjBytes* bytes, bool willassign
         return bl_vm_throwexception(vm, false, "bytes are numerically indexed");
     }
 
-    int lowerindex = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = IS_NIL(upper) ? bytes->bytes.count : AS_NUMBER(upper);
+    int lower_index = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
+    int upper_index = IS_NIL(upper) ? bytes->bytes.count : AS_NUMBER(upper);
 
-    if(lowerindex < 0 || (upperindex < 0 && ((bytes->bytes.count + upperindex) < 0)))
+    if(lower_index < 0 || (upper_index < 0 && ((bytes->bytes.count + upper_index) < 0)))
     {
         // always return an empty bytes...
-        if(!willassign)
+        if(!will_assign)
         {
             pop_n(vm, 3);// +1 for the bytes itself
         }
@@ -18296,21 +18224,21 @@ static bool bytes_get_ranged_index(VMState* vm, ObjBytes* bytes, bool willassign
         return true;
     }
 
-    if(upperindex < 0)
-        upperindex = bytes->bytes.count + upperindex;
+    if(upper_index < 0)
+        upper_index = bytes->bytes.count + upper_index;
 
-    if(upperindex > bytes->bytes.count)
-        upperindex = bytes->bytes.count;
+    if(upper_index > bytes->bytes.count)
+        upper_index = bytes->bytes.count;
 
-    if(!willassign)
+    if(!will_assign)
     {
         pop_n(vm, 3);// +1 for the list itself
     }
-    push(vm, OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes + lowerindex, upperindex - lowerindex)));
+    push(vm, OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes + lower_index, upper_index - lower_index)));
     return true;
 }
 
-static bool list_get_index(VMState* vm, ObjList* list, bool willassign)
+static bool list_get_index(VMState* vm, ObjList* list, bool will_assign)
 {
     Value lower = peek(vm, 0);
 
@@ -18321,13 +18249,13 @@ static bool list_get_index(VMState* vm, ObjList* list, bool willassign)
     }
 
     int index = AS_NUMBER(lower);
-    int realindex = index;
+    int real_index = index;
     if(index < 0)
         index = list->items.count + index;
 
     if(index < list->items.count && index >= 0)
     {
-        if(!willassign)
+        if(!will_assign)
         {
             // we can safely get rid of the index from the stack
             pop_n(vm, 2);// +1 for the list itself
@@ -18339,11 +18267,11 @@ static bool list_get_index(VMState* vm, ObjList* list, bool willassign)
     else
     {
         pop_n(vm, 1);
-        return bl_vm_throwexception(vm, false, "list index %d out of range", realindex);
+        return bl_vm_throwexception(vm, false, "list index %d out of range", real_index);
     }
 }
 
-static bool list_get_ranged_index(VMState* vm, ObjList* list, bool willassign)
+static bool list_get_ranged_index(VMState* vm, ObjList* list, bool will_assign)
 {
     Value upper = peek(vm, 0);
     Value lower = peek(vm, 1);
@@ -18354,13 +18282,13 @@ static bool list_get_ranged_index(VMState* vm, ObjList* list, bool willassign)
         return bl_vm_throwexception(vm, false, "list are numerically indexed");
     }
 
-    int lowerindex = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = IS_NIL(upper) ? list->items.count : AS_NUMBER(upper);
+    int lower_index = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
+    int upper_index = IS_NIL(upper) ? list->items.count : AS_NUMBER(upper);
 
-    if(lowerindex < 0 || (upperindex < 0 && ((list->items.count + upperindex) < 0)))
+    if(lower_index < 0 || (upper_index < 0 && ((list->items.count + upper_index) < 0)))
     {
         // always return an empty list...
-        if(!willassign)
+        if(!will_assign)
         {
             pop_n(vm, 3);// +1 for the list itself
         }
@@ -18368,26 +18296,26 @@ static bool list_get_ranged_index(VMState* vm, ObjList* list, bool willassign)
         return true;
     }
 
-    if(upperindex < 0)
-        upperindex = list->items.count + upperindex;
+    if(upper_index < 0)
+        upper_index = list->items.count + upper_index;
 
-    if(upperindex > list->items.count)
-        upperindex = list->items.count;
+    if(upper_index > list->items.count)
+        upper_index = list->items.count;
 
-    ObjList* nlist = new_list(vm);
-    push(vm, OBJ_VAL(nlist));// gc protect
+    ObjList* n_list = new_list(vm);
+    push(vm, OBJ_VAL(n_list));// gc protect
 
-    for(int i = lowerindex; i < upperindex; i++)
+    for(int i = lower_index; i < upper_index; i++)
     {
-        write_value_arr(vm, &nlist->items, list->items.values[i]);
+        write_value_arr(vm, &n_list->items, list->items.values[i]);
     }
     pop(vm);// clear gc protect
 
-    if(!willassign)
+    if(!will_assign)
     {
         pop_n(vm, 3);// +1 for the list itself
     }
-    push(vm, OBJ_VAL(nlist));
+    push(vm, OBJ_VAL(n_list));
     return true;
 }
 
@@ -18478,19 +18406,19 @@ static bool concatenate(VMState* vm)
     {
         double a = AS_NUMBER(_a);
 
-        char numstr[27];// + 1 for null terminator
-        int numlength = sprintf(numstr, NUMBER_FORMAT, a);
+        char num_str[27];// + 1 for null terminator
+        int num_length = sprintf(num_str, NUMBER_FORMAT, a);
 
         ObjString* b = AS_STRING(_b);
 
-        int length = numlength + b->length;
+        int length = num_length + b->length;
         char* chars = ALLOCATE(char, (size_t)length + 1);
-        memcpy(chars, numstr, numlength);
-        memcpy(chars + numlength, b->chars, b->length);
+        memcpy(chars, num_str, num_length);
+        memcpy(chars + num_length, b->chars, b->length);
         chars[length] = '\0';
 
         ObjString* result = take_string(vm, chars, length);
-        result->utf8length = numlength + b->utf8length;
+        result->utf8_length = num_length + b->utf8_length;
 
         pop_n(vm, 2);
         push(vm, OBJ_VAL(result));
@@ -18500,17 +18428,17 @@ static bool concatenate(VMState* vm)
         ObjString* a = AS_STRING(_a);
         double b = AS_NUMBER(_b);
 
-        char numstr[27];// + 1 for null terminator
-        int numlength = sprintf(numstr, NUMBER_FORMAT, b);
+        char num_str[27];// + 1 for null terminator
+        int num_length = sprintf(num_str, NUMBER_FORMAT, b);
 
-        int length = numlength + a->length;
+        int length = num_length + a->length;
         char* chars = ALLOCATE(char, (size_t)length + 1);
         memcpy(chars, a->chars, a->length);
-        memcpy(chars + a->length, numstr, numlength);
+        memcpy(chars + a->length, num_str, num_length);
         chars[length] = '\0';
 
         ObjString* result = take_string(vm, chars, length);
-        result->utf8length = numlength + a->utf8length;
+        result->utf8_length = num_length + a->utf8_length;
 
         pop_n(vm, 2);
         push(vm, OBJ_VAL(result));
@@ -18527,7 +18455,7 @@ static bool concatenate(VMState* vm)
         chars[length] = '\0';
 
         ObjString* result = take_string(vm, chars, length);
-        result->utf8length = a->utf8length + b->utf8length;
+        result->utf8_length = a->utf8_length + b->utf8_length;
 
         pop_n(vm, 2);
         push(vm, OBJ_VAL(result));
@@ -18558,7 +18486,7 @@ static double modulo(double a, double b)
 
 PtrResult bl_vm_run(VMState* vm)
 {
-    CallFrame* frame = &vm->frames[vm->framecount - 1];
+    CallFrame* frame = &vm->frames[vm->frame_count - 1];
 
 #define READ_BYTE() (*frame->ip++)
 
@@ -18617,15 +18545,15 @@ PtrResult bl_vm_run(VMState* vm)
         // but whose try body raises an exception)
         // can cause us to go into an invalid mode where frame count == 0
         // to fix this, we need to exit with an appropriate mode here.
-        if(vm->framecount == 0)
+        if(vm->frame_count == 0)
         {
             return PTR_RUNTIME_ERR;
         }
 
-        if(vm->shoulddebugstack)
+        if(vm->should_debug_stack)
         {
             printf("          ");
-            for(Value* slot = vm->stack; slot < vm->stacktop; slot++)
+            for(Value* slot = vm->stack; slot < vm->stack_top; slot++)
             {
                 printf("[ ");
                 print_value(*slot);
@@ -18694,11 +18622,11 @@ PtrResult bl_vm_run(VMState* vm)
                 {
                     int number = (int)AS_NUMBER(pop(vm));
                     ObjList* list = AS_LIST(peek(vm, 0));
-                    ObjList* nlist = new_list(vm);
-                    push(vm, OBJ_VAL(nlist));
-                    multiply_list(vm, list, nlist, number);
+                    ObjList* n_list = new_list(vm);
+                    push(vm, OBJ_VAL(n_list));
+                    multiply_list(vm, list, n_list, number);
                     pop_n(vm, 2);
-                    push(vm, OBJ_VAL(nlist));
+                    push(vm, OBJ_VAL(n_list));
                     break;
                 }
                 BINARY_OP(NUMBER_VAL, *);
@@ -18835,7 +18763,7 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_ECHO:
             {
                 Value val = peek(vm, 0);
-                if(vm->isrepl)
+                if(vm->is_repl)
                 {
                     echo_value(val);
                 }
@@ -18885,7 +18813,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_CLOSE_UP_VALUE:
             {
-                close_up_values(vm, vm->stacktop - 1);
+                close_up_values(vm, vm->stack_top - 1);
                 pop(vm);
                 break;
             }
@@ -19005,7 +18933,7 @@ PtrResult bl_vm_run(VMState* vm)
                                     break;
                                 }
                             }
-                            else if(table_get(&AS_CLASS(peek(vm, 0))->staticproperties, OBJ_VAL(name), &value))
+                            else if(table_get(&AS_CLASS(peek(vm, 0))->static_properties, OBJ_VAL(name), &value))
                             {
                                 if(name->length > 0 && name->chars[0] == '_')
                                 {
@@ -19052,7 +18980,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_STRING:
                         {
-                            if(table_get(&vm->methodsstring, OBJ_VAL(name), &value))
+                            if(table_get(&vm->methods_string, OBJ_VAL(name), &value))
                             {
                                 pop(vm);// pop the list...
                                 push(vm, value);
@@ -19064,7 +18992,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_LIST:
                         {
-                            if(table_get(&vm->methodslist, OBJ_VAL(name), &value))
+                            if(table_get(&vm->methods_list, OBJ_VAL(name), &value))
                             {
                                 pop(vm);// pop the list...
                                 push(vm, value);
@@ -19076,7 +19004,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_RANGE:
                         {
-                            if(table_get(&vm->methodsrange, OBJ_VAL(name), &value))
+                            if(table_get(&vm->methods_range, OBJ_VAL(name), &value))
                             {
                                 pop(vm);// pop the list...
                                 push(vm, value);
@@ -19088,7 +19016,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_DICT:
                         {
-                            if(table_get(&AS_DICT(peek(vm, 0))->items, OBJ_VAL(name), &value) || table_get(&vm->methodsdict, OBJ_VAL(name), &value))
+                            if(table_get(&AS_DICT(peek(vm, 0))->items, OBJ_VAL(name), &value) || table_get(&vm->methods_dict, OBJ_VAL(name), &value))
                             {
                                 pop(vm);// pop the dictionary...
                                 push(vm, value);
@@ -19100,7 +19028,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_BYTES:
                         {
-                            if(table_get(&vm->methodsbytes, OBJ_VAL(name), &value))
+                            if(table_get(&vm->methods_bytes, OBJ_VAL(name), &value))
                             {
                                 pop(vm);// pop the list...
                                 push(vm, value);
@@ -19112,7 +19040,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_FILE:
                         {
-                            if(table_get(&vm->methodsfile, OBJ_VAL(name), &value))
+                            if(table_get(&vm->methods_file, OBJ_VAL(name), &value))
                             {
                                 pop(vm);// pop the list...
                                 push(vm, value);
@@ -19172,7 +19100,7 @@ PtrResult bl_vm_run(VMState* vm)
                             break;
                         }
                     }
-                    else if(table_get(&klass->staticproperties, OBJ_VAL(name), &value))
+                    else if(table_get(&klass->static_properties, OBJ_VAL(name), &value))
                     {
                         pop(vm);// pop the class...
                         push(vm, value);
@@ -19241,18 +19169,18 @@ PtrResult bl_vm_run(VMState* vm)
                 ObjClosure* closure = new_closure(vm, function);
                 push(vm, OBJ_VAL(closure));
 
-                for(int i = 0; i < closure->upvaluecount; i++)
+                for(int i = 0; i < closure->up_value_count; i++)
                 {
-                    uint8_t islocal = READ_BYTE();
+                    uint8_t is_local = READ_BYTE();
                     int index = READ_SHORT();
 
-                    if(islocal)
+                    if(is_local)
                     {
-                        closure->upvalues[i] = capture_up_value(vm, frame->slots + index);
+                        closure->up_values[i] = capture_up_value(vm, frame->slots + index);
                     }
                     else
                     {
-                        closure->upvalues[i] = ((ObjClosure*)frame->closure)->upvalues[index];
+                        closure->up_values[i] = ((ObjClosure*)frame->closure)->up_values[index];
                     }
                 }
 
@@ -19261,7 +19189,7 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_GET_UP_VALUE:
             {
                 int index = READ_SHORT();
-                push(vm, *((ObjClosure*)frame->closure)->upvalues[index]->location);
+                push(vm, *((ObjClosure*)frame->closure)->up_values[index]->location);
                 break;
             }
             case OP_SET_UP_VALUE:
@@ -19272,40 +19200,40 @@ PtrResult bl_vm_run(VMState* vm)
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
-                *((ObjClosure*)frame->closure)->upvalues[index]->location = peek(vm, 0);
+                *((ObjClosure*)frame->closure)->up_values[index]->location = peek(vm, 0);
                 break;
             }
 
             case OP_CALL:
             {
-                int argcount = READ_BYTE();
-                if(!call_value(vm, peek(vm, argcount), argcount))
+                int arg_count = READ_BYTE();
+                if(!call_value(vm, peek(vm, arg_count), arg_count))
                 {
                     EXIT_VM();
                 }
-                frame = &vm->frames[vm->framecount - 1];
+                frame = &vm->frames[vm->frame_count - 1];
                 break;
             }
             case OP_INVOKE:
             {
                 ObjString* method = READ_STRING();
-                int argcount = READ_BYTE();
-                if(!invoke(vm, method, argcount))
+                int arg_count = READ_BYTE();
+                if(!invoke(vm, method, arg_count))
                 {
                     EXIT_VM();
                 }
-                frame = &vm->frames[vm->framecount - 1];
+                frame = &vm->frames[vm->frame_count - 1];
                 break;
             }
             case OP_INVOKE_SELF:
             {
                 ObjString* method = READ_STRING();
-                int argcount = READ_BYTE();
-                if(!invoke_self(vm, method, argcount))
+                int arg_count = READ_BYTE();
+                if(!invoke_self(vm, method, arg_count))
                 {
                     EXIT_VM();
                 }
-                frame = &vm->frames[vm->framecount - 1];
+                frame = &vm->frames[vm->frame_count - 1];
                 break;
             }
 
@@ -19324,8 +19252,8 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_CLASS_PROPERTY:
             {
                 ObjString* name = READ_STRING();
-                int isstatic = READ_BYTE();
-                define_property(vm, name, isstatic == 1);
+                int is_static = READ_BYTE();
+                define_property(vm, name, is_static == 1);
                 break;
             }
             case OP_INHERIT:
@@ -19357,24 +19285,24 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_SUPER_INVOKE:
             {
                 ObjString* method = READ_STRING();
-                int argcount = READ_BYTE();
+                int arg_count = READ_BYTE();
                 ObjClass* klass = AS_CLASS(pop(vm));
-                if(!invoke_from_class(vm, klass, method, argcount))
+                if(!invoke_from_class(vm, klass, method, arg_count))
                 {
                     EXIT_VM();
                 }
-                frame = &vm->frames[vm->framecount - 1];
+                frame = &vm->frames[vm->frame_count - 1];
                 break;
             }
             case OP_SUPER_INVOKE_SELF:
             {
-                int argcount = READ_BYTE();
+                int arg_count = READ_BYTE();
                 ObjClass* klass = AS_CLASS(pop(vm));
-                if(!invoke_from_class(vm, klass, klass->name, argcount))
+                if(!invoke_from_class(vm, klass, klass->name, arg_count))
                 {
                     EXIT_VM();
                 }
-                frame = &vm->frames[vm->framecount - 1];
+                frame = &vm->frames[vm->frame_count - 1];
                 break;
             }
 
@@ -19382,7 +19310,7 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 int count = READ_SHORT();
                 ObjList* list = new_list(vm);
-                vm->stacktop[-count - 1] = OBJ_VAL(list);
+                vm->stack_top[-count - 1] = OBJ_VAL(list);
 
                 for(int i = count - 1; i >= 0; i--)
                 {
@@ -19410,16 +19338,16 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 int count = READ_SHORT() * 2;// 1 for key, 1 for value
                 ObjDict* dict = new_dict(vm);
-                vm->stacktop[-count - 1] = OBJ_VAL(dict);
+                vm->stack_top[-count - 1] = OBJ_VAL(dict);
 
                 for(int i = 0; i < count; i += 2)
                 {
-                    Value name = vm->stacktop[-count + i];
+                    Value name = vm->stack_top[-count + i];
                     if(!IS_STRING(name) && !IS_NUMBER(name) && !IS_BOOL(name))
                     {
                         runtime_error("dictionary key must be one of string, number or boolean");
                     }
-                    Value value = vm->stacktop[-count + i + 1];
+                    Value value = vm->stack_top[-count + i + 1];
                     dict_add_entry(vm, dict, name, value);
                 }
                 pop_n(vm, count);
@@ -19428,16 +19356,16 @@ PtrResult bl_vm_run(VMState* vm)
 
             case OP_GET_RANGED_INDEX:
             {
-                uint8_t willassign = READ_BYTE();
+                uint8_t will_assign = READ_BYTE();
 
-                bool isgotten = true;
+                bool is_gotten = true;
                 if(IS_OBJ(peek(vm, 2)))
                 {
                     switch(AS_OBJ(peek(vm, 2))->type)
                     {
                         case OBJ_STRING:
                         {
-                            if(!string_get_ranged_index(vm, AS_STRING(peek(vm, 2)), willassign == (uint8_t)1))
+                            if(!string_get_ranged_index(vm, AS_STRING(peek(vm, 2)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19445,7 +19373,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_LIST:
                         {
-                            if(!list_get_ranged_index(vm, AS_LIST(peek(vm, 2)), willassign == (uint8_t)1))
+                            if(!list_get_ranged_index(vm, AS_LIST(peek(vm, 2)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19453,7 +19381,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_BYTES:
                         {
-                            if(!bytes_get_ranged_index(vm, AS_BYTES(peek(vm, 2)), willassign == (uint8_t)1))
+                            if(!bytes_get_ranged_index(vm, AS_BYTES(peek(vm, 2)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19461,17 +19389,17 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         default:
                         {
-                            isgotten = false;
+                            is_gotten = false;
                             break;
                         }
                     }
                 }
                 else
                 {
-                    isgotten = false;
+                    is_gotten = false;
                 }
 
-                if(!isgotten)
+                if(!is_gotten)
                 {
                     runtime_error("cannot range index object of type %s", value_type(peek(vm, 2)));
                 }
@@ -19479,16 +19407,16 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_INDEX:
             {
-                uint8_t willassign = READ_BYTE();
+                uint8_t will_assign = READ_BYTE();
 
-                bool isgotten = true;
+                bool is_gotten = true;
                 if(IS_OBJ(peek(vm, 1)))
                 {
                     switch(AS_OBJ(peek(vm, 1))->type)
                     {
                         case OBJ_STRING:
                         {
-                            if(!string_get_index(vm, AS_STRING(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!string_get_index(vm, AS_STRING(peek(vm, 1)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19496,7 +19424,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_LIST:
                         {
-                            if(!list_get_index(vm, AS_LIST(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!list_get_index(vm, AS_LIST(peek(vm, 1)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19504,7 +19432,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_DICT:
                         {
-                            if(!bl_vmdo_dictgetindex(vm, AS_DICT(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_dictgetindex(vm, AS_DICT(peek(vm, 1)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19512,7 +19440,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_MODULE:
                         {
-                            if(!module_get_index(vm, AS_MODULE(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!module_get_index(vm, AS_MODULE(peek(vm, 1)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19520,7 +19448,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_BYTES:
                         {
-                            if(!bytes_get_index(vm, AS_BYTES(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!bytes_get_index(vm, AS_BYTES(peek(vm, 1)), will_assign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -19528,17 +19456,17 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         default:
                         {
-                            isgotten = false;
+                            is_gotten = false;
                             break;
                         }
                     }
                 }
                 else
                 {
-                    isgotten = false;
+                    is_gotten = false;
                 }
 
-                if(!isgotten)
+                if(!is_gotten)
                 {
                     runtime_error("cannot index object of type %s", value_type(peek(vm, 1)));
                 }
@@ -19547,7 +19475,7 @@ PtrResult bl_vm_run(VMState* vm)
 
             case OP_SET_INDEX:
             {
-                bool isset = true;
+                bool is_set = true;
                 if(IS_OBJ(peek(vm, 2)))
                 {
                     Value value = peek(vm, 0);
@@ -19594,17 +19522,17 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         default:
                         {
-                            isset = false;
+                            is_set = false;
                             break;
                         }
                     }
                 }
                 else
                 {
-                    isset = false;
+                    is_set = false;
                 }
 
-                if(!isset)
+                if(!is_set)
                 {
                     runtime_error("type of %s is not a valid iterable", value_type(peek(vm, 3)));
                 }
@@ -19617,17 +19545,17 @@ PtrResult bl_vm_run(VMState* vm)
 
                 close_up_values(vm, frame->slots);
 
-                vm->framecount--;
-                if(vm->framecount == 0)
+                vm->frame_count--;
+                if(vm->frame_count == 0)
                 {
                     pop(vm);
                     return PTR_OK;
                 }
 
-                vm->stacktop = frame->slots;
+                vm->stack_top = frame->slots;
                 push(vm, result);
 
-                frame = &vm->frames[vm->framecount - 1];
+                frame = &vm->frames[vm->frame_count - 1];
                 break;
             }
 
@@ -19636,15 +19564,15 @@ PtrResult bl_vm_run(VMState* vm)
                 ObjClosure* closure = AS_CLOSURE(READ_CONSTANT());
                 add_module(vm, closure->fnptr->module);
                 bl_vm_docall(vm, closure, 0);
-                frame = &vm->frames[vm->framecount - 1];
+                frame = &vm->frames[vm->frame_count - 1];
                 break;
             }
 
             case OP_NATIVE_MODULE:
             {
-                ObjString* modulename = READ_STRING();
+                ObjString* module_name = READ_STRING();
                 Value value;
-                if(table_get(&vm->modules, OBJ_VAL(modulename), &value))
+                if(table_get(&vm->modules, OBJ_VAL(module_name), &value))
                 {
                     ObjModule* module = AS_MODULE(value);
                     if(module->preloader != NULL)
@@ -19652,50 +19580,50 @@ PtrResult bl_vm_run(VMState* vm)
                         ((ModLoaderFunc)module->preloader)(vm);
                     }
                     module->imported = true;
-                    table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(modulename), value);
+                    table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(module_name), value);
                     break;
                 }
-                runtime_error("module '%s' not found", modulename->chars);
+                runtime_error("module '%s' not found", module_name->chars);
                 break;
             }
 
             case OP_SELECT_IMPORT:
             {
-                ObjString* entryname = READ_STRING();
+                ObjString* entry_name = READ_STRING();
                 ObjFunction* function = AS_CLOSURE(peek(vm, 0))->fnptr;
                 Value value;
-                if(table_get(&function->module->values, OBJ_VAL(entryname), &value))
+                if(table_get(&function->module->values, OBJ_VAL(entry_name), &value))
                 {
-                    table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(entryname), value);
+                    table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(entry_name), value);
                 }
                 else
                 {
-                    runtime_error("module %s does not define '%s'", function->module->name, entryname->chars);
+                    runtime_error("module %s does not define '%s'", function->module->name, entry_name->chars);
                 }
                 break;
             }
 
             case OP_SELECT_NATIVE_IMPORT:
             {
-                ObjString* modulename = AS_STRING(peek(vm, 0));
-                ObjString* valuename = READ_STRING();
+                ObjString* module_name = AS_STRING(peek(vm, 0));
+                ObjString* value_name = READ_STRING();
                 Value mod;
-                if(table_get(&vm->modules, OBJ_VAL(modulename), &mod))
+                if(table_get(&vm->modules, OBJ_VAL(module_name), &mod))
                 {
                     ObjModule* module = AS_MODULE(mod);
                     Value value;
-                    if(table_get(&module->values, OBJ_VAL(valuename), &value))
+                    if(table_get(&module->values, OBJ_VAL(value_name), &value))
                     {
-                        table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(valuename), value);
+                        table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(value_name), value);
                     }
                     else
                     {
-                        runtime_error("module %s does not define '%s'", module->name, valuename->chars);
+                        runtime_error("module %s does not define '%s'", module->name, value_name->chars);
                     }
                 }
                 else
                 {
-                    runtime_error("module '%s' not found", modulename->chars);
+                    runtime_error("module '%s' not found", module_name->chars);
                 }
                 break;
             }
@@ -19756,7 +19684,7 @@ PtrResult bl_vm_run(VMState* vm)
 
             case OP_DIE:
             {
-                if(!IS_INSTANCE(peek(vm, 0)) || !bl_class_isinstanceof(AS_INSTANCE(peek(vm, 0))->klass, vm->exceptionclass->name->chars))
+                if(!IS_INSTANCE(peek(vm, 0)) || !bl_class_isinstanceof(AS_INSTANCE(peek(vm, 0))->klass, vm->exception_class->name->chars))
                 {
                     runtime_error("instance of Exception expected");
                     break;
@@ -19767,7 +19695,7 @@ PtrResult bl_vm_run(VMState* vm)
                 table_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
                 if(bl_vm_propagateexception(vm, false))
                 {
-                    frame = &vm->frames[vm->framecount - 1];
+                    frame = &vm->frames[vm->frame_count - 1];
                     break;
                 }
 
@@ -19778,7 +19706,7 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjString* type = READ_STRING();
                 uint16_t address = READ_SHORT();
-                uint16_t finallyaddress = READ_SHORT();
+                uint16_t finally_address = READ_SHORT();
 
                 if(address != 0)
                 {
@@ -19788,27 +19716,27 @@ PtrResult bl_vm_run(VMState* vm)
                         runtime_error("object of type '%s' is not an exception", type->chars);
                         break;
                     }
-                    bl_vm_pushexceptionhandler(vm, AS_CLASS(value), address, finallyaddress);
+                    bl_vm_pushexceptionhandler(vm, AS_CLASS(value), address, finally_address);
                 }
                 else
                 {
-                    bl_vm_pushexceptionhandler(vm, NULL, address, finallyaddress);
+                    bl_vm_pushexceptionhandler(vm, NULL, address, finally_address);
                 }
                 break;
             }
 
             case OP_POP_TRY:
             {
-                frame->handlerscount--;
+                frame->handlers_count--;
                 break;
             }
 
             case OP_PUBLISH_TRY:
             {
-                frame->handlerscount--;
+                frame->handlers_count--;
                 if(bl_vm_propagateexception(vm, false))
                 {
-                    frame = &vm->frames[vm->framecount - 1];
+                    frame = &vm->frames[vm->frame_count - 1];
                     break;
                 }
 
@@ -19825,13 +19753,13 @@ PtrResult bl_vm_run(VMState* vm)
                 {
                     frame->ip += (int)AS_NUMBER(value);
                 }
-                else if(sw->defaultjump != -1)
+                else if(sw->default_jump != -1)
                 {
-                    frame->ip += sw->defaultjump;
+                    frame->ip += sw->default_jump;
                 }
                 else
                 {
-                    frame->ip += sw->exitjump;
+                    frame->ip += sw->exit_jump;
                 }
                 pop(vm);
                 break;
@@ -19879,7 +19807,7 @@ PtrResult bl_vm_interpsource(VMState* vm, ObjModule* module, const char* source)
     vm->allowgc = true;
     ObjFunction* function = bl_compiler_compilesource(vm, module, source, &blob);
 
-    if(vm->shouldprintbytecode)
+    if(vm->should_print_bytecode)
     {
         return PTR_OK;
     }
@@ -19903,11 +19831,11 @@ PtrResult bl_vm_interpsource(VMState* vm, ObjModule* module, const char* source)
 
 #undef ERR_CANT_ASSIGN_EMPTY
 
-static bool continuerepl = true;
+static bool continue_repl = true;
 
 static void repl(VMState* vm)
 {
-    vm->isrepl = true;
+    vm->is_repl = true;
 
     printf("Blade %s (running on BladeVM %s), REPL/Interactive mode = ON\n", BLADE_VERSION_STRING, BVM_VERSION);
     printf("%s, (Build time = %s, %s)\n", COMPILER, __DATE__, __TIME__);
@@ -19916,45 +19844,45 @@ static void repl(VMState* vm)
     char* source = (char*)malloc(sizeof(char));
     memset(source, 0, sizeof(char));
 
-    int bracecount = 0, parencount = 0, bracketcount = 0, singlequotecount = 0, doublequotecount = 0;
+    int brace_count = 0, paren_count = 0, bracket_count = 0, single_quote_count = 0, double_quote_count = 0;
 
     ObjModule* module = new_module(vm, strdup(""), strdup("<repl>"));
     add_module(vm, module);
 
     for(;;)
     {
-        if(!continuerepl)
+        if(!continue_repl)
         {
-            bracecount = 0;
-            parencount = 0;
-            bracketcount = 0;
-            singlequotecount = 0;
-            doublequotecount = 0;
+            brace_count = 0;
+            paren_count = 0;
+            bracket_count = 0;
+            single_quote_count = 0;
+            double_quote_count = 0;
 
             // reset source...
             memset(source, 0, strlen(source));
-            continuerepl = true;
+            continue_repl = true;
         }
 
         const char* cursor = "%> ";
-        if(bracecount > 0 || bracketcount > 0 || parencount > 0)
+        if(brace_count > 0 || bracket_count > 0 || paren_count > 0)
         {
             cursor = ".. ";
         }
-        else if(singlequotecount == 1 || doublequotecount == 1)
+        else if(single_quote_count == 1 || double_quote_count == 1)
         {
             cursor = "";
         }
 
         char buffer[1024];
-        printf("%s", cursor);
+        printf(cursor);
         char* line = fgets(buffer, 1024, stdin);
 
-        int linelength = 0;
+        int line_length = 0;
         if(line != NULL)
         {
-            linelength = strcspn(line, "\r\n");
-            line[linelength] = 0;
+            line_length = strcspn(line, "\r\n");
+            line[line_length] = 0;
         }
 
         // terminate early if we receive a terminating command such as exit() or Ctrl+D
@@ -19971,57 +19899,57 @@ static void repl(VMState* vm)
             continue;
         }
 
-        if(linelength > 0 && line[0] == '#')
+        if(line_length > 0 && line[0] == '#')
         {
             continue;
         }
 
         // find count of { and }, ( and ), [ and ], " and '
-        for(int i = 0; i < linelength; i++)
+        for(int i = 0; i < line_length; i++)
         {
             // scope openers...
             if(line[i] == '{')
-                bracecount++;
+                brace_count++;
             if(line[i] == '(')
-                parencount++;
+                paren_count++;
             if(line[i] == '[')
-                bracketcount++;
+                bracket_count++;
 
             // quotes
-            if(line[i] == '\'' && doublequotecount == 0)
+            if(line[i] == '\'' && double_quote_count == 0)
             {
-                if(singlequotecount == 0)
-                    singlequotecount++;
+                if(single_quote_count == 0)
+                    single_quote_count++;
                 else
-                    singlequotecount--;
+                    single_quote_count--;
             }
-            if(line[i] == '"' && singlequotecount == 0)
+            if(line[i] == '"' && single_quote_count == 0)
             {
-                if(doublequotecount == 0)
-                    doublequotecount++;
+                if(double_quote_count == 0)
+                    double_quote_count++;
                 else
-                    doublequotecount--;
+                    double_quote_count--;
             }
 
-            if(line[i] == '\\' && (singlequotecount > 0 || doublequotecount > 0))
+            if(line[i] == '\\' && (single_quote_count > 0 || double_quote_count > 0))
                 i++;
 
             // scope closers...
-            if(line[i] == '}' && bracecount > 0)
-                bracecount--;
-            if(line[i] == ')' && parencount > 0)
-                parencount--;
-            if(line[i] == ']' && bracketcount > 0)
-                bracketcount--;
+            if(line[i] == '}' && brace_count > 0)
+                brace_count--;
+            if(line[i] == ')' && paren_count > 0)
+                paren_count--;
+            if(line[i] == ']' && bracket_count > 0)
+                bracket_count--;
         }
 
         source = append_strings(source, line);
-        if(linelength > 0)
+        if(line_length > 0)
         {
             source = append_strings(source, "\n");
         }
 
-        if(bracketcount == 0 && parencount == 0 && bracecount == 0 && singlequotecount == 0 && doublequotecount == 0)
+        if(bracket_count == 0 && paren_count == 0 && brace_count == 0 && single_quote_count == 0 && double_quote_count == 0)
         {
             bl_vm_interpsource(vm, module, source);
 
@@ -20040,13 +19968,13 @@ static void run_file(VMState* vm, char* file)
     if(source == NULL)
     {
         // check if it's a Blade library directory by attempting to read the index file.
-        char* oldfile = file;
+        char* old_file = file;
         file = append_strings((char*)strdup(file), "/" LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
         source = read_file(file);
 
         if(source == NULL)
         {
-            fprintf(stderr, "(Blade):\n  Launch aborted for %s\n  Reason: %s\n", oldfile, strerror(errno));
+            fprintf(stderr, "(Blade):\n  Launch aborted for %s\n  Reason: %s\n", old_file, strerror(errno));
             exit(EXIT_FAILURE);
         }
     }
@@ -20095,10 +20023,10 @@ int main(int argc, char* argv[])
     init_vm(vm);
 
     fprintf(stderr, "STACK_MAX = %d\n", STACK_MAX);
-    bool shoulddebugstack = false;
-    bool shouldprintbytecode = false;
-    bool shouldbufferstdout = false;
-    int nextgcstart = DEFAULT_GC_START;
+    bool should_debug_stack = false;
+    bool should_print_bytecode = false;
+    bool should_buffer_stdout = false;
+    int next_gc_start = DEFAULT_GC_START;
 
     if(argc > 1)
     {
@@ -20108,45 +20036,32 @@ int main(int argc, char* argv[])
             switch(opt)
             {
                 case 'h':
-                    {
-                        show_usage(argv, false);// exits
-                    }
-                    break;
+                    show_usage(argv, false);// exits
                 case 'd':
-                    {
-                        shouldprintbytecode = true;
-                    }
+                    should_print_bytecode = true;
                     break;
                 case 'b':
-                    {
-                        shouldbufferstdout = true;
-                    }
+                    should_buffer_stdout = true;
                     break;
                 case 'j':
-                    {
-                        shoulddebugstack = true;
-                    }
+                    should_debug_stack = true;
                     break;
                 case 'v':
-                    {
-                        printf("Blade " BLADE_VERSION_STRING " (running on BladeVM " BVM_VERSION ")\n");
-                        return EXIT_SUCCESS;
-                    }
-                    break;
+                {
+                    printf("Blade " BLADE_VERSION_STRING " (running on BladeVM " BVM_VERSION ")\n");
+                    return EXIT_SUCCESS;
+                }
                 case 'g':
+                {
+                    int next = (int)strtol(optarg, NULL, 10);
+                    if(next > 0)
                     {
-                        int next = (int)strtol(optarg, NULL, 10);
-                        if(next > 0)
-                        {
-                            nextgcstart = next * 1024;// expected value is in kilobytes
-                        }
+                        next_gc_start = next * 1024;// expected value is in kilobytes
                     }
                     break;
+                }
                 default:
-                    {
-                        show_usage(argv, true);// exits
-                    }
-                    break;
+                    show_usage(argv, true);// exits
             }
         }
     }
@@ -20157,11 +20072,11 @@ int main(int argc, char* argv[])
 
 
         // set vm options...
-        vm->shoulddebugstack = shoulddebugstack;
-        vm->shouldprintbytecode = shouldprintbytecode;
-        vm->nextgc = nextgcstart;
+        vm->should_debug_stack = should_debug_stack;
+        vm->should_print_bytecode = should_print_bytecode;
+        vm->next_gc = next_gc_start;
 
-        if(shouldbufferstdout)
+        if(should_buffer_stdout)
         {
             // forcing printf buffering for TTYs and terminals
             if(isatty(fileno(stdout)))
@@ -20175,15 +20090,15 @@ int main(int argc, char* argv[])
         SetConsoleOutputCP(CP_UTF8);
 #endif
 
-        char** stdargs = (char**)calloc(argc, sizeof(char*));
-        if(stdargs != NULL)
+        char** std_args = (char**)calloc(argc, sizeof(char*));
+        if(std_args != NULL)
         {
             for(int i = 0; i < argc; i++)
             {
-                stdargs[i] = argv[i];
+                std_args[i] = argv[i];
             }
-            vm->stdargs = stdargs;
-            vm->stdargscount = argc;
+            vm->std_args = std_args;
+            vm->std_args_count = argc;
         }
 
         // always do this last so that we can have access to everything else
@@ -20199,7 +20114,7 @@ int main(int argc, char* argv[])
         }
         fprintf(stderr, "freeing up memory?\n");
         collect_garbage(vm);
-        free(stdargs);
+        free(std_args);
         free_vm(vm);
         free(vm);
         return EXIT_SUCCESS;
