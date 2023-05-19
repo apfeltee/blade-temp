@@ -6,9 +6,11 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <time.h>
 #include <errno.h>
 #include <math.h>
+
 #include <sys/stat.h>
 #include <libgen.h>
 #include <dlfcn.h>
@@ -1118,304 +1120,20 @@ struct BProcessShared
     bool locked;
 };
 
-/* main.c */
-int utf8_number_bytes(int value);
-char* utf8_encode(unsigned int code);
-int utf8_decode_num_bytes(uint8_t byte);
-int utf8_decode(const uint8_t* bytes, uint32_t length);
-char* append_strings(char* old, char* newstr);
-int utf8len(char* s);
-char* utf8index(char* s, int pos);
-void utf8slice(char* s, int* start, int* end);
-char* read_file(const char* path);
-char* get_exe_path(void);
-char* get_exe_dir(void);
-char* merge_paths(char* a, char* b);
-bool file_exists(char* filepath);
-char* get_blade_filename(char* filename);
-char* resolve_import_path(char* modulename, const char* currentfile, bool isrelative);
-char* get_real_file_name(char* path);
-void* allocate(VMState* vm, size_t size);
-void* bl_mem_realloc(VMState* vm, void* pointer, size_t oldsize, size_t newsize);
-void mark_object(VMState* vm, Object* object);
-void mark_value(VMState* vm, Value value);
-void blacken_object(VMState* vm, Object* object);
-void free_object(VMState* vm, Object** object);
-void free_objects(VMState* vm);
-void collect_garbage(VMState* vm);
-void init_blob(BinaryBlob* blob);
-void write_blob(VMState* vm, BinaryBlob* blob, uint8_t byte, int line);
-void free_blob(VMState* vm, BinaryBlob* blob);
-int add_constant(VMState* vm, BinaryBlob* blob, Value value);
-uint32_t is_regex(ObjString* string);
-char* remove_regex_delimiter(VMState* vm, ObjString* string);
-bool objfn_string_length(VMState* vm, int argcount, Value* args);
-bool objfn_string_upper(VMState* vm, int argcount, Value* args);
-bool objfn_string_lower(VMState* vm, int argcount, Value* args);
-bool objfn_string_isalpha(VMState* vm, int argcount, Value* args);
-bool objfn_string_isalnum(VMState* vm, int argcount, Value* args);
-bool objfn_string_isnumber(VMState* vm, int argcount, Value* args);
-bool objfn_string_islower(VMState* vm, int argcount, Value* args);
-bool objfn_string_isupper(VMState* vm, int argcount, Value* args);
-bool objfn_string_isspace(VMState* vm, int argcount, Value* args);
-bool objfn_string_trim(VMState* vm, int argcount, Value* args);
-bool objfn_string_ltrim(VMState* vm, int argcount, Value* args);
-bool objfn_string_rtrim(VMState* vm, int argcount, Value* args);
-bool objfn_string_join(VMState* vm, int argcount, Value* args);
-bool objfn_string_split(VMState* vm, int argcount, Value* args);
-bool objfn_string_indexof(VMState* vm, int argcount, Value* args);
-bool objfn_string_startswith(VMState* vm, int argcount, Value* args);
-bool objfn_string_endswith(VMState* vm, int argcount, Value* args);
-bool objfn_string_count(VMState* vm, int argcount, Value* args);
-bool objfn_string_tonumber(VMState* vm, int argcount, Value* args);
-bool objfn_string_ascii(VMState* vm, int argcount, Value* args);
-bool objfn_string_tolist(VMState* vm, int argcount, Value* args);
-bool objfn_string_lpad(VMState* vm, int argcount, Value* args);
-bool objfn_string_rpad(VMState* vm, int argcount, Value* args);
-bool objfn_string_match(VMState* vm, int argcount, Value* args);
-bool objfn_string_matches(VMState* vm, int argcount, Value* args);
-bool objfn_string_replace(VMState* vm, int argcount, Value* args);
-bool objfn_string_tobytes(VMState* vm, int argcount, Value* args);
-bool objfn_string_iter(VMState* vm, int argcount, Value* args);
-bool objfn_string_itern(VMState* vm, int argcount, Value* args);
-bool cfn_bytes(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_length(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_append(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_clone(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_extend(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_pop(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_remove(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_reverse(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_split(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_first(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_last(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_get(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_isalpha(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_isalnum(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_isnumber(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_islower(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_isupper(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_isspace(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_tostring(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_iter(VMState* vm, int argcount, Value* args);
-bool objfn_bytes_itern(VMState* vm, int argcount, Value* args);
-void init_table(HashTable* table);
-void free_table(VMState* vm, HashTable* table);
-void clean_free_table(VMState* vm, HashTable* table);
-bool table_get(HashTable* table, Value key, Value* value);
-bool table_set(VMState* vm, HashTable* table, Value key, Value value);
-bool table_delete(HashTable* table, Value key);
-void table_add_all(VMState* vm, HashTable* from, HashTable* to);
-void table_copy(VMState* vm, HashTable* from, HashTable* to);
-ObjString* table_find_string(HashTable* table, const char* chars, int length, uint32_t hash);
-Value table_find_key(HashTable* table, Value value);
-void table_print(HashTable* table);
-void mark_table(VMState* vm, HashTable* table);
-void table_remove_whites(VMState* vm, HashTable* table);
-void dict_add_entry(VMState* vm, ObjDict* dict, Value key, Value value);
-bool dict_get_entry(ObjDict* dict, Value key, Value* value);
-bool dict_set_entry(VMState* vm, ObjDict* dict, Value key, Value value);
-bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool willassign);
-void bl_vmdo_dictsetindex(VMState* vm, ObjDict* dict, Value index, Value value);
-bool objfn_dict_length(VMState* vm, int argcount, Value* args);
-bool objfn_dict_add(VMState* vm, int argcount, Value* args);
-bool objfn_dict_set(VMState* vm, int argcount, Value* args);
-bool objfn_dict_clear(VMState* vm, int argcount, Value* args);
-bool objfn_dict_clone(VMState* vm, int argcount, Value* args);
-bool objfn_dict_compact(VMState* vm, int argcount, Value* args);
-bool objfn_dict_contains(VMState* vm, int argcount, Value* args);
-bool objfn_dict_extend(VMState* vm, int argcount, Value* args);
-bool objfn_dict_get(VMState* vm, int argcount, Value* args);
-bool objfn_dict_keys(VMState* vm, int argcount, Value* args);
-bool objfn_dict_values(VMState* vm, int argcount, Value* args);
-bool objfn_dict_remove(VMState* vm, int argcount, Value* args);
-bool objfn_dict_isempty(VMState* vm, int argcount, Value* args);
-bool objfn_dict_findkey(VMState* vm, int argcount, Value* args);
-bool objfn_dict_tolist(VMState* vm, int argcount, Value* args);
-bool objfn_dict_iter(VMState* vm, int argcount, Value* args);
-bool objfn_dict_itern(VMState* vm, int argcount, Value* args);
-void write_list(VMState* vm, ObjList* list, Value value);
-ObjList* copy_list(VMState* vm, ObjList* list, int start, int length);
-bool objfn_list_length(VMState* vm, int argcount, Value* args);
-bool objfn_list_append(VMState* vm, int argcount, Value* args);
-bool objfn_list_clear(VMState* vm, int argcount, Value* args);
-bool objfn_list_clone(VMState* vm, int argcount, Value* args);
-bool objfn_list_count(VMState* vm, int argcount, Value* args);
-bool objfn_list_extend(VMState* vm, int argcount, Value* args);
-bool objfn_list_indexof(VMState* vm, int argcount, Value* args);
-bool objfn_list_insert(VMState* vm, int argcount, Value* args);
-bool objfn_list_pop(VMState* vm, int argcount, Value* args);
-bool objfn_list_shift(VMState* vm, int argcount, Value* args);
-bool objfn_list_removeat(VMState* vm, int argcount, Value* args);
-bool objfn_list_remove(VMState* vm, int argcount, Value* args);
-bool objfn_list_reverse(VMState* vm, int argcount, Value* args);
-bool objfn_list_sort(VMState* vm, int argcount, Value* args);
-bool objfn_list_contains(VMState* vm, int argcount, Value* args);
-bool objfn_list_delete(VMState* vm, int argcount, Value* args);
-bool objfn_list_first(VMState* vm, int argcount, Value* args);
-bool objfn_list_last(VMState* vm, int argcount, Value* args);
-bool objfn_list_isempty(VMState* vm, int argcount, Value* args);
-bool objfn_list_take(VMState* vm, int argcount, Value* args);
-bool objfn_list_get(VMState* vm, int argcount, Value* args);
-bool objfn_list_compact(VMState* vm, int argcount, Value* args);
-bool objfn_list_unique(VMState* vm, int argcount, Value* args);
-bool objfn_list_zip(VMState* vm, int argcount, Value* args);
-bool objfn_list_todict(VMState* vm, int argcount, Value* args);
-bool objfn_list_iter(VMState* vm, int argcount, Value* args);
-bool objfn_list_itern(VMState* vm, int argcount, Value* args);
-void init_value_arr(ValArray* array);
-void init_byte_arr(VMState* vm, ByteArray* array, int length);
-void write_value_arr(VMState* vm, ValArray* array, Value value);
-void insert_value_arr(VMState* vm, ValArray* array, Value value, int index);
-void free_value_arr(VMState* vm, ValArray* array);
-void free_byte_arr(VMState* vm, ByteArray* array);
-void print_value(Value value);
-void echo_value(Value value);
-char* value_to_string(VMState* vm, Value value);
-const char* value_type(Value value);
-bool values_equal(Value a, Value b);
-uint32_t hash_double(double value);
-uint32_t hash_string(const char* key, int length);
-uint32_t hash_value(Value value);
-void sort_values(Value* values, int count);
-Value copy_value(VMState* vm, Value value);
-Object* allocate_object(VMState* vm, size_t size, ObjType type);
-ObjPointer* new_ptr(VMState* vm, void* pointer);
-ObjModule* new_module(VMState* vm, char* name, char* file);
-ObjSwitch* new_switch(VMState* vm);
-ObjBytes* new_bytes(VMState* vm, int length);
-ObjList* new_list(VMState* vm);
-ObjRange* new_range(VMState* vm, int lower, int upper);
-ObjDict* new_dict(VMState* vm);
-ObjFile* new_file(VMState* vm, ObjString* path, ObjString* mode);
-ObjBoundMethod* new_bound_method(VMState* vm, Value receiver, ObjClosure* method);
-ObjClass* new_class(VMState* vm, ObjString* name);
-ObjFunction* new_function(VMState* vm, ObjModule* module, FuncType type);
-ObjInstance* new_instance(VMState* vm, ObjClass* klass);
-ObjNativeFunction* new_native(VMState* vm, NativeCallbackFunc function, const char* name);
-ObjClosure* new_closure(VMState* vm, ObjFunction* function);
-ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_t hash);
-ObjString* take_string(VMState* vm, char* chars, int length);
-ObjString* copy_string(VMState* vm, const char* chars, int length);
-ObjUpvalue* new_up_value(VMState* vm, Value* slot);
-void print_object(Value value, bool fixstring);
-ObjBytes* copy_bytes(VMState* vm, unsigned char* b, int length);
-ObjBytes* take_bytes(VMState* vm, unsigned char* b, int length);
-char* object_to_string(VMState* vm, Value value);
-const char* object_type(Object* object);
-void bl_scanner_init(AstScanner* s, const char* source);
-bool bl_scanner_isatend(AstScanner* s);
-AstToken bl_scanner_skipblockcomments(AstScanner* s);
-AstToken bl_scanner_skipwhitespace(AstScanner* s);
-AstToken bl_scanner_scantoken(AstScanner* s);
-ObjFunction* bl_compiler_compilesource(VMState* vm, ObjModule* module, const char* source, BinaryBlob* blob);
-void mark_compiler_roots(VMState* vm);
-void disassemble_blob(BinaryBlob* blob, const char* name);
-int simple_instruction(const char* name, int offset);
-int constant_instruction(const char* name, BinaryBlob* blob, int offset);
-int short_instruction(const char* name, BinaryBlob* blob, int offset);
-int disassemble_instruction(BinaryBlob* blob, int offset);
-bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* source, void* handle);
-void add_native_module(VMState* vm, ObjModule* module, const char* as);
-void bind_user_modules(VMState* vm, char* pkgroot);
-void bind_native_modules(VMState* vm);
-char* load_user_module(VMState* vm, const char* path, char* name);
-void close_dl_module(void* handle);
-void array_free(void* data);
-ObjPointer* new_array(VMState* vm, DynArray* array);
-DynArray* new_int16_array(VMState* vm, int length);
-DynArray* new_int32_array(VMState* vm, int length);
-DynArray* new_int64_array(VMState* vm, int length);
-DynArray* new_uint16_array(VMState* vm, int length);
-DynArray* new_uint32_array(VMState* vm, int length);
-DynArray* new_uint64_array(VMState* vm, int length);
-RegModule* bl_modload_array(VMState* vm);
-RegModule* bl_modload_date(VMState* vm);
-void disable_raw_mode(void);
-int getch(void);
-Value io_module_stdin(VMState* vm);
-Value io_module_stdout(VMState* vm);
-Value io_module_stderr(VMState* vm);
-void modfn_io_unload(VMState* vm);
-RegModule* bl_modload_io(VMState* vm);
-RegModule* bl_modload_math(VMState* vm);
-Value get_os_platform(VMState* vm);
-Value get_blade_os_args(VMState* vm);
-Value get_blade_os_path_separator(VMState* vm);
-Value modfield_os_dtunknown(VMState* vm);
-Value modfield_os_dtreg(VMState* vm);
-Value modfield_os_dtdir(VMState* vm);
-Value modfield_os_dtfifo(VMState* vm);
-Value modfield_os_dtsock(VMState* vm);
-Value modfield_os_dtchr(VMState* vm);
-Value modfield_os_dtblk(VMState* vm);
-Value modfield_os_dtlnk(VMState* vm);
-Value modfield_os_dtwht(VMState* vm);
-void __os_module_preloader(VMState* vm);
-RegModule* bl_modload_os(VMState* vm);
-Value modfield_process_cpucount(VMState* vm);
-void b__free_shared_memory(void* data);
-bool modfn_process_process(VMState* vm, int argcount, Value* args);
-bool modfn_process_create(VMState* vm, int argcount, Value* args);
-bool modfn_process_isalive(VMState* vm, int argcount, Value* args);
-bool modfn_process_kill(VMState* vm, int argcount, Value* args);
-bool modfn_process_wait(VMState* vm, int argcount, Value* args);
-bool modfn_process_id(VMState* vm, int argcount, Value* args);
-bool modfn_process_newshared(VMState* vm, int argcount, Value* args);
-bool modfn_process_sharedwrite(VMState* vm, int argcount, Value* args);
-bool modfn_process_sharedread(VMState* vm, int argcount, Value* args);
-bool modfn_process_sharedlock(VMState* vm, int argcount, Value* args);
-bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args);
-bool modfn_process_sharedislocked(VMState* vm, int argcount, Value* args);
-RegModule* bl_modload_process(VMState* vm);
-bool modfn_reflect_hasprop(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_getprop(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_setprop(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_delprop(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_hasmethod(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_getmethod(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_bindmethod(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_getboundmethod(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_gettype(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_isptr(VMState* vm, int argcount, Value* args);
-bool modfn_reflect_getfunctionmetadata(VMState* vm, int argcount, Value* args);
-RegModule* bl_modload_reflect(VMState* vm);
-bool modfn_struct_pack(VMState* vm, int argcount, Value* args);
-bool modfn_struct_unpack(VMState* vm, int argcount, Value* args);
-void __struct_module_preloader(VMState* vm);
-RegModule* bl_modload_struct(VMState* vm);
-bool bl_vm_propagateexception(VMState* vm, bool isassert);
-bool bl_vm_pushexceptionhandler(VMState* vm, ObjClass* type, int address, int finallyaddress);
-bool bl_vm_throwexception(VMState* vm, bool isassert, const char* format, ...);
-ObjInstance* create_exception(VMState* vm, ObjString* message);
-void bl_vm_runtimeerror(VMState* vm, const char* format, ...);
-void push(VMState* vm, Value value);
-Value pop(VMState* vm);
-Value pop_n(VMState* vm, int n);
-Value peek(VMState* vm, int distance);
-void define_native_method(VMState* vm, HashTable* table, const char* name, NativeCallbackFunc function);
-void init_vm(VMState* vm);
-void free_vm(VMState* vm);
-bool call_value(VMState* vm, Value callee, int argcount);
-bool invoke_from_class(VMState* vm, ObjClass* klass, ObjString* name, int argcount);
-bool is_false(Value value);
-bool bl_class_isinstanceof(ObjClass* klass1, char* klass2name);
-PtrResult bl_vm_run(VMState* vm);
-PtrResult bl_vm_interpsource(VMState* vm, ObjModule* module, const char* source);
-void show_usage(char* argv[], bool fail);
-int main(int argc, char* argv[]);
+#include "prot.inc"
 
 static bool is_obj_type(Value v, ObjType t)
 {
-    return IS_OBJ(v) && AS_OBJ(v)->type == t;
+    if(IS_OBJ(v))
+    {
+        return (AS_OBJ(v)->type == t);
+    }
+    return false;
 }
 
 static bool is_std_file(ObjFile* file)
 {
-    return file->mode->length == 0;
+    return (file->mode->length == 0);
 }
 
 static void add_module(VMState* vm, ObjModule* module)
@@ -1452,46 +1170,42 @@ static void gc_clear_protection(VMState* vm)
     vm->gcprotected = 0;
 }
 
-extern RegModule* bl_modload_base64(VMState* vm);
-extern RegModule* bl_modload_date(VMState* vm);
-extern RegModule* bl_modload_io(VMState* vm);
-extern RegModule* bl_modload_math(VMState* vm);
-extern RegModule* bl_modload_os(VMState* vm);
-extern RegModule* bl_modload_socket(VMState* vm);
-extern RegModule* bl_modload_hash(VMState* vm);
-extern RegModule* bl_modload_json(VMState* vm);
-extern RegModule* bl_modload_sqlite(VMState* vm);
-extern RegModule* bl_modload_reflect(VMState* vm);
-extern RegModule* bl_modload_array(VMState* vm);
-extern RegModule* bl_modload_process(VMState* vm);
-extern RegModule* bl_modload_struct(VMState* vm);
 #define BLADE_PATH_SEPARATOR "/"
 #if defined(__linux__) || defined(__CYGWIN__) || defined(__MINGW32_MAJOR_VERSION)
     #define PROC_SELF_EXE "/proc/self/exe"
 #endif
+
 // returns the number of bytes contained in a unicode character
-int utf8_number_bytes(int value)
+int bl_util_utf8numbytes(int value)
 {
     if(value < 0)
     {
         return -1;
     }
     if(value <= 0x7f)
+    {
         return 1;
+    }
     if(value <= 0x7ff)
+    {
         return 2;
+    }
     if(value <= 0xffff)
+    {
         return 3;
+    }
     if(value <= 0x10ffff)
+    {
         return 4;
+    }
     return 0;
 }
 
-char* utf8_encode(unsigned int code)
+char* bl_util_utf8encode(unsigned int code)
 {
     int count;
     char* chars;
-    count = utf8_number_bytes((int)code);
+    count = bl_util_utf8numbytes((int)code);
     if(count > 0)
     {
         chars = (char*)calloc((size_t)count + 1, sizeof(char));
@@ -1539,10 +1253,10 @@ char* utf8_encode(unsigned int code)
             return chars;
         }
     }
-    return (char*)"";
+    return NULL;
 }
 
-int utf8_decode_num_bytes(uint8_t byte)
+int bl_util_utf8decodenumbytes(uint8_t byte)
 {
     // If the byte starts with 10xxxxx, it's the middle of a UTF-8 sequence, so
     // don't count it at all.
@@ -1559,7 +1273,7 @@ int utf8_decode_num_bytes(uint8_t byte)
     return 1;
 }
 
-int utf8_decode(const uint8_t* bytes, uint32_t length)
+int bl_util_utf8decode(const uint8_t* bytes, uint32_t length)
 {
     // Single byte (i.e. fits in ASCII).
     if(*bytes <= 0x7f)
@@ -1604,7 +1318,7 @@ int utf8_decode(const uint8_t* bytes, uint32_t length)
     return value;
 }
 
-char* append_strings(char* old, char* newstr)
+char* bl_util_appendstring(char* old, char* newstr)
 {
     // quick exit...
     if(newstr == NULL)
@@ -1626,17 +1340,8 @@ char* append_strings(char* old, char* newstr)
     return old;
 }
 
-/*char *append_strings(char *old, char *newstr) {
-  // find the size of the string to allocate
-  const size_t outlen = strlen(old) + strlen(newstr);
-  char *result = realloc(old, outlen + 1);
-  if (result != NULL) {
-    strcat(result, newstr);
-    result[outlen] = '\0'; // enforce string termination
-  }
-  return result;
-}*/
-int utf8len(char* s)
+
+int bl_util_utf8length(char* s)
 {
     int len = 0;
     for(; *s; ++s)
@@ -1647,29 +1352,34 @@ int utf8len(char* s)
 
 // returns a pointer to the beginning of the pos'th utf8 codepoint
 // in the buffer at s
-char* utf8index(char* s, int pos)
+char* bl_util_utf8index(char* s, int pos)
 {
     ++pos;
     for(; *s; ++s)
     {
         if((*s & 0xC0) != 0x80)
+        {
             --pos;
+        }
         if(pos == 0)
+        {
             return s;
+        }
     }
     return NULL;
 }
 
 // converts codepoint indexes start and end to byte offsets in the buffer at s
-void utf8slice(char* s, int* start, int* end)
+void bl_util_utf8slice(char* s, int* start, int* end)
 {
-    char* p = utf8index(s, *start);
+    char* p;
+    p = bl_util_utf8index(s, *start);
     *start = p != NULL ? (int)(p - s) : -1;
-    p = utf8index(s, *end);
+    p = bl_util_utf8index(s, *end);
     *end = p != NULL ? (int)(p - s) : (int)strlen(s);
 }
 
-char* read_file(const char* path)
+char* bl_util_readfile(const char* path)
 {
     FILE* fp = fopen(path, "rb");
     // file not readable (maybe due to permission)
@@ -1700,7 +1410,7 @@ char* read_file(const char* path)
     return buffer;
 }
 
-char* get_exe_path()
+char* bl_util_getexepath()
 {
     char rawpath[PATH_MAX];
     ssize_t readlength;
@@ -1711,12 +1421,12 @@ char* get_exe_path()
     return "";
 }
 
-char* get_exe_dir()
+char* bl_util_getexedir()
 {
-    return dirname(get_exe_path());
+    return dirname(bl_util_getexepath());
 }
 
-char* merge_paths(char* a, char* b)
+char* bl_util_mergepaths(char* a, char* b)
 {
     char* finalpath = (char*)calloc(1, sizeof(char));
     // by checking b first, we guarantee that b is neither NULL nor
@@ -1733,28 +1443,28 @@ char* merge_paths(char* a, char* b)
         free(finalpath);
         return strdup(b);// just in case b is const char*
     }
-    finalpath = append_strings(finalpath, a);
+    finalpath = bl_util_appendstring(finalpath, a);
     if(!(lenb == 2 && b[0] == '.' && b[1] == 'b'))
     {
-        finalpath = append_strings(finalpath, BLADE_PATH_SEPARATOR);
+        finalpath = bl_util_appendstring(finalpath, BLADE_PATH_SEPARATOR);
     }
-    finalpath = append_strings(finalpath, b);
+    finalpath = bl_util_appendstring(finalpath, b);
     return finalpath;
 }
 
-bool file_exists(char* filepath)
+bool bl_util_fileexists(char* filepath)
 {
     return access(filepath, F_OK) == 0;
 }
 
-char* get_blade_filename(char* filename)
+char* bl_util_getbladefilename(char* filename)
 {
-    return merge_paths(filename, BLADE_EXTENSION);
+    return bl_util_mergepaths(filename, BLADE_EXTENSION);
 }
 
-char* resolve_import_path(char* modulename, const char* currentfile, bool isrelative)
+char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool isrelative)
 {
-    char* bladefilename = get_blade_filename(modulename);
+    char* bladefilename = bl_util_getbladefilename(modulename);
     // check relative to the current file...
     char* filedirectory = dirname((char*)strdup(currentfile));
     // fixing last path / if exists (looking at windows)...
@@ -1774,8 +1484,8 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         {
             rootdir[rootdirlength - 1] = '\0';
         }
-        char* vendorfile = merge_paths(merge_paths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), bladefilename);
-        if(file_exists(vendorfile))
+        char* vendorfile = bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), bladefilename);
+        if(bl_util_fileexists(vendorfile))
         {
             // stop a core library from importing itself
             char* path1 = realpath(vendorfile, NULL);
@@ -1788,8 +1498,8 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
         }
         // or a matching package
         char* vendorindexfile
-        = merge_paths(merge_paths(merge_paths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
-        if(file_exists(vendorindexfile))
+        = bl_util_mergepaths(bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+        if(bl_util_fileexists(vendorindexfile))
         {
             // stop a core library from importing itself
             char* path1 = realpath(vendorindexfile, NULL);
@@ -1801,11 +1511,11 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
             }
         }
         // then, check in blade's default locations
-        char* exedir = get_exe_dir();
-        char* bladedirectory = merge_paths(exedir, LIBRARY_DIRECTORY);
+        char* exedir = bl_util_getexedir();
+        char* bladedirectory = bl_util_mergepaths(exedir, LIBRARY_DIRECTORY);
         // check blade libs directory for a matching module...
-        char* libraryfile = merge_paths(bladedirectory, bladefilename);
-        if(file_exists(libraryfile))
+        char* libraryfile = bl_util_mergepaths(bladedirectory, bladefilename);
+        if(bl_util_fileexists(libraryfile))
         {
             // stop a core library from importing itself
             char* path1 = realpath(libraryfile, NULL);
@@ -1817,8 +1527,8 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
             }
         }
         // check blade libs directory for a matching package...
-        char* libraryindexfile = merge_paths(merge_paths(bladedirectory, modulename), get_blade_filename(LIBRARY_DIRECTORY_INDEX));
-        if(file_exists(libraryindexfile))
+        char* libraryindexfile = bl_util_mergepaths(bl_util_mergepaths(bladedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
+        if(bl_util_fileexists(libraryindexfile))
         {
             char* path1 = realpath(libraryindexfile, NULL);
             char* path2 = realpath(currentfile, NULL);
@@ -1829,9 +1539,9 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
             }
         }
         // check blade vendor directory installed module...
-        char* bladepackagedirectory = merge_paths(exedir, PACKAGES_DIRECTORY);
-        char* packagefile = merge_paths(bladepackagedirectory, bladefilename);
-        if(file_exists(packagefile))
+        char* bladepackagedirectory = bl_util_mergepaths(exedir, PACKAGES_DIRECTORY);
+        char* packagefile = bl_util_mergepaths(bladepackagedirectory, bladefilename);
+        if(bl_util_fileexists(packagefile))
         {
             char* path1 = realpath(packagefile, NULL);
             char* path2 = realpath(currentfile, NULL);
@@ -1842,8 +1552,8 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
             }
         }
         // check blade vendor directory installed package...
-        char* packageindexfile = merge_paths(merge_paths(bladepackagedirectory, modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
-        if(file_exists(packageindexfile))
+        char* packageindexfile = bl_util_mergepaths(bl_util_mergepaths(bladepackagedirectory, modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+        if(bl_util_fileexists(packageindexfile))
         {
             char* path1 = realpath(packageindexfile, NULL);
             char* path2 = realpath(currentfile, NULL);
@@ -1857,8 +1567,8 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
     else
     {
         // otherwise, search the relative path for a matching module
-        char* relativefile = merge_paths(filedirectory, bladefilename);
-        if(file_exists(relativefile))
+        char* relativefile = bl_util_mergepaths(filedirectory, bladefilename);
+        if(bl_util_fileexists(relativefile))
         {
             // stop a user module from importing itself
             char* path1 = realpath(relativefile, NULL);
@@ -1870,8 +1580,8 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
             }
         }
         // or a matching package
-        char* relativeindexfile = merge_paths(merge_paths(filedirectory, modulename), get_blade_filename(LIBRARY_DIRECTORY_INDEX));
-        if(file_exists(relativeindexfile))
+        char* relativeindexfile = bl_util_mergepaths(bl_util_mergepaths(filedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
+        if(bl_util_fileexists(relativeindexfile))
         {
             char* path1 = realpath(relativeindexfile, NULL);
             char* path2 = realpath(currentfile, NULL);
@@ -1885,7 +1595,7 @@ char* resolve_import_path(char* modulename, const char* currentfile, bool isrela
     return NULL;
 }
 
-char* get_real_file_name(char* path)
+char* bl_util_getrealfilename(char* path)
 {
     return basename(path);
 }
@@ -2359,1389 +2069,443 @@ void collect_garbage(VMState* vm)
 #endif
 }
 
-#include <stdlib.h>
 
-void init_blob(BinaryBlob* blob)
+void init_value_arr(ValArray* array)
 {
-    blob->count = 0;
-    blob->capacity = 0;
-    blob->code = NULL;
-    blob->lines = NULL;
-    init_value_arr(&blob->constants);
+    array->capacity = 0;
+    array->count = 0;
+    array->values = NULL;
 }
 
-void write_blob(VMState* vm, BinaryBlob* blob, uint8_t byte, int line)
+void init_byte_arr(VMState* vm, ByteArray* array, int length)
 {
-    if(blob->capacity < blob->count + 1)
+    array->count = length;
+    array->bytes = (unsigned char*)calloc(length, sizeof(unsigned char));
+    vm->bytesallocated += sizeof(unsigned char) * length;
+}
+
+void write_value_arr(VMState* vm, ValArray* array, Value value)
+{
+    if(array->capacity < array->count + 1)
     {
-        int oldcapacity = blob->capacity;
-        blob->capacity = GROW_CAPACITY(oldcapacity);
-        blob->code = GROW_ARRAY(uint8_t, blob->code, oldcapacity, blob->capacity);
-        blob->lines = GROW_ARRAY(int, blob->lines, oldcapacity, blob->capacity);
+        int oldcapacity = array->capacity;
+        array->capacity = GROW_CAPACITY(oldcapacity);
+        array->values = GROW_ARRAY(Value, array->values, oldcapacity, array->capacity);
     }
-    blob->code[blob->count] = byte;
-    blob->lines[blob->count] = line;
-    blob->count++;
+    array->values[array->count] = value;
+    array->count++;
 }
 
-void free_blob(VMState* vm, BinaryBlob* blob)
+void insert_value_arr(VMState* vm, ValArray* array, Value value, int index)
 {
-    if(blob->code != NULL)
+    if(array->capacity <= index)
     {
-        FREE_ARRAY(uint8_t, blob->code, blob->capacity);
+        array->capacity = GROW_CAPACITY(index);
+        array->values = GROW_ARRAY(Value, array->values, array->count, array->capacity);
     }
-    if(blob->lines != NULL)
+    else if(array->capacity < array->count + 2)
     {
-        FREE_ARRAY(int, blob->lines, blob->capacity);
+        int capacity = array->capacity;
+        array->capacity = GROW_CAPACITY(capacity);
+        array->values = GROW_ARRAY(Value, array->values, capacity, array->capacity);
     }
-    free_value_arr(vm, &blob->constants);
-    init_blob(blob);
-}
-
-int add_constant(VMState* vm, BinaryBlob* blob, Value value)
-{
-    push(vm, value);// fixing gc corruption
-    write_value_arr(vm, &blob->constants, value);
-    pop(vm);// fixing gc corruption
-    return blob->constants.count - 1;
-}
-
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-/**
- * a Blade regex must always start and end with the same delimiter e.g. /
- *
- * e.g.
- * /\d+/
- *
- * it can be followed by one or more matching fine tuning constants
- *
- * e.g.
- *
- * /\d+.+[a-z]+/sim -> '.' matches all, it's case insensitive and multiline
- * (see the function for list of available options)
- *
- * returns:
- * -1 -> false
- * 0 -> true
- * negative value -> invalid delimiter where abs(value) is the character
- * positive value > 0 ? for compiled delimiters
- */
-uint32_t is_regex(ObjString* string)
-{
-    char start = string->chars[0];
-    bool matchfound = false;
-    uint32_t coptions = 0;// pcre2 options
-    for(int i = 1; i < string->length; i++)
+    if(index <= array->count)
     {
-        if(string->chars[i] == start)
+        for(int i = array->count - 1; i >= index; i--)
         {
-            matchfound = i > 0 && string->chars[i - 1] == '\\' ? false : true;
-            continue;
-        }
-        if(matchfound)
-        {
-            // compile the delimiters
-            switch(string->chars[i])
-            {
-                /* Perl compatible options */
-                case 'i':
-                    coptions |= PCRE2_CASELESS;
-                    break;
-                case 'm':
-                    coptions |= PCRE2_MULTILINE;
-                    break;
-                case 's':
-                    coptions |= PCRE2_DOTALL;
-                    break;
-                case 'x':
-                    coptions |= PCRE2_EXTENDED;
-                    break;
-                    /* PCRE specific options */
-                case 'A':
-                    coptions |= PCRE2_ANCHORED;
-                    break;
-                case 'D':
-                    coptions |= PCRE2_DOLLAR_ENDONLY;
-                    break;
-                case 'U':
-                    coptions |= PCRE2_UNGREEDY;
-                    break;
-                case 'u':
-                    coptions |= PCRE2_UTF;
-                    /* In  PCRE,  by  default, \d, \D, \s, \S, \w, and \W recognize only
-         ASCII characters, even in UTF-8 mode. However, this can be changed by
-         setting the PCRE2_UCP option. */
-#ifdef PCRE2_UCP
-                    coptions |= PCRE2_UCP;
-#endif
-                    break;
-                case 'J':
-                    coptions |= PCRE2_DUPNAMES;
-                    break;
-                case ' ':
-                case '\n':
-                case '\r':
-                    break;
-                default:
-                    return coptions = (uint32_t)string->chars[i] + 1000000;
-            }
+            array->values[i + 1] = array->values[i];
         }
     }
-    if(!matchfound)
-        return -1;
     else
-        return coptions;
+    {
+        for(int i = array->count; i < index; i++)
+        {
+            array->values[i] = NIL_VAL;// nil out overflow indices
+            array->count++;
+        }
+    }
+    array->values[index] = value;
+    array->count++;
 }
 
-char* remove_regex_delimiter(VMState* vm, ObjString* string)
+void free_value_arr(VMState* vm, ValArray* array)
 {
-    if(string->length == 0)
-        return string->chars;
-    char start = string->chars[0];
-    int i = string->length - 1;
-    for(; i > 0; i--)
+    FREE_ARRAY(Value, array->values, array->capacity);
+    init_value_arr(array);
+}
+
+void free_byte_arr(VMState* vm, ByteArray* array)
+{
+    if(array && array->count > 0)
     {
-        if(string->chars[i] == start)
+        FREE_ARRAY(unsigned char, array->bytes, array->count);
+        array->count = 0;
+        array->bytes = NULL;
+    }
+}
+
+static void do_print_value(Value value, bool fixstring)
+{
+    switch(value.type)
+    {
+        case VAL_EMPTY:
+            break;
+        case VAL_NIL:
+            printf("nil");
+            break;
+        case VAL_BOOL:
+            printf(AS_BOOL(value) ? "true" : "false");
+            break;
+        case VAL_NUMBER:
+            printf(NUMBER_FORMAT, AS_NUMBER(value));
+            break;
+        case VAL_OBJ:
+            print_object(value, fixstring);
+            break;
+        default:
             break;
     }
-    char* str = ALLOCATE(char, i);
-    memcpy(str, string->chars + 1, (size_t)i - 1);
-    str[i - 1] = '\0';
-    return str;
 }
 
-bool objfn_string_length(VMState* vm, int argcount, Value* args)
+void print_value(Value value)
 {
-    ENFORCE_ARG_COUNT(length, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    RETURN_NUMBER(string->isascii ? string->length : string->utf8length);
+    do_print_value(value, false);
 }
 
-bool objfn_string_upper(VMState* vm, int argcount, Value* args)
+void echo_value(Value value)
 {
-    ENFORCE_ARG_COUNT(upper, 0);
-    char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
-    for(char* p = string; *p; p++)
-        *p = toupper(*p);
-    RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
+    do_print_value(value, true);
 }
 
-bool objfn_string_lower(VMState* vm, int argcount, Value* args)
+static char* number_to_string(VMState* vm, double number)
 {
-    ENFORCE_ARG_COUNT(lower, 0);
-    char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
-    for(char* p = string; *p; p++)
-        *p = tolower(*p);
-    RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
-}
-
-bool objfn_string_isalpha(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(is_alpha, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    for(int i = 0; i < string->length; i++)
+    int length = snprintf(NULL, 0, NUMBER_FORMAT, number);
+    char* numstr = ALLOCATE(char, length + 1);
+    if(numstr != NULL)
     {
-        if(!isalpha((unsigned char)string->chars[i]))
-        {
-            RETURN_FALSE;
-        }
+        sprintf(numstr, NUMBER_FORMAT, number);
+        return numstr;
     }
-    RETURN_BOOL(string->length != 0);
+    return "";
 }
 
-bool objfn_string_isalnum(VMState* vm, int argcount, Value* args)
+char* value_to_string(VMState* vm, Value value)
 {
-    ENFORCE_ARG_COUNT(isalnum, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    for(int i = 0; i < string->length; i++)
+    switch(value.type)
     {
-        if(!isalnum((unsigned char)string->chars[i]))
-        {
-            RETURN_FALSE;
-        }
+        case VAL_NIL:
+            return "nil";
+        case VAL_BOOL:
+            return AS_BOOL(value) ? "true" : "false";
+        case VAL_NUMBER:
+            return number_to_string(vm, AS_NUMBER(value));
+        case VAL_OBJ:
+            return object_to_string(vm, value);
+        default:
+            return "";
     }
-    RETURN_BOOL(string->length != 0);
 }
 
-bool objfn_string_isnumber(VMState* vm, int argcount, Value* args)
+const char* value_type(Value value)
 {
-    ENFORCE_ARG_COUNT(is_number, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    for(int i = 0; i < string->length; i++)
-    {
-        if(!isdigit((unsigned char)string->chars[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_BOOL(string->length != 0);
-}
-
-bool objfn_string_islower(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(islower, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    bool hasalpha;
-    for(int i = 0; i < string->length; i++)
-    {
-        bool isal = isalpha((unsigned char)string->chars[i]);
-        if(!hasalpha)
-        {
-            hasalpha = isal;
-        }
-        if(isal && !islower((unsigned char)string->chars[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_BOOL(string->length != 0 && hasalpha);
-}
-
-bool objfn_string_isupper(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(isupper, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    bool hasalpha;
-    for(int i = 0; i < string->length; i++)
-    {
-        bool isal = isalpha((unsigned char)string->chars[i]);
-        if(!hasalpha)
-        {
-            hasalpha = isal;
-        }
-        if(isal && !isupper((unsigned char)string->chars[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_BOOL(string->length != 0 && hasalpha);
-}
-
-bool objfn_string_isspace(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(isspace, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    for(int i = 0; i < string->length; i++)
-    {
-        if(!isspace((unsigned char)string->chars[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_BOOL(string->length != 0);
-}
-
-bool objfn_string_trim(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_RANGE(trim, 0, 1);
-    char trimmer = '\0';
-    if(argcount == 1)
-    {
-        ENFORCE_ARG_TYPE(trim, 0, IS_CHAR);
-        trimmer = (char)AS_STRING(args[0])->chars[0];
-    }
-    char* string = AS_C_STRING(METHOD_OBJECT);
-    char* end = NULL;
-    // Trim leading space
-    if(trimmer == '\0')
-    {
-        while(isspace((unsigned char)*string))
-            string++;
-    }
+    if(IS_EMPTY(value))
+        return "empty";
+    if(IS_NIL(value))
+        return "nil";
+    else if(IS_BOOL(value))
+        return "boolean";
+    else if(IS_NUMBER(value))
+        return "number";
+    else if(IS_OBJ(value))
+        return object_type(AS_OBJ(value));
     else
-    {
-        while(trimmer == *string)
-            string++;
-    }
-    if(*string == 0)
-    {// All spaces?
-        RETURN_OBJ(copy_string(vm, "", 0));
-    }
-    // Trim trailing space
-    end = string + strlen(string) - 1;
-    if(trimmer == '\0')
-    {
-        while(end > string && isspace((unsigned char)*end))
-            end--;
-    }
-    else
-    {
-        while(end > string && trimmer == *end)
-            end--;
-    }
-    // Write new null terminator character
-    end[1] = '\0';
-    RETURN_L_STRING(string, strlen(string));
+        return "unknown";
 }
 
-bool objfn_string_ltrim(VMState* vm, int argcount, Value* args)
+bool values_equal(Value a, Value b)
 {
-    ENFORCE_ARG_RANGE(ltrim, 0, 1);
-    char trimmer = '\0';
-    if(argcount == 1)
+    if(a.type != b.type)
+        return false;
+    switch(a.type)
     {
-        ENFORCE_ARG_TYPE(ltrim, 0, IS_CHAR);
-        trimmer = (char)AS_STRING(args[0])->chars[0];
+        case VAL_NIL:
+        case VAL_EMPTY:
+            return true;
+        case VAL_BOOL:
+            return AS_BOOL(a) == AS_BOOL(b);
+        case VAL_NUMBER:
+            return AS_NUMBER(a) == AS_NUMBER(b);
+        case VAL_OBJ:
+            return AS_OBJ(a) == AS_OBJ(b);
+        default:
+            return false;
     }
-    char* string = AS_C_STRING(METHOD_OBJECT);
-    char* end = NULL;
-    // Trim leading space
-    if(trimmer == '\0')
-    {
-        while(isspace((unsigned char)*string))
-            string++;
-    }
-    else
-    {
-        while(trimmer == *string)
-            string++;
-    }
-    if(*string == 0)
-    {// All spaces?
-        RETURN_OBJ(copy_string(vm, "", 0));
-    }
-    end = string + strlen(string) - 1;
-    // Write new null terminator character
-    end[1] = '\0';
-    RETURN_L_STRING(string, strlen(string));
 }
 
-bool objfn_string_rtrim(VMState* vm, int argcount, Value* args)
+static uint32_t hash_bits(uint64_t hash)
 {
-    ENFORCE_ARG_RANGE(rtrim, 0, 1);
-    char trimmer = '\0';
-    if(argcount == 1)
-    {
-        ENFORCE_ARG_TYPE(rtrim, 0, IS_CHAR);
-        trimmer = (char)AS_STRING(args[0])->chars[0];
-    }
-    char* string = AS_C_STRING(METHOD_OBJECT);
-    char* end = NULL;
-    if(*string == 0)
-    {// All spaces?
-        RETURN_OBJ(copy_string(vm, "", 0));
-    }
-    end = string + strlen(string) - 1;
-    if(trimmer == '\0')
-    {
-        while(end > string && isspace((unsigned char)*end))
-            end--;
-    }
-    else
-    {
-        while(end > string && trimmer == *end)
-            end--;
-    }
-    // Write new null terminator character
-    end[1] = '\0';
-    RETURN_L_STRING(string, strlen(string));
+    // From v8's ComputeLongHash() which in turn cites:
+    // Thomas Wang, Integer Hash Functions.
+    // http://www.concentric.net/~Ttwang/tech/inthash.htm
+    hash = ~hash + (hash << 18);// hash = (hash << 18) - hash - 1;
+    hash = hash ^ (hash >> 31);
+    hash = hash * 21;// hash = (hash + (hash << 2)) + (hash << 4);
+    hash = hash ^ (hash >> 11);
+    hash = hash + (hash << 6);
+    hash = hash ^ (hash >> 22);
+    return (uint32_t)(hash & 0x3fffffff);
 }
 
-bool objfn_string_join(VMState* vm, int argcount, Value* args)
+uint32_t hash_double(double value)
 {
-    ENFORCE_ARG_COUNT(join, 1);
-    ENFORCE_ARG_TYPE(join, 0, IS_OBJ);
-    ObjString* methodobj = AS_STRING(METHOD_OBJECT);
-    Value argument = args[0];
-    if(IS_STRING(argument))
+    typedef union bdoubleunion bdoubleunion;
+
+    union bdoubleunion
     {
-        // empty argument
-        if(methodobj->length == 0)
-        {
-            RETURN_VALUE(argument);
-        }
-        else if(AS_STRING(argument)->length == 0)
-        {
-            RETURN_VALUE(argument);
-        }
-        ObjString* string = AS_STRING(argument);
-        char* result = ALLOCATE(char, 2);
-        result[0] = string->chars[0];
-        result[1] = '\0';
-        for(int i = 1; i < string->length; i++)
-        {
-            if(methodobj->length > 0)
-            {
-                result = append_strings(result, methodobj->chars);
-            }
-            char* chr = (char*)calloc(2, sizeof(char));
-            chr[0] = string->chars[i];
-            chr[1] = '\0';
-            result = append_strings(result, chr);
-            free(chr);
-        }
-        RETURN_TT_STRING(result);
+        uint64_t bits;
+        double num;
+    };
+
+    bdoubleunion bits;
+    bits.num = value;
+    return hash_bits(bits.bits);
+}
+
+uint32_t hash_string(const char* key, int length)
+{
+    /*
+    uint32_t hash = 2166136261u;
+    const char* be = key + length;
+    while(key < be)
+    {
+        hash = (hash ^ *key++) * 16777619;
     }
-    else if(IS_LIST(argument) || IS_DICT(argument))
+    return hash;
+    // return siphash24(127, 255, key, length);
+    */
+    return XXH3_64bits(key, length);
+}
+
+// Generates a hash code for [object].
+static uint32_t hash_object(Object* object)
+{
+    switch(object->type)
     {
-        Value* list;
-        int count = 0;
-        if(IS_DICT(argument))
+        case OBJ_CLASS:
+            // Classes just use their name.
+            return ((ObjClass*)object)->name->hash;
+            // Allow bare (non-closure) functions so that we can use a map to find
+            // existing constants in a function's constant table. This is only used
+            // internally. Since user code never sees a non-closure function, they
+            // cannot use them as map keys.
+        case OBJ_FUNCTION:
         {
-            list = AS_DICT(argument)->names.values;
-            count = AS_DICT(argument)->names.count;
+            ObjFunction* fn = (ObjFunction*)object;
+            return hash_double(fn->arity) ^ hash_double(fn->blob.count);
+        }
+        case OBJ_STRING:
+            return ((ObjString*)object)->hash;
+        case OBJ_BYTES:
+        {
+            ObjBytes* bytes = ((ObjBytes*)object);
+            return hash_string((const char*)bytes->bytes.bytes, bytes->bytes.count);
+        }
+        default:
+            return 0;
+    }
+}
+
+uint32_t hash_value(Value value)
+{
+    switch(value.type)
+    {
+        case VAL_BOOL:
+            return AS_BOOL(value) ? 3 : 5;
+        case VAL_NIL:
+            return 7;
+        case VAL_NUMBER:
+            return hash_double(AS_NUMBER(value));
+        case VAL_OBJ:
+            return hash_object(AS_OBJ(value));
+        default:// VAL_EMPTY
+            return 0;
+    }
+}
+
+/**
+ * returns the greater of the two values.
+ * this function encapsulates Blade's object hierarchy
+ */
+static Value find_max_value(Value a, Value b)
+{
+    if(IS_NIL(a))
+    {
+        return b;
+    }
+    else if(IS_BOOL(a))
+    {
+        if(IS_NIL(b) || (IS_BOOL(b) && AS_BOOL(b) == false))
+            return a;// only nil, false and false are lower than numbers
+        else
+            return b;
+    }
+    else if(IS_NUMBER(a))
+    {
+        if(IS_NIL(b) || IS_BOOL(b))
+            return a;
+        else if(IS_NUMBER(b))
+            return AS_NUMBER(a) >= AS_NUMBER(b) ? a : b;
+        else
+            return b;// every other thing is greater than a number
+    }
+    else if(IS_OBJ(a))
+    {
+        if(IS_STRING(a) && IS_STRING(b))
+        {
+            return strcmp(AS_C_STRING(a), AS_C_STRING(b)) >= 0 ? a : b;
+        }
+        else if(IS_FUNCTION(a) && IS_FUNCTION(b))
+        {
+            return AS_FUNCTION(a)->arity >= AS_FUNCTION(b)->arity ? a : b;
+        }
+        else if(IS_CLOSURE(a) && IS_CLOSURE(b))
+        {
+            return AS_CLOSURE(a)->fnptr->arity >= AS_CLOSURE(b)->fnptr->arity ? a : b;
+        }
+        else if(IS_RANGE(a) && IS_RANGE(b))
+        {
+            return AS_RANGE(a)->lower >= AS_RANGE(b)->lower ? a : b;
+        }
+        else if(IS_CLASS(a) && IS_CLASS(b))
+        {
+            return AS_CLASS(a)->methods.count >= AS_CLASS(b)->methods.count ? a : b;
+        }
+        else if(IS_LIST(a) && IS_LIST(b))
+        {
+            return AS_LIST(a)->items.count >= AS_LIST(b)->items.count ? a : b;
+        }
+        else if(IS_DICT(a) && IS_DICT(b))
+        {
+            return AS_DICT(a)->names.count >= AS_DICT(b)->names.count ? a : b;
+        }
+        else if(IS_BYTES(a) && IS_BYTES(b))
+        {
+            return AS_BYTES(a)->bytes.count >= AS_BYTES(b)->bytes.count ? a : b;
+        }
+        else if(IS_FILE(a) && IS_FILE(b))
+        {
+            return strcmp(AS_FILE(a)->path->chars, AS_FILE(b)->path->chars) >= 0 ? a : b;
+        }
+        else if(IS_OBJ(b))
+        {
+            return AS_OBJ(a)->type >= AS_OBJ(b)->type ? a : b;
         }
         else
         {
-            list = AS_LIST(argument)->items.values;
-            count = AS_LIST(argument)->items.count;
-        }
-        if(count == 0)
-        {
-            RETURN_L_STRING("", 0);
-        }
-        char* result = value_to_string(vm, list[0]);
-        for(int i = 1; i < count; i++)
-        {
-            if(methodobj->length > 0)
-            {
-                result = append_strings(result, methodobj->chars);
-            }
-            char* str = value_to_string(vm, list[i]);
-            result = append_strings(result, str);
-            free(str);
-        }
-        RETURN_TT_STRING(result);
-    }
-    RETURN_ERROR("join() does not support object of type %s", value_type(argument));
-}
-
-bool objfn_string_split(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(split, 1);
-    ENFORCE_ARG_TYPE(split, 0, IS_STRING);
-    ObjString* object = AS_STRING(METHOD_OBJECT);
-    ObjString* delimeter = AS_STRING(args[0]);
-    if(object->length == 0 || delimeter->length > object->length)
-        RETURN_OBJ(new_list(vm));
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    // main work here...
-    if(delimeter->length > 0)
-    {
-        int start = 0;
-        for(int i = 0; i <= object->length; i++)
-        {
-            // match found.
-            if(memcmp(object->chars + i, delimeter->chars, delimeter->length) == 0 || i == object->length)
-            {
-                write_list(vm, list, GC_L_STRING(object->chars + start, i - start));
-                i += delimeter->length - 1;
-                start = i + 1;
-            }
+            return a;
         }
     }
     else
     {
-        int length = object->isascii ? object->length : object->utf8length;
-        for(int i = 0; i < length; i++)
+        return a;
+    }
+}
+
+/**
+ * sorts values in an array using the bubble-sort algorithm
+ */
+void sort_values(Value* values, int count)
+{
+    for(int i = 0; i < count; i++)
+    {
+        for(int j = 0; j < count; j++)
         {
-            int start = i, end = i + 1;
-            if(!object->isascii)
+            if(values_equal(values[j], find_max_value(values[i], values[j])))
             {
-                utf8slice(object->chars, &start, &end);
+                Value temp = values[i];
+                values[i] = values[j];
+                values[j] = temp;
+                if(IS_LIST(values[i]))
+                    sort_values(AS_LIST(values[i])->items.values, AS_LIST(values[i])->items.count);
+                if(IS_LIST(values[j]))
+                    sort_values(AS_LIST(values[j])->items.values, AS_LIST(values[j])->items.count);
             }
-            write_list(vm, list, GC_L_STRING(object->chars + start, (int)(end - start)));
         }
     }
-    RETURN_OBJ(list);
 }
 
-bool objfn_string_indexof(VMState* vm, int argcount, Value* args)
+
+bool is_false(Value value)
 {
-    ENFORCE_ARG_COUNT(indexof, 1);
-    ENFORCE_ARG_TYPE(indexof, 0, IS_STRING);
-    char* str = AS_C_STRING(METHOD_OBJECT);
-    char* result = strstr(str, AS_C_STRING(args[0]));
-    if(result != NULL)
-        RETURN_NUMBER((int)(result - str));
-    RETURN_NUMBER(-1);
+    if(IS_BOOL(value))
+        return IS_BOOL(value) && !AS_BOOL(value);
+    if(IS_NIL(value) || IS_EMPTY(value))
+        return true;
+    // -1 is the number equivalent of false in Blade
+    if(IS_NUMBER(value))
+        return AS_NUMBER(value) < 0;
+    // Non-empty strings are true, empty strings are false.
+    if(IS_STRING(value))
+        return AS_STRING(value)->length < 1;
+    // Non-empty bytes are true, empty strings are false.
+    if(IS_BYTES(value))
+        return AS_BYTES(value)->bytes.count < 1;
+    // Non-empty lists are true, empty lists are false.
+    if(IS_LIST(value))
+        return AS_LIST(value)->items.count == 0;
+    // Non-empty dicts are true, empty dicts are false.
+    if(IS_DICT(value))
+        return AS_DICT(value)->names.count == 0;
+    // All classes are true
+    // All closures are true
+    // All bound methods are true
+    // All functions are in themselves true if you do not account for what they
+    // return.
+    return false;
 }
 
-bool objfn_string_startswith(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(startswith, 1);
-    ENFORCE_ARG_TYPE(startswith, 0, IS_STRING);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjString* substr = AS_STRING(args[0]);
-    if(string->length == 0 || substr->length == 0 || substr->length > string->length)
-        RETURN_FALSE;
-    RETURN_BOOL(memcmp(substr->chars, string->chars, substr->length) == 0);
-}
 
-bool objfn_string_endswith(VMState* vm, int argcount, Value* args)
+Value copy_value(VMState* vm, Value value)
 {
-    ENFORCE_ARG_COUNT(endswith, 1);
-    ENFORCE_ARG_TYPE(endswith, 0, IS_STRING);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjString* substr = AS_STRING(args[0]);
-    if(string->length == 0 || substr->length == 0 || substr->length > string->length)
-        RETURN_FALSE;
-    int difference = string->length - substr->length;
-    RETURN_BOOL(memcmp(substr->chars, string->chars + difference, substr->length) == 0);
-}
-
-bool objfn_string_count(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(count, 1);
-    ENFORCE_ARG_TYPE(count, 0, IS_STRING);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjString* substr = AS_STRING(args[0]);
-    if(substr->length == 0 || string->length == 0)
-        RETURN_NUMBER(0);
-    int count = 0;
-    const char* tmp = string->chars;
-    while((tmp = strstr(tmp, substr->chars)))
+    if(IS_OBJ(value))
     {
-        count++;
-        tmp++;
-    }
-    RETURN_NUMBER(count);
-}
-
-bool objfn_string_tonumber(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(to_number, 0);
-    RETURN_NUMBER(strtod(AS_C_STRING(METHOD_OBJECT), NULL));
-}
-
-bool objfn_string_ascii(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(ascii, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    string->isascii = true;
-    RETURN_OBJ(string);
-}
-
-bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(to_list, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    int length = string->isascii ? string->length : string->utf8length;
-    if(length > 0)
-    {
-        for(int i = 0; i < length; i++)
+        switch(AS_OBJ(value)->type)
         {
-            int start = i, end = i + 1;
-            if(!string->isascii)
+            case OBJ_STRING:
             {
-                utf8slice(string->chars, &start, &end);
+                ObjString* string = AS_STRING(value);
+                return OBJ_VAL(copy_string(vm, string->chars, string->length));
             }
-            write_list(vm, list, GC_L_STRING(string->chars + start, (int)(end - start)));
-        }
-    }
-    RETURN_OBJ(list);
-}
-
-bool objfn_string_lpad(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_RANGE(lpad, 1, 2);
-    ENFORCE_ARG_TYPE(lpad, 0, IS_NUMBER);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    int width = AS_NUMBER(args[0]);
-    char fillchar = ' ';
-    if(argcount == 2)
-    {
-        ENFORCE_ARG_TYPE(lpad, 1, IS_CHAR);
-        fillchar = AS_C_STRING(args[1])[0];
-    }
-    if(width <= string->utf8length)
-        RETURN_VALUE(METHOD_OBJECT);
-    int fillsize = width - string->utf8length;
-    char* fill = ALLOCATE(char, (size_t)fillsize + 1);
-    int finalsize = string->length + fillsize;
-    int finalutf8size = string->utf8length + fillsize;
-    for(int i = 0; i < fillsize; i++)
-        fill[i] = fillchar;
-    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
-    memcpy(str, fill, fillsize);
-    memcpy(str + fillsize, string->chars, string->length);
-    str[finalsize] = '\0';
-    ObjString* result = take_string(vm, str, finalsize);
-    result->utf8length = finalutf8size;
-    result->length = finalsize;
-    RETURN_OBJ(result);
-}
-
-bool objfn_string_rpad(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_RANGE(rpad, 1, 2);
-    ENFORCE_ARG_TYPE(rpad, 0, IS_NUMBER);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    int width = AS_NUMBER(args[0]);
-    char fillchar = ' ';
-    if(argcount == 2)
-    {
-        ENFORCE_ARG_TYPE(rpad, 1, IS_CHAR);
-        fillchar = AS_C_STRING(args[1])[0];
-    }
-    if(width <= string->utf8length)
-        RETURN_VALUE(METHOD_OBJECT);
-    int fillsize = width - string->utf8length;
-    char* fill = ALLOCATE(char, (size_t)fillsize + 1);
-    int finalsize = string->length + fillsize;
-    int finalutf8size = string->utf8length + fillsize;
-    for(int i = 0; i < fillsize; i++)
-        fill[i] = fillchar;
-    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
-    memcpy(str, string->chars, string->length);
-    memcpy(str + string->length, fill, fillsize);
-    str[finalsize] = '\0';
-    ObjString* result = take_string(vm, str, finalsize);
-    result->utf8length = finalutf8size;
-    result->length = finalsize;
-    RETURN_OBJ(result);
-}
-
-bool objfn_string_match(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(match, 1);
-    ENFORCE_ARG_TYPE(match, 0, IS_STRING);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjString* substr = AS_STRING(args[0]);
-    if(string->length == 0 && substr->length == 0)
-    {
-        RETURN_TRUE;
-    }
-    else if(string->length == 0 || substr->length == 0)
-    {
-        RETURN_FALSE;
-    }
-    GET_REGEX_COMPILE_OPTIONS(substr, false);
-    if((int)compileoptions < 0)
-    {
-        RETURN_BOOL(strstr(string->chars, substr->chars) - string->chars > -1);
-    }
-    char* realregex = remove_regex_delimiter(vm, substr);
-    int errornumber;
-    PCRE2_SIZE erroroffset;
-    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
-    PCRE2_SPTR subject = (PCRE2_SPTR)string->chars;
-    PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
-    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
-    free(realregex);
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
-    pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
-    int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
-    if(rc < 0)
-    {
-        if(rc == PCRE2_ERROR_NOMATCH)
-        {
-            RETURN_FALSE;
-        }
-        else
-        {
-            REGEX_RC_ERROR();
-        }
-    }
-    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
-    uint32_t namecount;
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
-    for(int i = 0; i < rc; i++)
-    {
-        PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
-        PCRE2_SPTR substringstart = subject + ovector[2 * i];
-        dict_set_entry(vm, result, NUMBER_VAL(i), GC_L_STRING((char*)substringstart, (int)substringlength));
-    }
-    if(namecount > 0)
-    {
-        uint32_t nameentrysize;
-        PCRE2_SPTR nametable;
-        PCRE2_SPTR tabptr;
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
-        tabptr = nametable;
-        for(int i = 0; i < (int)namecount; i++)
-        {
-            int n = (tabptr[0] << 8) | tabptr[1];
-            int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
-            int keylength = (int)nameentrysize - 3;
-            char* _key = ALLOCATE(char, keylength + 1);
-            char* _val = ALLOCATE(char, valuelength + 1);
-            sprintf(_key, "%*s", keylength, tabptr + 2);
-            sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
-            while(isspace((unsigned char)*_key))
-                _key++;
-            dict_set_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))),
-                           OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
-            tabptr += nameentrysize;
-        }
-    }
-    pcre2_match_data_free(matchdata);
-    pcre2_code_free(re);
-    RETURN_OBJ(result);
-}
-
-bool objfn_string_matches(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(matches, 1);
-    ENFORCE_ARG_TYPE(matches, 0, IS_STRING);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjString* substr = AS_STRING(args[0]);
-    if(string->length == 0 && substr->length == 0)
-    {
-        RETURN_OBJ(new_list(vm));// empty string matches empty string to empty list
-    }
-    else if(string->length == 0 || substr->length == 0)
-    {
-        RETURN_FALSE;// if either string or str is empty, return false
-    }
-    GET_REGEX_COMPILE_OPTIONS(substr, true);
-    char* realregex = remove_regex_delimiter(vm, substr);
-    int errornumber;
-    PCRE2_SIZE erroroffset;
-    uint32_t optionbits;
-    uint32_t newline;
-    uint32_t namecount, groupcount;
-    uint32_t nameentrysize;
-    PCRE2_SPTR nametable;
-    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
-    PCRE2_SPTR subject = (PCRE2_SPTR)string->chars;
-    PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
-    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
-    free(realregex);
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
-    pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
-    int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
-    if(rc < 0)
-    {
-        if(rc == PCRE2_ERROR_NOMATCH)
-        {
-            RETURN_FALSE;
-        }
-        else
-        {
-            REGEX_RC_ERROR();
-        }
-    }
-    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
-    //   REGEX_VECTOR_SIZE_WARNING();
-    // handle edge cases such as /(?=.\K)/
-    REGEX_ASSERTION_ERROR(re, matchdata, ovector);
-    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
-    (void)pcre2_pattern_info(re, PCRE2_INFO_CAPTURECOUNT, &groupcount);
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    for(int i = 0; i < rc; i++)
-    {
-        dict_set_entry(vm, result, NUMBER_VAL(0), NIL_VAL);
-    }
-    // add first set of matches to response
-    for(int i = 0; i < rc; i++)
-    {
-        ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-        PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
-        PCRE2_SPTR substringstart = subject + ovector[2 * i];
-        write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
-        dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
-    }
-    if(namecount > 0)
-    {
-        PCRE2_SPTR tabptr;
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
-        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
-        tabptr = nametable;
-        for(int i = 0; i < (int)namecount; i++)
-        {
-            int n = (tabptr[0] << 8) | tabptr[1];
-            int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
-            int keylength = (int)nameentrysize - 3;
-            char* _key = ALLOCATE(char, keylength + 1);
-            char* _val = ALLOCATE(char, valuelength + 1);
-            sprintf(_key, "%*s", keylength, tabptr + 2);
-            sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
-            while(isspace((unsigned char)*_key))
-                _key++;
-            ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-            write_list(vm, list, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
-            dict_add_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))), OBJ_VAL(list));
-            tabptr += nameentrysize;
-        }
-    }
-    (void)pcre2_pattern_info(re, PCRE2_INFO_ALLOPTIONS, &optionbits);
-    int utf8 = (optionbits & PCRE2_UTF) != 0;
-    (void)pcre2_pattern_info(re, PCRE2_INFO_NEWLINE, &newline);
-    int crlfisnewline = newline == PCRE2_NEWLINE_ANY || newline == PCRE2_NEWLINE_CRLF || newline == PCRE2_NEWLINE_ANYCRLF;
-    // find the other matches
-    for(;;)
-    {
-        uint32_t options = 0;
-        PCRE2_SIZE startoffset = ovector[1];
-        // if the previous match was for an empty string
-        if(ovector[0] == ovector[1])
-        {
-            if(ovector[0] == subjectlength)
-                break;
-            options = PCRE2_NOTEMPTY_ATSTART | PCRE2_ANCHORED;
-        }
-        else
-        {
-            PCRE2_SIZE startchar = pcre2_get_startchar(matchdata);
-            if(startoffset > subjectlength - 1)
+            case OBJ_BYTES:
             {
-                break;
+                ObjBytes* bytes = AS_BYTES(value);
+                return OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes, bytes->bytes.count));
             }
-            if(startoffset <= startchar)
+            case OBJ_LIST:
             {
-                if(startchar >= subjectlength - 1)
+                ObjList* list = AS_LIST(value);
+                ObjList* nlist = new_list(vm);
+                push(vm, OBJ_VAL(nlist));
+                for(int i = 0; i < list->items.count; i++)
                 {
-                    break;
+                    write_value_arr(vm, &nlist->items, list->items.values[i]);
                 }
-                startoffset = startchar + 1;
-                if(utf8)
-                {
-                    for(; startoffset < subjectlength; startoffset++)
-                        if((subject[startoffset] & 0xc0) != 0x80)
-                            break;
-                }
+                pop(vm);
+                return OBJ_VAL(nlist);
             }
-        }
-        rc = pcre2_match(re, subject, subjectlength, startoffset, options, matchdata, NULL);
-        if(rc == PCRE2_ERROR_NOMATCH)
-        {
-            if(options == 0)
-                break;
-            ovector[1] = startoffset + 1;
-            if(crlfisnewline && startoffset < subjectlength - 1 && subject[startoffset] == '\r' && subject[startoffset + 1] == '\n')
-                ovector[1] += 1;
-            else if(utf8)
-            {
-                while(ovector[1] < subjectlength)
-                {
-                    if((subject[ovector[1]] & 0xc0) != 0x80)
-                        break;
-                    ovector[1] += 1;
-                }
-            }
-            continue;
-        }
-        if(rc < 0 && rc != PCRE2_ERROR_PARTIAL)
-        {
-            pcre2_match_data_free(matchdata);
-            pcre2_code_free(re);
-            REGEX_ERR("regular expression error %d", rc);
-        }
-        // REGEX_VECTOR_SIZE_WARNING();
-        REGEX_ASSERTION_ERROR(re, matchdata, ovector);
-        for(int i = 0; i < rc; i++)
-        {
-            PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
-            PCRE2_SPTR substringstart = subject + ovector[2 * i];
-            Value vlist;
-            if(dict_get_entry(result, NUMBER_VAL(i), &vlist))
-            {
-                write_list(vm, AS_LIST(vlist), GC_L_STRING((char*)substringstart, (int)substringlength));
-            }
-            else
-            {
-                ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-                write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
-                dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
-            }
-        }
-        if(namecount > 0)
-        {
-            PCRE2_SPTR tabptr;
-            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
-            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
-            tabptr = nametable;
-            for(int i = 0; i < (int)namecount; i++)
-            {
-                int n = (tabptr[0] << 8) | tabptr[1];
-                int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
-                int keylength = (int)nameentrysize - 3;
-                char* _key = ALLOCATE(char, keylength + 1);
-                char* _val = ALLOCATE(char, valuelength + 1);
-                sprintf(_key, "%*s", keylength, tabptr + 2);
-                sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
-                while(isspace((unsigned char)*_key))
-                    _key++;
-                ObjString* name = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _key, keylength));
-                ObjString* value = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _val, valuelength));
-                Value nlist;
-                if(dict_get_entry(result, OBJ_VAL(name), &nlist))
-                {
-                    write_list(vm, AS_LIST(nlist), OBJ_VAL(value));
-                }
-                else
-                {
-                    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-                    write_list(vm, list, OBJ_VAL(value));
-                    dict_set_entry(vm, result, OBJ_VAL(name), OBJ_VAL(list));
-                }
-                tabptr += nameentrysize;
-            }
+            /*case OBJ_DICT: {
+        ObjDict *dict = AS_DICT(value);
+        ObjDict *ndict = new_dict(vm);
+        // @TODO: Figure out how to handle dictionary values correctly
+        // remember that copying keys is redundant and unnecessary
+      }*/
+            default:
+                return value;
         }
     }
-    pcre2_match_data_free(matchdata);
-    pcre2_code_free(re);
-    RETURN_OBJ(result);
+    return value;
 }
 
-bool objfn_string_replace(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(replace, 2);
-    ENFORCE_ARG_TYPE(replace, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(replace, 1, IS_STRING);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjString* substr = AS_STRING(args[0]);
-    ObjString* repsubstr = AS_STRING(args[1]);
-    if(string->length == 0 && substr->length == 0)
-    {
-        RETURN_TRUE;
-    }
-    else if(string->length == 0 || substr->length == 0)
-    {
-        RETURN_FALSE;
-    }
-    GET_REGEX_COMPILE_OPTIONS(substr, false);
-    char* realregex = remove_regex_delimiter(vm, substr);
-    PCRE2_SPTR input = (PCRE2_SPTR)string->chars;
-    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
-    PCRE2_SPTR replacement = (PCRE2_SPTR)repsubstr->chars;
-    int result, errornumber;
-    PCRE2_SIZE erroroffset;
-    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions & PCRE2_MULTILINE, &errornumber, &erroroffset, 0);
-    free(realregex);
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
-    pcre2_match_context* matchcontext = pcre2_match_context_create(0);
-    PCRE2_SIZE outputlength = 0;
-    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_OVERFLOW_LENGTH, 0, matchcontext, replacement,
-                              PCRE2_ZERO_TERMINATED, 0, &outputlength);
-    if(result < 0 && result != PCRE2_ERROR_NOMEMORY)
-    {
-        REGEX_ERR("regular expression post-compilation failed for replacement", result);
-    }
-    PCRE2_UCHAR* outputbuffer = ALLOCATE(PCRE2_UCHAR, outputlength);
-    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_UNSET_EMPTY, 0, matchcontext, replacement,
-                              PCRE2_ZERO_TERMINATED, outputbuffer, &outputlength);
-    if(result < 0 && result != PCRE2_ERROR_NOMEMORY)
-    {
-        REGEX_ERR("regular expression error at replacement time", result);
-    }
-    ObjString* response = take_string(vm, (char*)outputbuffer, (int)outputlength);
-    pcre2_match_context_free(matchcontext);
-    pcre2_code_free(re);
-    RETURN_OBJ(response);
-}
-
-bool objfn_string_tobytes(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(tobytes, 0);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    RETURN_OBJ(copy_bytes(vm, (unsigned char*)string->chars, string->length));
-}
-
-bool objfn_string_iter(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(__iter__, 1);
-    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    int length = string->isascii ? string->length : string->utf8length;
-    int index = AS_NUMBER(args[0]);
-    if(index > -1 && index < length)
-    {
-        int start = index, end = index + 1;
-        if(!string->isascii)
-        {
-            utf8slice(string->chars, &start, &end);
-        }
-        RETURN_L_STRING(string->chars + start, (int)(end - start));
-    }
-    RETURN_NIL;
-}
-
-bool objfn_string_itern(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(__itern__, 1);
-    ObjString* string = AS_STRING(METHOD_OBJECT);
-    int length = string->isascii ? string->length : string->utf8length;
-    if(IS_NIL(args[0]))
-    {
-        if(length == 0)
-        {
-            RETURN_FALSE;
-        }
-        RETURN_NUMBER(0);
-    }
-    if(!IS_NUMBER(args[0]))
-    {
-        RETURN_ERROR("bytes are numerically indexed");
-    }
-    int index = AS_NUMBER(args[0]);
-    if(index < length - 1)
-    {
-        RETURN_NUMBER((double)index + 1);
-    }
-    RETURN_NIL;
-}
-
-#include <ctype.h>
-#include <string.h>
-
-bool cfn_bytes(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(bytes, 1);
-    if(IS_NUMBER(args[0]))
-    {
-        RETURN_OBJ(new_bytes(vm, (int)AS_NUMBER(args[0])));
-    }
-    else if(IS_LIST(args[0]))
-    {
-        ObjList* list = AS_LIST(args[0]);
-        ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, list->items.count));
-        for(int i = 0; i < list->items.count; i++)
-        {
-            if(IS_NUMBER(list->items.values[i]))
-            {
-                bytes->bytes.bytes[i] = (unsigned char)AS_NUMBER(list->items.values[i]);
-            }
-            else
-            {
-                bytes->bytes.bytes[i] = 0;
-            }
-        }
-        RETURN_OBJ(bytes);
-    }
-    RETURN_ERROR("expected bytes size or bytes list as argument");
-}
-
-bool objfn_bytes_length(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(length, 0);
-    RETURN_NUMBER(AS_BYTES(METHOD_OBJECT)->bytes.count);
-}
-
-bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(append, 1);
-    if(IS_NUMBER(args[0]))
-    {
-        int byte = (int)AS_NUMBER(args[0]);
-        if(byte < 0 || byte > 255)
-        {
-            RETURN_ERROR("invalid byte. bytes range from 0 to 255");
-        }
-        // append here...
-        ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-        int oldcount = bytes->bytes.count;
-        bytes->bytes.count++;
-        bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, oldcount, bytes->bytes.count);
-        bytes->bytes.bytes[bytes->bytes.count - 1] = (unsigned char)byte;
-        RETURN;
-    }
-    else if(IS_LIST(args[0]))
-    {
-        ObjList* list = AS_LIST(args[0]);
-        if(list->items.count > 0)
-        {
-            // append here...
-            ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-            bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, (size_t)bytes->bytes.count + (size_t)list->items.count);
-            if(bytes->bytes.bytes == NULL)
-            {
-                RETURN_ERROR("out of memory");
-            }
-            for(int i = 0; i < list->items.count; i++)
-            {
-                if(!IS_NUMBER(list->items.values[i]))
-                {
-                    RETURN_ERROR("bytes lists can only contain numbers");
-                }
-                int byte = (int)AS_NUMBER(list->items.values[i]);
-                if(byte < 0 || byte > 255)
-                {
-                    RETURN_ERROR("invalid byte. bytes range from 0 to 255");
-                }
-                bytes->bytes.bytes[bytes->bytes.count + i] = (unsigned char)byte;
-            }
-            bytes->bytes.count += list->items.count;
-        }
-        RETURN;
-    }
-    RETURN_ERROR("bytes can only append a byte or a list of bytes");
-}
-
-bool objfn_bytes_clone(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(clone, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
-    memcpy(nbytes->bytes.bytes, bytes->bytes.bytes, bytes->bytes.count);
-    RETURN_OBJ(nbytes);
-}
-
-bool objfn_bytes_extend(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(extend, 1);
-    ENFORCE_ARG_TYPE(extend, 0, IS_BYTES);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = AS_BYTES(args[0]);
-    bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, bytes->bytes.count + nbytes->bytes.count);
-    if(bytes->bytes.bytes == NULL)
-    {
-        RETURN_ERROR("out of memory");
-    }
-    memcpy(bytes->bytes.bytes + bytes->bytes.count, nbytes->bytes.bytes, nbytes->bytes.count);
-    bytes->bytes.count += nbytes->bytes.count;
-    RETURN_OBJ(bytes);
-}
-
-bool objfn_bytes_pop(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(pop, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    unsigned char c = bytes->bytes.bytes[bytes->bytes.count - 1];
-    bytes->bytes.count--;
-    RETURN_NUMBER((double)((int)c));
-}
-
-bool objfn_bytes_remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 1);
-    ENFORCE_ARG_TYPE(remove, 0, IS_NUMBER);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    int index = AS_NUMBER(args[0]);
-    if(index < 0 || index >= bytes->bytes.count)
-    {
-        RETURN_ERROR("bytes index %d out of range", index);
-    }
-    unsigned char val = bytes->bytes.bytes[index];
-    for(int i = index; i < bytes->bytes.count; i++)
-    {
-        bytes->bytes.bytes[i] = bytes->bytes.bytes[i + 1];
-    }
-    bytes->bytes.count--;
-    RETURN_NUMBER((double)((int)val));
-}
-
-bool objfn_bytes_reverse(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(reverse, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        nbytes->bytes.bytes[i] = bytes->bytes.bytes[bytes->bytes.count - i - 1];
-    }
-    RETURN_OBJ(nbytes);
-}
-
-bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(split, 1);
-    ENFORCE_ARG_TYPE(split, 0, IS_BYTES);
-    ByteArray object = AS_BYTES(METHOD_OBJECT)->bytes;
-    ByteArray delimeter = AS_BYTES(args[0])->bytes;
-    if(object.count == 0 || delimeter.count > object.count)
-        RETURN_OBJ(new_list(vm));
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    // main work here...
-    if(delimeter.count > 0)
-    {
-        int start = 0;
-        for(int i = 0; i <= object.count; i++)
-        {
-            // match found.
-            if(memcmp(object.bytes + i, delimeter.bytes, delimeter.count) == 0 || i == object.count)
-            {
-                ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, i - start));
-                memcpy(bytes->bytes.bytes, object.bytes + start, i - start);
-                write_list(vm, list, OBJ_VAL(bytes));
-                i += delimeter.count - 1;
-                start = i + 1;
-            }
-        }
-    }
-    else
-    {
-        int length = object.count;
-        for(int i = 0; i < length; i++)
-        {
-            ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, 1));
-            memcpy(bytes->bytes.bytes, object.bytes + i, 1);
-            write_list(vm, list, OBJ_VAL(bytes));
-        }
-    }
-    RETURN_OBJ(list);
-}
-
-bool objfn_bytes_first(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(first, 0);
-    RETURN_NUMBER((double)((int)AS_BYTES(METHOD_OBJECT)->bytes.bytes[0]));
-}
-
-bool objfn_bytes_last(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(first, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    RETURN_NUMBER((double)((int)bytes->bytes.bytes[bytes->bytes.count - 1]));
-}
-
-bool objfn_bytes_get(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(get, 1);
-    ENFORCE_ARG_TYPE(get, 0, IS_NUMBER);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    int index = AS_NUMBER(args[0]);
-    if(index < 0 || index >= bytes->bytes.count)
-    {
-        RETURN_ERROR("bytes index %d out of range", index);
-    }
-    RETURN_NUMBER((double)((int)bytes->bytes.bytes[index]));
-}
-
-bool objfn_bytes_isalpha(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(is_alpha, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        if(!isalpha(bytes->bytes.bytes[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_TRUE;
-}
-
-bool objfn_bytes_isalnum(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(isalnum, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        if(!isalnum(bytes->bytes.bytes[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_TRUE;
-}
-
-bool objfn_bytes_isnumber(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(is_number, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        if(!isdigit(bytes->bytes.bytes[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_TRUE;
-}
-
-bool objfn_bytes_islower(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(islower, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        if(!islower(bytes->bytes.bytes[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_TRUE;
-}
-
-bool objfn_bytes_isupper(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(isupper, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        if(!isupper(bytes->bytes.bytes[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_TRUE;
-}
-
-bool objfn_bytes_isspace(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(isspace, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        if(!isspace(bytes->bytes.bytes[i]))
-        {
-            RETURN_FALSE;
-        }
-    }
-    RETURN_TRUE;
-}
-
-bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(dispose, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    free_byte_arr(vm, &bytes->bytes);
-    RETURN;
-}
-
-bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(to_list, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        write_list(vm, list, NUMBER_VAL((double)((int)bytes->bytes.bytes[i])));
-    }
-    RETURN_OBJ(list);
-}
-
-bool objfn_bytes_tostring(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(to_string, 0);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    char* string = (char*)bytes->bytes.bytes;
-    RETURN_L_STRING(string, bytes->bytes.count);
-}
-
-bool objfn_bytes_iter(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(__iter__, 1);
-    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    int index = AS_NUMBER(args[0]);
-    if(index > -1 && index < bytes->bytes.count)
-    {
-        RETURN_NUMBER((int)bytes->bytes.bytes[index]);
-    }
-    RETURN_NIL;
-}
-
-bool objfn_bytes_itern(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(__itern__, 1);
-    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    if(IS_NIL(args[0]))
-    {
-        if(bytes->bytes.count == 0)
-            RETURN_FALSE;
-        RETURN_NUMBER(0);
-    }
-    if(!IS_NUMBER(args[0]))
-    {
-        RETURN_ERROR("bytes are numerically indexed");
-    }
-    int index = AS_NUMBER(args[0]);
-    if(index < bytes->bytes.count - 1)
-    {
-        RETURN_NUMBER((double)index + 1);
-    }
-    RETURN_NIL;
-}
 
 void reset_table(HashTable* table)
 {
@@ -4060,6 +2824,157 @@ void table_remove_whites(VMState* vm, HashTable* table)
     }
 }
 
+void init_blob(BinaryBlob* blob)
+{
+    blob->count = 0;
+    blob->capacity = 0;
+    blob->code = NULL;
+    blob->lines = NULL;
+    init_value_arr(&blob->constants);
+}
+
+void write_blob(VMState* vm, BinaryBlob* blob, uint8_t byte, int line)
+{
+    if(blob->capacity < blob->count + 1)
+    {
+        int oldcapacity = blob->capacity;
+        blob->capacity = GROW_CAPACITY(oldcapacity);
+        blob->code = GROW_ARRAY(uint8_t, blob->code, oldcapacity, blob->capacity);
+        blob->lines = GROW_ARRAY(int, blob->lines, oldcapacity, blob->capacity);
+    }
+    blob->code[blob->count] = byte;
+    blob->lines[blob->count] = line;
+    blob->count++;
+}
+
+void free_blob(VMState* vm, BinaryBlob* blob)
+{
+    if(blob->code != NULL)
+    {
+        FREE_ARRAY(uint8_t, blob->code, blob->capacity);
+    }
+    if(blob->lines != NULL)
+    {
+        FREE_ARRAY(int, blob->lines, blob->capacity);
+    }
+    free_value_arr(vm, &blob->constants);
+    init_blob(blob);
+}
+
+int add_constant(VMState* vm, BinaryBlob* blob, Value value)
+{
+    push(vm, value);// fixing gc corruption
+    write_value_arr(vm, &blob->constants, value);
+    pop(vm);// fixing gc corruption
+    return blob->constants.count - 1;
+}
+
+
+/**
+ * a Blade regex must always start and end with the same delimiter e.g. /
+ *
+ * e.g.
+ * /\d+/
+ *
+ * it can be followed by one or more matching fine tuning constants
+ *
+ * e.g.
+ *
+ * /\d+.+[a-z]+/sim -> '.' matches all, it's case insensitive and multiline
+ * (see the function for list of available options)
+ *
+ * returns:
+ * -1 -> false
+ * 0 -> true
+ * negative value -> invalid delimiter where abs(value) is the character
+ * positive value > 0 ? for compiled delimiters
+ */
+uint32_t is_regex(ObjString* string)
+{
+    char start = string->chars[0];
+    bool matchfound = false;
+    uint32_t coptions = 0;// pcre2 options
+    for(int i = 1; i < string->length; i++)
+    {
+        if(string->chars[i] == start)
+        {
+            matchfound = i > 0 && string->chars[i - 1] == '\\' ? false : true;
+            continue;
+        }
+        if(matchfound)
+        {
+            // compile the delimiters
+            switch(string->chars[i])
+            {
+                /* Perl compatible options */
+                case 'i':
+                    coptions |= PCRE2_CASELESS;
+                    break;
+                case 'm':
+                    coptions |= PCRE2_MULTILINE;
+                    break;
+                case 's':
+                    coptions |= PCRE2_DOTALL;
+                    break;
+                case 'x':
+                    coptions |= PCRE2_EXTENDED;
+                    break;
+                    /* PCRE specific options */
+                case 'A':
+                    coptions |= PCRE2_ANCHORED;
+                    break;
+                case 'D':
+                    coptions |= PCRE2_DOLLAR_ENDONLY;
+                    break;
+                case 'U':
+                    coptions |= PCRE2_UNGREEDY;
+                    break;
+                case 'u':
+                    coptions |= PCRE2_UTF;
+                    /* In  PCRE,  by  default, \d, \D, \s, \S, \w, and \W recognize only
+         ASCII characters, even in UTF-8 mode. However, this can be changed by
+         setting the PCRE2_UCP option. */
+#ifdef PCRE2_UCP
+                    coptions |= PCRE2_UCP;
+#endif
+                    break;
+                case 'J':
+                    coptions |= PCRE2_DUPNAMES;
+                    break;
+                case ' ':
+                case '\n':
+                case '\r':
+                    break;
+                default:
+                    return coptions = (uint32_t)string->chars[i] + 1000000;
+            }
+        }
+    }
+    if(!matchfound)
+        return -1;
+    else
+        return coptions;
+}
+
+char* remove_regex_delimiter(VMState* vm, ObjString* string)
+{
+    if(string->length == 0)
+        return string->chars;
+    char start = string->chars[0];
+    int i = string->length - 1;
+    for(; i > 0; i--)
+    {
+        if(string->chars[i] == start)
+            break;
+    }
+    char* str = ALLOCATE(char, i);
+    memcpy(str, string->chars + 1, (size_t)i - 1);
+    str[i - 1] = '\0';
+    return str;
+}
+
+
+
 #define ENFORCE_VALID_DICT_KEY(name, index) \
     EXCLUDE_ARG_TYPE(name, IS_LIST, index); \
     EXCLUDE_ARG_TYPE(name, IS_DICT, index); \
@@ -4100,6 +3015,625 @@ bool dict_set_entry(VMState* vm, ObjDict* dict, Value key, Value value)
     return table_set(vm, &dict->items, key, value);
 }
 
+Object* allocate_object(VMState* vm, size_t size, ObjType type)
+{
+    Object* object;
+    object = (Object*)bl_mem_realloc(vm, NULL, 0, size);
+    object->type = type;
+    object->mark = false;
+    object->sibling = vm->objectlinks;
+    object->definitelyreal = true;
+    vm->objectlinks = object;
+    vm->objectcount++;
+    //#if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
+    //    fprintf(stderr, "allocate_object: size %ld type %d\n", size, type);
+    //#endif
+    return object;
+}
+
+ObjPointer* new_ptr(VMState* vm, void* pointer)
+{
+    ObjPointer* ptr = (ObjPointer*)allocate_object(vm, sizeof(ObjPointer), OBJ_PTR);
+    ptr->pointer = pointer;
+    ptr->name = "<void *>";
+    ptr->fnptrfree = NULL;
+    return ptr;
+}
+
+ObjModule* new_module(VMState* vm, char* name, char* file)
+{
+    ObjModule* module = (ObjModule*)allocate_object(vm, sizeof(ObjModule), OBJ_MODULE);
+    init_table(&module->values);
+    module->name = name;
+    module->file = file;
+    module->unloader = NULL;
+    module->preloader = NULL;
+    module->handle = NULL;
+    module->imported = false;
+    return module;
+}
+
+ObjSwitch* new_switch(VMState* vm)
+{
+    ObjSwitch* sw = (ObjSwitch*)allocate_object(vm, sizeof(ObjSwitch), OBJ_SWITCH);
+    init_table(&sw->table);
+    sw->defaultjump = -1;
+    sw->exitjump = -1;
+    return sw;
+}
+
+ObjBytes* new_bytes(VMState* vm, int length)
+{
+    ObjBytes* bytes = (ObjBytes*)allocate_object(vm, sizeof(ObjBytes), OBJ_BYTES);
+    init_byte_arr(vm, &bytes->bytes, length);
+    return bytes;
+}
+
+ObjList* new_list(VMState* vm)
+{
+    ObjList* list = (ObjList*)allocate_object(vm, sizeof(ObjList), OBJ_LIST);
+    init_value_arr(&list->items);
+    return list;
+}
+
+ObjRange* new_range(VMState* vm, int lower, int upper)
+{
+    ObjRange* range = (ObjRange*)allocate_object(vm, sizeof(ObjRange), OBJ_RANGE);
+    range->lower = lower;
+    range->upper = upper;
+    if(upper > lower)
+    {
+        range->range = upper - lower;
+    }
+    else
+    {
+        range->range = lower - upper;
+    }
+    return range;
+}
+
+ObjDict* new_dict(VMState* vm)
+{
+    ObjDict* dict = (ObjDict*)allocate_object(vm, sizeof(ObjDict), OBJ_DICT);
+    init_value_arr(&dict->names);
+    init_table(&dict->items);
+    return dict;
+}
+
+ObjFile* new_file(VMState* vm, ObjString* path, ObjString* mode)
+{
+    ObjFile* file = (ObjFile*)allocate_object(vm, sizeof(ObjFile), OBJ_FILE);
+    file->isopen = true;
+    file->mode = mode;
+    file->path = path;
+    file->file = NULL;
+    return file;
+}
+
+ObjBoundMethod* new_bound_method(VMState* vm, Value receiver, ObjClosure* method)
+{
+    ObjBoundMethod* bound = (ObjBoundMethod*)allocate_object(vm, sizeof(ObjBoundMethod), OBJ_BOUND_METHOD);
+    bound->receiver = receiver;
+    bound->method = method;
+    return bound;
+}
+
+ObjClass* new_class(VMState* vm, ObjString* name)
+{
+    ObjClass* klass = (ObjClass*)allocate_object(vm, sizeof(ObjClass), OBJ_CLASS);
+    klass->name = name;
+    init_table(&klass->properties);
+    init_table(&klass->staticproperties);
+    init_table(&klass->methods);
+    klass->initializer = EMPTY_VAL;
+    klass->superclass = NULL;
+    return klass;
+}
+
+ObjFunction* new_function(VMState* vm, ObjModule* module, FuncType type)
+{
+    ObjFunction* function = (ObjFunction*)allocate_object(vm, sizeof(ObjFunction), OBJ_FUNCTION);
+    function->arity = 0;
+    function->upvaluecount = 0;
+    function->isvariadic = false;
+    function->name = NULL;
+    function->type = type;
+    function->module = module;
+    init_blob(&function->blob);
+    return function;
+}
+
+ObjInstance* new_instance(VMState* vm, ObjClass* klass)
+{
+    ObjInstance* instance = (ObjInstance*)allocate_object(vm, sizeof(ObjInstance), OBJ_INSTANCE);
+    push(vm, OBJ_VAL(instance));// gc fix
+    instance->klass = klass;
+    init_table(&instance->properties);
+    if(klass->properties.count > 0)
+    {
+        table_copy(vm, &klass->properties, &instance->properties);
+    }
+    pop(vm);// gc fix
+    return instance;
+}
+
+ObjNativeFunction* new_native(VMState* vm, NativeCallbackFunc function, const char* name)
+{
+    ObjNativeFunction* native = (ObjNativeFunction*)allocate_object(vm, sizeof(ObjNativeFunction), OBJ_NATIVE);
+    native->natfn = function;
+    native->name = name;
+    native->type = TYPE_FUNCTION;
+    return native;
+}
+
+ObjClosure* new_closure(VMState* vm, ObjFunction* function)
+{
+    ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvaluecount);
+    for(int i = 0; i < function->upvaluecount; i++)
+    {
+        upvalues[i] = NULL;
+    }
+    ObjClosure* closure = (ObjClosure*)allocate_object(vm, sizeof(ObjClosure), OBJ_CLOSURE);
+    closure->fnptr = function;
+    closure->upvalues = upvalues;
+    closure->upvaluecount = function->upvaluecount;
+    return closure;
+}
+
+ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_t hash)
+{
+    //fprintf(stderr, "call to bl_string_fromallocated! chars=\"%.*s\"\n", length, chars);
+    ObjString* string = (ObjString*)allocate_object(vm, sizeof(ObjString), OBJ_STRING);
+    string->chars = chars;
+    string->length = length;
+    string->utf8length = bl_util_utf8length(chars);
+    string->isascii = false;
+    string->hash = hash;
+    push(vm, OBJ_VAL(string));// fixing gc corruption
+    table_set(vm, &vm->strings, OBJ_VAL(string), NIL_VAL);
+    pop(vm);// fixing gc corruption
+    return string;
+}
+
+ObjString* take_string(VMState* vm, char* chars, int length)
+{
+    uint32_t hash = hash_string(chars, length);
+    ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
+    if(interned != NULL)
+    {
+        FREE_ARRAY(char, chars, (size_t)length + 1);
+        return interned;
+    }
+    return bl_string_fromallocated(vm, chars, length, hash);
+}
+
+ObjString* copy_string(VMState* vm, const char* chars, int length)
+{
+    uint32_t hash = hash_string(chars, length);
+    ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
+    if(interned != NULL)
+        return interned;
+    char* heapchars = ALLOCATE(char, (size_t)length + 1);
+    memcpy(heapchars, chars, length);
+    heapchars[length] = '\0';
+    return bl_string_fromallocated(vm, heapchars, length, hash);
+}
+
+ObjUpvalue* new_up_value(VMState* vm, Value* slot)
+{
+    ObjUpvalue* upvalue = (ObjUpvalue*)allocate_object(vm, sizeof(ObjUpvalue), OBJ_UP_VALUE);
+    upvalue->closed = NIL_VAL;
+    upvalue->location = slot;
+    upvalue->next = NULL;
+    return upvalue;
+}
+
+static void print_function(ObjFunction* func)
+{
+    if(func->name == NULL)
+    {
+        printf("<script at %p>", (void*)func);
+    }
+    else
+    {
+        printf(func->isvariadic ? "<function %s(%d...) at %p>" : "<function %s(%d) at %p>", func->name->chars, func->arity, (void*)func);
+    }
+}
+
+static void print_list(ObjList* list)
+{
+    printf("[");
+    for(int i = 0; i < list->items.count; i++)
+    {
+        print_value(list->items.values[i]);
+        if(i != list->items.count - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf("]");
+}
+
+static void print_bytes(ObjBytes* bytes)
+{
+    printf("(");
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        printf("%x", bytes->bytes.bytes[i]);
+        if(i > 100)
+        {// as bytes can get really heavy
+            printf("...");
+            break;
+        }
+        if(i != bytes->bytes.count - 1)
+        {
+            printf(" ");
+        }
+    }
+    printf(")");
+}
+
+static void print_dict(ObjDict* dict)
+{
+    printf("{");
+    for(int i = 0; i < dict->names.count; i++)
+    {
+        print_value(dict->names.values[i]);
+        printf(": ");
+        Value value;
+        if(table_get(&dict->items, dict->names.values[i], &value))
+        {
+            print_value(value);
+        }
+        if(i != dict->names.count - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf("}");
+}
+
+static void print_file(ObjFile* file)
+{
+    printf("<file at %s in mode %s>", file->path->chars, file->mode->chars);
+}
+
+void print_object(Value value, bool fixstring)
+{
+    switch(OBJ_TYPE(value))
+    {
+        case OBJ_SWITCH:
+        {
+            break;
+        }
+        case OBJ_PTR:
+        {
+            printf("%s", AS_PTR(value)->name);
+            break;
+        }
+        case OBJ_RANGE:
+        {
+            ObjRange* range = AS_RANGE(value);
+            printf("<range %d-%d>", range->lower, range->upper);
+            break;
+        }
+        case OBJ_FILE:
+        {
+            print_file(AS_FILE(value));
+            break;
+        }
+        case OBJ_DICT:
+        {
+            print_dict(AS_DICT(value));
+            break;
+        }
+        case OBJ_LIST:
+        {
+            print_list(AS_LIST(value));
+            break;
+        }
+        case OBJ_BYTES:
+        {
+            print_bytes(AS_BYTES(value));
+            break;
+        }
+        case OBJ_BOUND_METHOD:
+        {
+            print_function(AS_BOUND(value)->method->fnptr);
+            break;
+        }
+        case OBJ_MODULE:
+        {
+            printf("<module %s at %s>", AS_MODULE(value)->name, AS_MODULE(value)->file);
+            break;
+        }
+        case OBJ_CLASS:
+        {
+            printf("<class %s at %p>", AS_CLASS(value)->name->chars, (void*)AS_CLASS(value));
+            break;
+        }
+        case OBJ_CLOSURE:
+        {
+            print_function(AS_CLOSURE(value)->fnptr);
+            break;
+        }
+        case OBJ_FUNCTION:
+        {
+            print_function(AS_FUNCTION(value));
+            break;
+        }
+        case OBJ_INSTANCE:
+        {
+            // @TODO: support the to_string() override
+            ObjInstance* instance = AS_INSTANCE(value);
+            printf("<class %s instance at %p>", instance->klass->name->chars, (void*)instance);
+            break;
+        }
+        case OBJ_NATIVE:
+        {
+            ObjNativeFunction* native = AS_NATIVE(value);
+            printf("<function %s(native) at %p>", native->name, (void*)native);
+            break;
+        }
+        case OBJ_UP_VALUE:
+        {
+            printf("up value");
+            break;
+        }
+        case OBJ_STRING:
+        {
+            ObjString* string = AS_STRING(value);
+            if(fixstring)
+            {
+                printf(strchr(string->chars, '\'') != NULL ? "\"%.*s\"" : "'%.*s'", string->length, string->chars);
+            }
+            else
+            {
+                printf("%.*s", string->length, string->chars);
+            }
+            break;
+        }
+    }
+}
+
+ObjBytes* copy_bytes(VMState* vm, unsigned char* b, int length)
+{
+    ObjBytes* bytes = new_bytes(vm, length);
+    memcpy(bytes->bytes.bytes, b, length);
+    return bytes;
+}
+
+ObjBytes* take_bytes(VMState* vm, unsigned char* b, int length)
+{
+    ObjBytes* bytes = (ObjBytes*)allocate_object(vm, sizeof(ObjBytes), OBJ_BYTES);
+    bytes->bytes.count = length;
+    bytes->bytes.bytes = b;
+    return bytes;
+}
+
+static char* function_to_string(ObjFunction* func)
+{
+    if(func->name == NULL)
+    {
+        return strdup("<script 0x00>");
+    }
+    const char* format = func->isvariadic ? "<function %s(%d...)>" : "<function %s(%d)>";
+    char* str = (char*)malloc(sizeof(char) * (snprintf(NULL, 0, format, func->name->chars, func->arity)));
+    if(str != NULL)
+    {
+        sprintf(str, format, func->name->chars, func->arity);
+        return str;
+    }
+    return strdup(func->name->chars);
+}
+
+static char* list_to_string(VMState* vm, ValArray* array)
+{
+    char* str = strdup("[");
+    for(int i = 0; i < array->count; i++)
+    {
+        char* val = value_to_string(vm, array->values[i]);
+        if(val != NULL)
+        {
+            str = bl_util_appendstring(str, val);
+            free(val);
+        }
+        if(i != array->count - 1)
+        {
+            str = bl_util_appendstring(str, ", ");
+        }
+    }
+    str = bl_util_appendstring(str, "]");
+    return str;
+}
+
+static char* bytes_to_string(VMState* vm, ByteArray* array)
+{
+    char* str = strdup("(");
+    for(int i = 0; i < array->count; i++)
+    {
+        char* chars = ALLOCATE(char, snprintf(NULL, 0, "0x%x", array->bytes[i]));
+        if(chars != NULL)
+        {
+            sprintf(chars, "0x%x", array->bytes[i]);
+            str = bl_util_appendstring(str, chars);
+        }
+        if(i != array->count - 1)
+        {
+            str = bl_util_appendstring(str, " ");
+        }
+    }
+    str = bl_util_appendstring(str, ")");
+    return str;
+}
+
+static char* dict_to_string(VMState* vm, ObjDict* dict)
+{
+    char* str = strdup("{");
+    for(int i = 0; i < dict->names.count; i++)
+    {
+        // print_value(dict->names.values[i]);
+        Value key = dict->names.values[i];
+        char* _key = value_to_string(vm, key);
+        if(_key != NULL)
+        {
+            str = bl_util_appendstring(str, _key);
+        }
+        str = bl_util_appendstring(str, ": ");
+        Value value;
+        table_get(&dict->items, key, &value);
+        char* val = value_to_string(vm, value);
+        if(val != NULL)
+        {
+            str = bl_util_appendstring(str, val);
+        }
+        if(i != dict->names.count - 1)
+        {
+            str = bl_util_appendstring(str, ", ");
+        }
+    }
+    str = bl_util_appendstring(str, "}");
+    return str;
+}
+
+char* object_to_string(VMState* vm, Value value)
+{
+    switch(OBJ_TYPE(value))
+    {
+        case OBJ_PTR:
+        {
+            return strdup(AS_PTR(value)->name);
+        }
+        case OBJ_SWITCH:
+        {
+            return strdup("<switch>");
+        }
+        case OBJ_CLASS:
+        {
+            const char* format = "<class %s>";
+            char* data = AS_CLASS(value)->name->chars;
+            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
+            if(str != NULL)
+            {
+                sprintf(str, format, data);
+            }
+            return str;
+        }
+        case OBJ_INSTANCE:
+        {
+            const char* format = "<instance of %s>";
+            char* data = AS_INSTANCE(value)->klass->name->chars;
+            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
+            if(str != NULL)
+            {
+                sprintf(str, format, data);
+            }
+            return str;
+        }
+        case OBJ_CLOSURE:
+            return function_to_string(AS_CLOSURE(value)->fnptr);
+        case OBJ_BOUND_METHOD:
+        {
+            return function_to_string(AS_BOUND(value)->method->fnptr);
+        }
+        case OBJ_FUNCTION:
+            return function_to_string(AS_FUNCTION(value));
+        case OBJ_NATIVE:
+        {
+            const char* format = "<function %s(native)>";
+            const char* data = AS_NATIVE(value)->name;
+            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
+            if(str != NULL)
+            {
+                sprintf(str, format, data);
+            }
+            return str;
+        }
+        case OBJ_RANGE:
+        {
+            ObjRange* range = AS_RANGE(value);
+            const char* format = "<range %d..%d>";
+            char* str = ALLOCATE(char, snprintf(NULL, 0, format, range->lower, range->upper));
+            if(str != NULL)
+            {
+                sprintf(str, format, range->lower, range->upper);
+            }
+            return str;
+        }
+        case OBJ_MODULE:
+        {
+            const char* format = "<module %s>";
+            const char* data = AS_MODULE(value)->name;
+            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
+            if(str != NULL)
+            {
+                sprintf(str, format, data);
+            }
+            return str;
+        }
+        case OBJ_STRING:
+            return strdup(AS_C_STRING(value));
+        case OBJ_UP_VALUE:
+            return strdup("<up-value>");
+        case OBJ_BYTES:
+            return bytes_to_string(vm, &AS_BYTES(value)->bytes);
+        case OBJ_LIST:
+            return list_to_string(vm, &AS_LIST(value)->items);
+        case OBJ_DICT:
+            return dict_to_string(vm, AS_DICT(value));
+        case OBJ_FILE:
+        {
+            ObjFile* file = AS_FILE(value);
+            const char* format = "<file at %s in mode %s>";
+            char* str = ALLOCATE(char, snprintf(NULL, 0, format, file->path->chars, file->mode->chars));
+            if(str != NULL)
+            {
+                sprintf(str, format, file->path->chars, file->mode->chars);
+            }
+            return str;
+        }
+    }
+    return NULL;
+}
+
+const char* object_type(Object* object)
+{
+    switch(object->type)
+    {
+        case OBJ_MODULE:
+            return "module";
+        case OBJ_BYTES:
+            return "bytes";
+        case OBJ_RANGE:
+            return "range";
+        case OBJ_FILE:
+            return "file";
+        case OBJ_DICT:
+            return "dictionary";
+        case OBJ_LIST:
+            return "list";
+        case OBJ_CLASS:
+            return "class";
+        case OBJ_FUNCTION:
+        case OBJ_NATIVE:
+        case OBJ_CLOSURE:
+        case OBJ_BOUND_METHOD:
+            return "function";
+        case OBJ_INSTANCE:
+            return ((ObjInstance*)object)->klass->name->chars;
+        case OBJ_STRING:
+            return "string";
+            //
+        case OBJ_PTR:
+            return "pointer";
+        case OBJ_SWITCH:
+            return "switch";
+        default:
+            return "unknown";
+    }
+}
+
+
 bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool willassign)
 {
     Value index = peek(vm, 0);
@@ -4124,269 +3658,6 @@ void bl_vmdo_dictsetindex(VMState* vm, ObjDict* dict, Value index, Value value)
     // leave the value on the stack for consumption
     // e.g. variable = dict[index] = 10
     push(vm, value);
-}
-
-bool objfn_dict_length(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(dictionary.length, 0);
-    RETURN_NUMBER(AS_DICT(METHOD_OBJECT)->names.count);
-}
-
-bool objfn_dict_add(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(add, 2);
-    ENFORCE_VALID_DICT_KEY(add, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    Value tempvalue;
-    if(table_get(&dict->items, args[0], &tempvalue))
-    {
-        RETURN_ERROR("duplicate key %s at add()", value_to_string(vm, args[0]));
-    }
-    dict_add_entry(vm, dict, args[0], args[1]);
-    RETURN;
-}
-
-bool objfn_dict_set(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(set, 2);
-    ENFORCE_VALID_DICT_KEY(set, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    Value value;
-    if(!table_get(&dict->items, args[0], &value))
-    {
-        dict_add_entry(vm, dict, args[0], args[1]);
-    }
-    else
-    {
-        dict_set_entry(vm, dict, args[0], args[1]);
-    }
-    RETURN;
-}
-
-bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(dict, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    free_value_arr(vm, &dict->names);
-    free_table(vm, &dict->items);
-    RETURN;
-}
-
-bool objfn_dict_clone(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(clone, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    table_add_all(vm, &dict->items, &ndict->items);
-    for(int i = 0; i < dict->names.count; i++)
-    {
-        write_value_arr(vm, &ndict->names, dict->names.values[i]);
-    }
-    RETURN_OBJ(ndict);
-}
-
-bool objfn_dict_compact(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(compact, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    for(int i = 0; i < dict->names.count; i++)
-    {
-        Value tmpvalue;
-        table_get(&dict->items, dict->names.values[i], &tmpvalue);
-        if(!values_equal(tmpvalue, NIL_VAL))
-        {
-            dict_add_entry(vm, ndict, dict->names.values[i], tmpvalue);
-        }
-    }
-    RETURN_OBJ(ndict);
-}
-
-bool objfn_dict_contains(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(contains, 1);
-    ENFORCE_VALID_DICT_KEY(contains, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    Value value;
-    RETURN_BOOL(table_get(&dict->items, args[0], &value));
-}
-
-bool objfn_dict_extend(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(extend, 1);
-    ENFORCE_ARG_TYPE(extend, 0, IS_DICT);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* dictcpy = AS_DICT(args[0]);
-    for(int i = 0; i < dictcpy->names.count; i++)
-    {
-        write_value_arr(vm, &dict->names, dictcpy->names.values[i]);
-    }
-    table_add_all(vm, &dictcpy->items, &dict->items);
-    RETURN;
-}
-
-bool objfn_dict_get(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_RANGE(get, 1, 2);
-    ENFORCE_VALID_DICT_KEY(get, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    Value value;
-    if(!dict_get_entry(dict, args[0], &value))
-    {
-        if(argcount == 1)
-        {
-            RETURN_NIL;
-        }
-        else
-        {
-            RETURN_VALUE(args[1]);// return default
-        }
-    }
-    RETURN_VALUE(value);
-}
-
-bool objfn_dict_keys(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(keys, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    for(int i = 0; i < dict->names.count; i++)
-    {
-        write_list(vm, list, dict->names.values[i]);
-    }
-    RETURN_OBJ(list);
-}
-
-bool objfn_dict_values(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(values, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    for(int i = 0; i < dict->names.count; i++)
-    {
-        Value tmpvalue;
-        dict_get_entry(dict, dict->names.values[i], &tmpvalue);
-        write_list(vm, list, tmpvalue);
-    }
-    RETURN_OBJ(list);
-}
-
-bool objfn_dict_remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 1);
-    ENFORCE_VALID_DICT_KEY(remove, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    Value value;
-    if(table_get(&dict->items, args[0], &value))
-    {
-        table_delete(&dict->items, args[0]);
-        int index = -1;
-        for(int i = 0; i < dict->names.count; i++)
-        {
-            if(values_equal(dict->names.values[i], args[0]))
-            {
-                index = i;
-                break;
-            }
-        }
-        for(int i = index; i < dict->names.count; i++)
-        {
-            dict->names.values[i] = dict->names.values[i + 1];
-        }
-        dict->names.count--;
-        RETURN_VALUE(value);
-    }
-    RETURN_NIL;
-}
-
-bool objfn_dict_isempty(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(isempty, 0);
-    RETURN_BOOL(AS_DICT(METHOD_OBJECT)->names.count == 0);
-}
-
-bool objfn_dict_findkey(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(findkey, 1);
-    RETURN_VALUE(table_find_key(&AS_DICT(METHOD_OBJECT)->items, args[0]));
-}
-
-bool objfn_dict_tolist(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(to_list, 0);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjList* namelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    ObjList* valuelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    for(int i = 0; i < dict->names.count; i++)
-    {
-        write_list(vm, namelist, dict->names.values[i]);
-        Value value;
-        if(table_get(&dict->items, dict->names.values[i], &value))
-        {
-            write_list(vm, valuelist, value);
-        }
-        else
-        {// theoretically impossible
-            write_list(vm, valuelist, NIL_VAL);
-        }
-    }
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    write_list(vm, list, OBJ_VAL(namelist));
-    write_list(vm, list, OBJ_VAL(valuelist));
-    RETURN_OBJ(list);
-}
-
-bool objfn_dict_iter(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(__iter__, 1);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    Value result;
-    if(table_get(&dict->items, args[0], &result))
-    {
-        RETURN_VALUE(result);
-    }
-    RETURN_NIL;
-}
-
-bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(__itern__, 1);
-    ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    if(IS_NIL(args[0]))
-    {
-        if(dict->names.count == 0)
-            RETURN_FALSE;
-        RETURN_VALUE(dict->names.values[0]);
-    }
-    for(int i = 0; i < dict->names.count; i++)
-    {
-        if(values_equal(args[0], dict->names.values[i]) && (i + 1) < dict->names.count)
-        {
-            RETURN_VALUE(dict->names.values[i + 1]);
-        }
-    }
-    RETURN_NIL;
-}
-
-#undef ENFORCE_VALID_DICT_KEY
-
-void write_list(VMState* vm, ObjList* list, Value value)
-{
-    write_value_arr(vm, &list->items, value);
-}
-
-ObjList* copy_list(VMState* vm, ObjList* list, int start, int length)
-{
-    int i;
-    ObjList* _list;
-    (void)start;
-    (void)length;
-    _list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    for(i = 0; i < list->items.count; i++)
-    {
-        write_list(vm, _list, list->items.values[i]);
-    }
-    return _list;
 }
 
 bool objfn_list_length(VMState* vm, int argcount, Value* args)
@@ -4812,1028 +4083,1498 @@ bool objfn_list_itern(VMState* vm, int argcount, Value* args)
     RETURN_NIL;
 }
 
-void init_value_arr(ValArray* array)
+
+bool objfn_string_length(VMState* vm, int argcount, Value* args)
 {
-    array->capacity = 0;
-    array->count = 0;
-    array->values = NULL;
+    ENFORCE_ARG_COUNT(length, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    RETURN_NUMBER(string->isascii ? string->length : string->utf8length);
 }
 
-void init_byte_arr(VMState* vm, ByteArray* array, int length)
+bool objfn_string_upper(VMState* vm, int argcount, Value* args)
 {
-    array->count = length;
-    array->bytes = (unsigned char*)calloc(length, sizeof(unsigned char));
-    vm->bytesallocated += sizeof(unsigned char) * length;
+    ENFORCE_ARG_COUNT(upper, 0);
+    char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
+    for(char* p = string; *p; p++)
+        *p = toupper(*p);
+    RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
 }
 
-void write_value_arr(VMState* vm, ValArray* array, Value value)
+bool objfn_string_lower(VMState* vm, int argcount, Value* args)
 {
-    if(array->capacity < array->count + 1)
-    {
-        int oldcapacity = array->capacity;
-        array->capacity = GROW_CAPACITY(oldcapacity);
-        array->values = GROW_ARRAY(Value, array->values, oldcapacity, array->capacity);
-    }
-    array->values[array->count] = value;
-    array->count++;
+    ENFORCE_ARG_COUNT(lower, 0);
+    char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
+    for(char* p = string; *p; p++)
+        *p = tolower(*p);
+    RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
 }
 
-void insert_value_arr(VMState* vm, ValArray* array, Value value, int index)
+bool objfn_string_isalpha(VMState* vm, int argcount, Value* args)
 {
-    if(array->capacity <= index)
+    ENFORCE_ARG_COUNT(is_alpha, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    for(int i = 0; i < string->length; i++)
     {
-        array->capacity = GROW_CAPACITY(index);
-        array->values = GROW_ARRAY(Value, array->values, array->count, array->capacity);
-    }
-    else if(array->capacity < array->count + 2)
-    {
-        int capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(capacity);
-        array->values = GROW_ARRAY(Value, array->values, capacity, array->capacity);
-    }
-    if(index <= array->count)
-    {
-        for(int i = array->count - 1; i >= index; i--)
+        if(!isalpha((unsigned char)string->chars[i]))
         {
-            array->values[i + 1] = array->values[i];
+            RETURN_FALSE;
+        }
+    }
+    RETURN_BOOL(string->length != 0);
+}
+
+bool objfn_string_isalnum(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(isalnum, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    for(int i = 0; i < string->length; i++)
+    {
+        if(!isalnum((unsigned char)string->chars[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_BOOL(string->length != 0);
+}
+
+bool objfn_string_isnumber(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(is_number, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    for(int i = 0; i < string->length; i++)
+    {
+        if(!isdigit((unsigned char)string->chars[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_BOOL(string->length != 0);
+}
+
+bool objfn_string_islower(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(islower, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    bool hasalpha;
+    for(int i = 0; i < string->length; i++)
+    {
+        bool isal = isalpha((unsigned char)string->chars[i]);
+        if(!hasalpha)
+        {
+            hasalpha = isal;
+        }
+        if(isal && !islower((unsigned char)string->chars[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_BOOL(string->length != 0 && hasalpha);
+}
+
+bool objfn_string_isupper(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(isupper, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    bool hasalpha;
+    for(int i = 0; i < string->length; i++)
+    {
+        bool isal = isalpha((unsigned char)string->chars[i]);
+        if(!hasalpha)
+        {
+            hasalpha = isal;
+        }
+        if(isal && !isupper((unsigned char)string->chars[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_BOOL(string->length != 0 && hasalpha);
+}
+
+bool objfn_string_isspace(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(isspace, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    for(int i = 0; i < string->length; i++)
+    {
+        if(!isspace((unsigned char)string->chars[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_BOOL(string->length != 0);
+}
+
+bool objfn_string_trim(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_RANGE(trim, 0, 1);
+    char trimmer = '\0';
+    if(argcount == 1)
+    {
+        ENFORCE_ARG_TYPE(trim, 0, IS_CHAR);
+        trimmer = (char)AS_STRING(args[0])->chars[0];
+    }
+    char* string = AS_C_STRING(METHOD_OBJECT);
+    char* end = NULL;
+    // Trim leading space
+    if(trimmer == '\0')
+    {
+        while(isspace((unsigned char)*string))
+            string++;
+    }
+    else
+    {
+        while(trimmer == *string)
+            string++;
+    }
+    if(*string == 0)
+    {// All spaces?
+        RETURN_OBJ(copy_string(vm, "", 0));
+    }
+    // Trim trailing space
+    end = string + strlen(string) - 1;
+    if(trimmer == '\0')
+    {
+        while(end > string && isspace((unsigned char)*end))
+            end--;
+    }
+    else
+    {
+        while(end > string && trimmer == *end)
+            end--;
+    }
+    // Write new null terminator character
+    end[1] = '\0';
+    RETURN_L_STRING(string, strlen(string));
+}
+
+bool objfn_string_ltrim(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_RANGE(ltrim, 0, 1);
+    char trimmer = '\0';
+    if(argcount == 1)
+    {
+        ENFORCE_ARG_TYPE(ltrim, 0, IS_CHAR);
+        trimmer = (char)AS_STRING(args[0])->chars[0];
+    }
+    char* string = AS_C_STRING(METHOD_OBJECT);
+    char* end = NULL;
+    // Trim leading space
+    if(trimmer == '\0')
+    {
+        while(isspace((unsigned char)*string))
+            string++;
+    }
+    else
+    {
+        while(trimmer == *string)
+            string++;
+    }
+    if(*string == 0)
+    {// All spaces?
+        RETURN_OBJ(copy_string(vm, "", 0));
+    }
+    end = string + strlen(string) - 1;
+    // Write new null terminator character
+    end[1] = '\0';
+    RETURN_L_STRING(string, strlen(string));
+}
+
+bool objfn_string_rtrim(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_RANGE(rtrim, 0, 1);
+    char trimmer = '\0';
+    if(argcount == 1)
+    {
+        ENFORCE_ARG_TYPE(rtrim, 0, IS_CHAR);
+        trimmer = (char)AS_STRING(args[0])->chars[0];
+    }
+    char* string = AS_C_STRING(METHOD_OBJECT);
+    char* end = NULL;
+    if(*string == 0)
+    {// All spaces?
+        RETURN_OBJ(copy_string(vm, "", 0));
+    }
+    end = string + strlen(string) - 1;
+    if(trimmer == '\0')
+    {
+        while(end > string && isspace((unsigned char)*end))
+            end--;
+    }
+    else
+    {
+        while(end > string && trimmer == *end)
+            end--;
+    }
+    // Write new null terminator character
+    end[1] = '\0';
+    RETURN_L_STRING(string, strlen(string));
+}
+
+bool objfn_string_join(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(join, 1);
+    ENFORCE_ARG_TYPE(join, 0, IS_OBJ);
+    ObjString* methodobj = AS_STRING(METHOD_OBJECT);
+    Value argument = args[0];
+    if(IS_STRING(argument))
+    {
+        // empty argument
+        if(methodobj->length == 0)
+        {
+            RETURN_VALUE(argument);
+        }
+        else if(AS_STRING(argument)->length == 0)
+        {
+            RETURN_VALUE(argument);
+        }
+        ObjString* string = AS_STRING(argument);
+        char* result = ALLOCATE(char, 2);
+        result[0] = string->chars[0];
+        result[1] = '\0';
+        for(int i = 1; i < string->length; i++)
+        {
+            if(methodobj->length > 0)
+            {
+                result = bl_util_appendstring(result, methodobj->chars);
+            }
+            char* chr = (char*)calloc(2, sizeof(char));
+            chr[0] = string->chars[i];
+            chr[1] = '\0';
+            result = bl_util_appendstring(result, chr);
+            free(chr);
+        }
+        RETURN_TT_STRING(result);
+    }
+    else if(IS_LIST(argument) || IS_DICT(argument))
+    {
+        Value* list;
+        int count = 0;
+        if(IS_DICT(argument))
+        {
+            list = AS_DICT(argument)->names.values;
+            count = AS_DICT(argument)->names.count;
+        }
+        else
+        {
+            list = AS_LIST(argument)->items.values;
+            count = AS_LIST(argument)->items.count;
+        }
+        if(count == 0)
+        {
+            RETURN_L_STRING("", 0);
+        }
+        char* result = value_to_string(vm, list[0]);
+        for(int i = 1; i < count; i++)
+        {
+            if(methodobj->length > 0)
+            {
+                result = bl_util_appendstring(result, methodobj->chars);
+            }
+            char* str = value_to_string(vm, list[i]);
+            result = bl_util_appendstring(result, str);
+            free(str);
+        }
+        RETURN_TT_STRING(result);
+    }
+    RETURN_ERROR("join() does not support object of type %s", value_type(argument));
+}
+
+bool objfn_string_split(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(split, 1);
+    ENFORCE_ARG_TYPE(split, 0, IS_STRING);
+    ObjString* object = AS_STRING(METHOD_OBJECT);
+    ObjString* delimeter = AS_STRING(args[0]);
+    if(object->length == 0 || delimeter->length > object->length)
+        RETURN_OBJ(new_list(vm));
+    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    // main work here...
+    if(delimeter->length > 0)
+    {
+        int start = 0;
+        for(int i = 0; i <= object->length; i++)
+        {
+            // match found.
+            if(memcmp(object->chars + i, delimeter->chars, delimeter->length) == 0 || i == object->length)
+            {
+                write_list(vm, list, GC_L_STRING(object->chars + start, i - start));
+                i += delimeter->length - 1;
+                start = i + 1;
+            }
         }
     }
     else
     {
-        for(int i = array->count; i < index; i++)
+        int length = object->isascii ? object->length : object->utf8length;
+        for(int i = 0; i < length; i++)
         {
-            array->values[i] = NIL_VAL;// nil out overflow indices
-            array->count++;
+            int start = i, end = i + 1;
+            if(!object->isascii)
+            {
+                bl_util_utf8slice(object->chars, &start, &end);
+            }
+            write_list(vm, list, GC_L_STRING(object->chars + start, (int)(end - start)));
         }
     }
-    array->values[index] = value;
-    array->count++;
+    RETURN_OBJ(list);
 }
 
-void free_value_arr(VMState* vm, ValArray* array)
+bool objfn_string_indexof(VMState* vm, int argcount, Value* args)
 {
-    FREE_ARRAY(Value, array->values, array->capacity);
-    init_value_arr(array);
+    ENFORCE_ARG_COUNT(indexof, 1);
+    ENFORCE_ARG_TYPE(indexof, 0, IS_STRING);
+    char* str = AS_C_STRING(METHOD_OBJECT);
+    char* result = strstr(str, AS_C_STRING(args[0]));
+    if(result != NULL)
+        RETURN_NUMBER((int)(result - str));
+    RETURN_NUMBER(-1);
 }
 
-void free_byte_arr(VMState* vm, ByteArray* array)
+bool objfn_string_startswith(VMState* vm, int argcount, Value* args)
 {
-    if(array && array->count > 0)
+    ENFORCE_ARG_COUNT(startswith, 1);
+    ENFORCE_ARG_TYPE(startswith, 0, IS_STRING);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    ObjString* substr = AS_STRING(args[0]);
+    if(string->length == 0 || substr->length == 0 || substr->length > string->length)
+        RETURN_FALSE;
+    RETURN_BOOL(memcmp(substr->chars, string->chars, substr->length) == 0);
+}
+
+bool objfn_string_endswith(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(endswith, 1);
+    ENFORCE_ARG_TYPE(endswith, 0, IS_STRING);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    ObjString* substr = AS_STRING(args[0]);
+    if(string->length == 0 || substr->length == 0 || substr->length > string->length)
+        RETURN_FALSE;
+    int difference = string->length - substr->length;
+    RETURN_BOOL(memcmp(substr->chars, string->chars + difference, substr->length) == 0);
+}
+
+bool objfn_string_count(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(count, 1);
+    ENFORCE_ARG_TYPE(count, 0, IS_STRING);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    ObjString* substr = AS_STRING(args[0]);
+    if(substr->length == 0 || string->length == 0)
+        RETURN_NUMBER(0);
+    int count = 0;
+    const char* tmp = string->chars;
+    while((tmp = strstr(tmp, substr->chars)))
     {
-        FREE_ARRAY(unsigned char, array->bytes, array->count);
-        array->count = 0;
-        array->bytes = NULL;
+        count++;
+        tmp++;
     }
+    RETURN_NUMBER(count);
 }
 
-static void do_print_value(Value value, bool fixstring)
+bool objfn_string_tonumber(VMState* vm, int argcount, Value* args)
 {
-    switch(value.type)
+    ENFORCE_ARG_COUNT(to_number, 0);
+    RETURN_NUMBER(strtod(AS_C_STRING(METHOD_OBJECT), NULL));
+}
+
+bool objfn_string_ascii(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(ascii, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    string->isascii = true;
+    RETURN_OBJ(string);
+}
+
+bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(to_list, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    int length = string->isascii ? string->length : string->utf8length;
+    if(length > 0)
     {
-        case VAL_EMPTY:
-            break;
-        case VAL_NIL:
-            printf("nil");
-            break;
-        case VAL_BOOL:
-            printf(AS_BOOL(value) ? "true" : "false");
-            break;
-        case VAL_NUMBER:
-            printf(NUMBER_FORMAT, AS_NUMBER(value));
-            break;
-        case VAL_OBJ:
-            print_object(value, fixstring);
-            break;
-        default:
-            break;
+        for(int i = 0; i < length; i++)
+        {
+            int start = i, end = i + 1;
+            if(!string->isascii)
+            {
+                bl_util_utf8slice(string->chars, &start, &end);
+            }
+            write_list(vm, list, GC_L_STRING(string->chars + start, (int)(end - start)));
+        }
     }
+    RETURN_OBJ(list);
 }
 
-void print_value(Value value)
+bool objfn_string_lpad(VMState* vm, int argcount, Value* args)
 {
-    do_print_value(value, false);
-}
-
-void echo_value(Value value)
-{
-    do_print_value(value, true);
-}
-
-static char* number_to_string(VMState* vm, double number)
-{
-    int length = snprintf(NULL, 0, NUMBER_FORMAT, number);
-    char* numstr = ALLOCATE(char, length + 1);
-    if(numstr != NULL)
+    ENFORCE_ARG_RANGE(lpad, 1, 2);
+    ENFORCE_ARG_TYPE(lpad, 0, IS_NUMBER);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    int width = AS_NUMBER(args[0]);
+    char fillchar = ' ';
+    if(argcount == 2)
     {
-        sprintf(numstr, NUMBER_FORMAT, number);
-        return numstr;
+        ENFORCE_ARG_TYPE(lpad, 1, IS_CHAR);
+        fillchar = AS_C_STRING(args[1])[0];
     }
-    return "";
+    if(width <= string->utf8length)
+        RETURN_VALUE(METHOD_OBJECT);
+    int fillsize = width - string->utf8length;
+    char* fill = ALLOCATE(char, (size_t)fillsize + 1);
+    int finalsize = string->length + fillsize;
+    int finalutf8size = string->utf8length + fillsize;
+    for(int i = 0; i < fillsize; i++)
+        fill[i] = fillchar;
+    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
+    memcpy(str, fill, fillsize);
+    memcpy(str + fillsize, string->chars, string->length);
+    str[finalsize] = '\0';
+    ObjString* result = take_string(vm, str, finalsize);
+    result->utf8length = finalutf8size;
+    result->length = finalsize;
+    RETURN_OBJ(result);
 }
 
-char* value_to_string(VMState* vm, Value value)
+bool objfn_string_rpad(VMState* vm, int argcount, Value* args)
 {
-    switch(value.type)
+    ENFORCE_ARG_RANGE(rpad, 1, 2);
+    ENFORCE_ARG_TYPE(rpad, 0, IS_NUMBER);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    int width = AS_NUMBER(args[0]);
+    char fillchar = ' ';
+    if(argcount == 2)
     {
-        case VAL_NIL:
-            return "nil";
-        case VAL_BOOL:
-            return AS_BOOL(value) ? "true" : "false";
-        case VAL_NUMBER:
-            return number_to_string(vm, AS_NUMBER(value));
-        case VAL_OBJ:
-            return object_to_string(vm, value);
-        default:
-            return "";
+        ENFORCE_ARG_TYPE(rpad, 1, IS_CHAR);
+        fillchar = AS_C_STRING(args[1])[0];
     }
+    if(width <= string->utf8length)
+        RETURN_VALUE(METHOD_OBJECT);
+    int fillsize = width - string->utf8length;
+    char* fill = ALLOCATE(char, (size_t)fillsize + 1);
+    int finalsize = string->length + fillsize;
+    int finalutf8size = string->utf8length + fillsize;
+    for(int i = 0; i < fillsize; i++)
+        fill[i] = fillchar;
+    char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
+    memcpy(str, string->chars, string->length);
+    memcpy(str + string->length, fill, fillsize);
+    str[finalsize] = '\0';
+    ObjString* result = take_string(vm, str, finalsize);
+    result->utf8length = finalutf8size;
+    result->length = finalsize;
+    RETURN_OBJ(result);
 }
 
-const char* value_type(Value value)
+bool objfn_string_match(VMState* vm, int argcount, Value* args)
 {
-    if(IS_EMPTY(value))
-        return "empty";
-    if(IS_NIL(value))
-        return "nil";
-    else if(IS_BOOL(value))
-        return "boolean";
-    else if(IS_NUMBER(value))
-        return "number";
-    else if(IS_OBJ(value))
-        return object_type(AS_OBJ(value));
-    else
-        return "unknown";
-}
-
-bool values_equal(Value a, Value b)
-{
-    if(a.type != b.type)
-        return false;
-    switch(a.type)
+    ENFORCE_ARG_COUNT(match, 1);
+    ENFORCE_ARG_TYPE(match, 0, IS_STRING);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    ObjString* substr = AS_STRING(args[0]);
+    if(string->length == 0 && substr->length == 0)
     {
-        case VAL_NIL:
-        case VAL_EMPTY:
-            return true;
-        case VAL_BOOL:
-            return AS_BOOL(a) == AS_BOOL(b);
-        case VAL_NUMBER:
-            return AS_NUMBER(a) == AS_NUMBER(b);
-        case VAL_OBJ:
-            return AS_OBJ(a) == AS_OBJ(b);
-        default:
-            return false;
+        RETURN_TRUE;
     }
-}
-
-static uint32_t hash_bits(uint64_t hash)
-{
-    // From v8's ComputeLongHash() which in turn cites:
-    // Thomas Wang, Integer Hash Functions.
-    // http://www.concentric.net/~Ttwang/tech/inthash.htm
-    hash = ~hash + (hash << 18);// hash = (hash << 18) - hash - 1;
-    hash = hash ^ (hash >> 31);
-    hash = hash * 21;// hash = (hash + (hash << 2)) + (hash << 4);
-    hash = hash ^ (hash >> 11);
-    hash = hash + (hash << 6);
-    hash = hash ^ (hash >> 22);
-    return (uint32_t)(hash & 0x3fffffff);
-}
-
-uint32_t hash_double(double value)
-{
-    typedef union bdoubleunion bdoubleunion;
-
-    union bdoubleunion
+    else if(string->length == 0 || substr->length == 0)
     {
-        uint64_t bits;
-        double num;
-    };
-
-    bdoubleunion bits;
-    bits.num = value;
-    return hash_bits(bits.bits);
-}
-
-uint32_t hash_string(const char* key, int length)
-{
-    /*
-    uint32_t hash = 2166136261u;
-    const char* be = key + length;
-    while(key < be)
-    {
-        hash = (hash ^ *key++) * 16777619;
+        RETURN_FALSE;
     }
-    return hash;
-    // return siphash24(127, 255, key, length);
-    */
-    return XXH3_64bits(key, length);
-}
-
-// Generates a hash code for [object].
-static uint32_t hash_object(Object* object)
-{
-    switch(object->type)
+    GET_REGEX_COMPILE_OPTIONS(substr, false);
+    if((int)compileoptions < 0)
     {
-        case OBJ_CLASS:
-            // Classes just use their name.
-            return ((ObjClass*)object)->name->hash;
-            // Allow bare (non-closure) functions so that we can use a map to find
-            // existing constants in a function's constant table. This is only used
-            // internally. Since user code never sees a non-closure function, they
-            // cannot use them as map keys.
-        case OBJ_FUNCTION:
-        {
-            ObjFunction* fn = (ObjFunction*)object;
-            return hash_double(fn->arity) ^ hash_double(fn->blob.count);
-        }
-        case OBJ_STRING:
-            return ((ObjString*)object)->hash;
-        case OBJ_BYTES:
-        {
-            ObjBytes* bytes = ((ObjBytes*)object);
-            return hash_string((const char*)bytes->bytes.bytes, bytes->bytes.count);
-        }
-        default:
-            return 0;
+        RETURN_BOOL(strstr(string->chars, substr->chars) - string->chars > -1);
     }
-}
-
-uint32_t hash_value(Value value)
-{
-    switch(value.type)
+    char* realregex = remove_regex_delimiter(vm, substr);
+    int errornumber;
+    PCRE2_SIZE erroroffset;
+    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
+    PCRE2_SPTR subject = (PCRE2_SPTR)string->chars;
+    PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
+    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
+    free(realregex);
+    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
+    int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
+    if(rc < 0)
     {
-        case VAL_BOOL:
-            return AS_BOOL(value) ? 3 : 5;
-        case VAL_NIL:
-            return 7;
-        case VAL_NUMBER:
-            return hash_double(AS_NUMBER(value));
-        case VAL_OBJ:
-            return hash_object(AS_OBJ(value));
-        default:// VAL_EMPTY
-            return 0;
-    }
-}
-
-/**
- * returns the greater of the two values.
- * this function encapsulates Blade's object hierarchy
- */
-static Value find_max_value(Value a, Value b)
-{
-    if(IS_NIL(a))
-    {
-        return b;
-    }
-    else if(IS_BOOL(a))
-    {
-        if(IS_NIL(b) || (IS_BOOL(b) && AS_BOOL(b) == false))
-            return a;// only nil, false and false are lower than numbers
-        else
-            return b;
-    }
-    else if(IS_NUMBER(a))
-    {
-        if(IS_NIL(b) || IS_BOOL(b))
-            return a;
-        else if(IS_NUMBER(b))
-            return AS_NUMBER(a) >= AS_NUMBER(b) ? a : b;
-        else
-            return b;// every other thing is greater than a number
-    }
-    else if(IS_OBJ(a))
-    {
-        if(IS_STRING(a) && IS_STRING(b))
+        if(rc == PCRE2_ERROR_NOMATCH)
         {
-            return strcmp(AS_C_STRING(a), AS_C_STRING(b)) >= 0 ? a : b;
-        }
-        else if(IS_FUNCTION(a) && IS_FUNCTION(b))
-        {
-            return AS_FUNCTION(a)->arity >= AS_FUNCTION(b)->arity ? a : b;
-        }
-        else if(IS_CLOSURE(a) && IS_CLOSURE(b))
-        {
-            return AS_CLOSURE(a)->fnptr->arity >= AS_CLOSURE(b)->fnptr->arity ? a : b;
-        }
-        else if(IS_RANGE(a) && IS_RANGE(b))
-        {
-            return AS_RANGE(a)->lower >= AS_RANGE(b)->lower ? a : b;
-        }
-        else if(IS_CLASS(a) && IS_CLASS(b))
-        {
-            return AS_CLASS(a)->methods.count >= AS_CLASS(b)->methods.count ? a : b;
-        }
-        else if(IS_LIST(a) && IS_LIST(b))
-        {
-            return AS_LIST(a)->items.count >= AS_LIST(b)->items.count ? a : b;
-        }
-        else if(IS_DICT(a) && IS_DICT(b))
-        {
-            return AS_DICT(a)->names.count >= AS_DICT(b)->names.count ? a : b;
-        }
-        else if(IS_BYTES(a) && IS_BYTES(b))
-        {
-            return AS_BYTES(a)->bytes.count >= AS_BYTES(b)->bytes.count ? a : b;
-        }
-        else if(IS_FILE(a) && IS_FILE(b))
-        {
-            return strcmp(AS_FILE(a)->path->chars, AS_FILE(b)->path->chars) >= 0 ? a : b;
-        }
-        else if(IS_OBJ(b))
-        {
-            return AS_OBJ(a)->type >= AS_OBJ(b)->type ? a : b;
+            RETURN_FALSE;
         }
         else
         {
-            return a;
+            REGEX_RC_ERROR();
         }
     }
-    else
+    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
+    uint32_t namecount;
+    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
+    for(int i = 0; i < rc; i++)
     {
-        return a;
+        PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
+        PCRE2_SPTR substringstart = subject + ovector[2 * i];
+        dict_set_entry(vm, result, NUMBER_VAL(i), GC_L_STRING((char*)substringstart, (int)substringlength));
     }
-}
-
-/**
- * sorts values in an array using the bubble-sort algorithm
- */
-void sort_values(Value* values, int count)
-{
-    for(int i = 0; i < count; i++)
+    if(namecount > 0)
     {
-        for(int j = 0; j < count; j++)
+        uint32_t nameentrysize;
+        PCRE2_SPTR nametable;
+        PCRE2_SPTR tabptr;
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
+        tabptr = nametable;
+        for(int i = 0; i < (int)namecount; i++)
         {
-            if(values_equal(values[j], find_max_value(values[i], values[j])))
-            {
-                Value temp = values[i];
-                values[i] = values[j];
-                values[j] = temp;
-                if(IS_LIST(values[i]))
-                    sort_values(AS_LIST(values[i])->items.values, AS_LIST(values[i])->items.count);
-                if(IS_LIST(values[j]))
-                    sort_values(AS_LIST(values[j])->items.values, AS_LIST(values[j])->items.count);
-            }
+            int n = (tabptr[0] << 8) | tabptr[1];
+            int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
+            int keylength = (int)nameentrysize - 3;
+            char* _key = ALLOCATE(char, keylength + 1);
+            char* _val = ALLOCATE(char, valuelength + 1);
+            sprintf(_key, "%*s", keylength, tabptr + 2);
+            sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
+            while(isspace((unsigned char)*_key))
+                _key++;
+            dict_set_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))),
+                           OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
+            tabptr += nameentrysize;
         }
     }
+    pcre2_match_data_free(matchdata);
+    pcre2_code_free(re);
+    RETURN_OBJ(result);
 }
 
-Value copy_value(VMState* vm, Value value)
+bool objfn_string_matches(VMState* vm, int argcount, Value* args)
 {
-    if(IS_OBJ(value))
+    ENFORCE_ARG_COUNT(matches, 1);
+    ENFORCE_ARG_TYPE(matches, 0, IS_STRING);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    ObjString* substr = AS_STRING(args[0]);
+    if(string->length == 0 && substr->length == 0)
     {
-        switch(AS_OBJ(value)->type)
+        RETURN_OBJ(new_list(vm));// empty string matches empty string to empty list
+    }
+    else if(string->length == 0 || substr->length == 0)
+    {
+        RETURN_FALSE;// if either string or str is empty, return false
+    }
+    GET_REGEX_COMPILE_OPTIONS(substr, true);
+    char* realregex = remove_regex_delimiter(vm, substr);
+    int errornumber;
+    PCRE2_SIZE erroroffset;
+    uint32_t optionbits;
+    uint32_t newline;
+    uint32_t namecount, groupcount;
+    uint32_t nameentrysize;
+    PCRE2_SPTR nametable;
+    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
+    PCRE2_SPTR subject = (PCRE2_SPTR)string->chars;
+    PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
+    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
+    free(realregex);
+    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
+    int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
+    if(rc < 0)
+    {
+        if(rc == PCRE2_ERROR_NOMATCH)
         {
-            case OBJ_STRING:
+            RETURN_FALSE;
+        }
+        else
+        {
+            REGEX_RC_ERROR();
+        }
+    }
+    PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
+    //   REGEX_VECTOR_SIZE_WARNING();
+    // handle edge cases such as /(?=.\K)/
+    REGEX_ASSERTION_ERROR(re, matchdata, ovector);
+    (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
+    (void)pcre2_pattern_info(re, PCRE2_INFO_CAPTURECOUNT, &groupcount);
+    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    for(int i = 0; i < rc; i++)
+    {
+        dict_set_entry(vm, result, NUMBER_VAL(0), NIL_VAL);
+    }
+    // add first set of matches to response
+    for(int i = 0; i < rc; i++)
+    {
+        ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
+        PCRE2_SPTR substringstart = subject + ovector[2 * i];
+        write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
+        dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
+    }
+    if(namecount > 0)
+    {
+        PCRE2_SPTR tabptr;
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
+        (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
+        tabptr = nametable;
+        for(int i = 0; i < (int)namecount; i++)
+        {
+            int n = (tabptr[0] << 8) | tabptr[1];
+            int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
+            int keylength = (int)nameentrysize - 3;
+            char* _key = ALLOCATE(char, keylength + 1);
+            char* _val = ALLOCATE(char, valuelength + 1);
+            sprintf(_key, "%*s", keylength, tabptr + 2);
+            sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
+            while(isspace((unsigned char)*_key))
+                _key++;
+            ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+            write_list(vm, list, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
+            dict_add_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))), OBJ_VAL(list));
+            tabptr += nameentrysize;
+        }
+    }
+    (void)pcre2_pattern_info(re, PCRE2_INFO_ALLOPTIONS, &optionbits);
+    int utf8 = (optionbits & PCRE2_UTF) != 0;
+    (void)pcre2_pattern_info(re, PCRE2_INFO_NEWLINE, &newline);
+    int crlfisnewline = newline == PCRE2_NEWLINE_ANY || newline == PCRE2_NEWLINE_CRLF || newline == PCRE2_NEWLINE_ANYCRLF;
+    // find the other matches
+    for(;;)
+    {
+        uint32_t options = 0;
+        PCRE2_SIZE startoffset = ovector[1];
+        // if the previous match was for an empty string
+        if(ovector[0] == ovector[1])
+        {
+            if(ovector[0] == subjectlength)
+                break;
+            options = PCRE2_NOTEMPTY_ATSTART | PCRE2_ANCHORED;
+        }
+        else
+        {
+            PCRE2_SIZE startchar = pcre2_get_startchar(matchdata);
+            if(startoffset > subjectlength - 1)
             {
-                ObjString* string = AS_STRING(value);
-                return OBJ_VAL(copy_string(vm, string->chars, string->length));
+                break;
             }
-            case OBJ_BYTES:
+            if(startoffset <= startchar)
             {
-                ObjBytes* bytes = AS_BYTES(value);
-                return OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes, bytes->bytes.count));
-            }
-            case OBJ_LIST:
-            {
-                ObjList* list = AS_LIST(value);
-                ObjList* nlist = new_list(vm);
-                push(vm, OBJ_VAL(nlist));
-                for(int i = 0; i < list->items.count; i++)
+                if(startchar >= subjectlength - 1)
                 {
-                    write_value_arr(vm, &nlist->items, list->items.values[i]);
+                    break;
                 }
-                pop(vm);
-                return OBJ_VAL(nlist);
+                startoffset = startchar + 1;
+                if(utf8)
+                {
+                    for(; startoffset < subjectlength; startoffset++)
+                        if((subject[startoffset] & 0xc0) != 0x80)
+                            break;
+                }
             }
-            /*case OBJ_DICT: {
-        ObjDict *dict = AS_DICT(value);
-        ObjDict *ndict = new_dict(vm);
-        // @TODO: Figure out how to handle dictionary values correctly
-        // remember that copying keys is redundant and unnecessary
-      }*/
-            default:
-                return value;
         }
-    }
-    return value;
-}
-
-Object* allocate_object(VMState* vm, size_t size, ObjType type)
-{
-    Object* object;
-    object = (Object*)bl_mem_realloc(vm, NULL, 0, size);
-    object->type = type;
-    object->mark = false;
-    object->sibling = vm->objectlinks;
-    object->definitelyreal = true;
-    vm->objectlinks = object;
-    vm->objectcount++;
-    //#if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
-    //    fprintf(stderr, "allocate_object: size %ld type %d\n", size, type);
-    //#endif
-    return object;
-}
-
-ObjPointer* new_ptr(VMState* vm, void* pointer)
-{
-    ObjPointer* ptr = (ObjPointer*)allocate_object(vm, sizeof(ObjPointer), OBJ_PTR);
-    ptr->pointer = pointer;
-    ptr->name = "<void *>";
-    ptr->fnptrfree = NULL;
-    return ptr;
-}
-
-ObjModule* new_module(VMState* vm, char* name, char* file)
-{
-    ObjModule* module = (ObjModule*)allocate_object(vm, sizeof(ObjModule), OBJ_MODULE);
-    init_table(&module->values);
-    module->name = name;
-    module->file = file;
-    module->unloader = NULL;
-    module->preloader = NULL;
-    module->handle = NULL;
-    module->imported = false;
-    return module;
-}
-
-ObjSwitch* new_switch(VMState* vm)
-{
-    ObjSwitch* sw = (ObjSwitch*)allocate_object(vm, sizeof(ObjSwitch), OBJ_SWITCH);
-    init_table(&sw->table);
-    sw->defaultjump = -1;
-    sw->exitjump = -1;
-    return sw;
-}
-
-ObjBytes* new_bytes(VMState* vm, int length)
-{
-    ObjBytes* bytes = (ObjBytes*)allocate_object(vm, sizeof(ObjBytes), OBJ_BYTES);
-    init_byte_arr(vm, &bytes->bytes, length);
-    return bytes;
-}
-
-ObjList* new_list(VMState* vm)
-{
-    ObjList* list = (ObjList*)allocate_object(vm, sizeof(ObjList), OBJ_LIST);
-    init_value_arr(&list->items);
-    return list;
-}
-
-ObjRange* new_range(VMState* vm, int lower, int upper)
-{
-    ObjRange* range = (ObjRange*)allocate_object(vm, sizeof(ObjRange), OBJ_RANGE);
-    range->lower = lower;
-    range->upper = upper;
-    if(upper > lower)
-    {
-        range->range = upper - lower;
-    }
-    else
-    {
-        range->range = lower - upper;
-    }
-    return range;
-}
-
-ObjDict* new_dict(VMState* vm)
-{
-    ObjDict* dict = (ObjDict*)allocate_object(vm, sizeof(ObjDict), OBJ_DICT);
-    init_value_arr(&dict->names);
-    init_table(&dict->items);
-    return dict;
-}
-
-ObjFile* new_file(VMState* vm, ObjString* path, ObjString* mode)
-{
-    ObjFile* file = (ObjFile*)allocate_object(vm, sizeof(ObjFile), OBJ_FILE);
-    file->isopen = true;
-    file->mode = mode;
-    file->path = path;
-    file->file = NULL;
-    return file;
-}
-
-ObjBoundMethod* new_bound_method(VMState* vm, Value receiver, ObjClosure* method)
-{
-    ObjBoundMethod* bound = (ObjBoundMethod*)allocate_object(vm, sizeof(ObjBoundMethod), OBJ_BOUND_METHOD);
-    bound->receiver = receiver;
-    bound->method = method;
-    return bound;
-}
-
-ObjClass* new_class(VMState* vm, ObjString* name)
-{
-    ObjClass* klass = (ObjClass*)allocate_object(vm, sizeof(ObjClass), OBJ_CLASS);
-    klass->name = name;
-    init_table(&klass->properties);
-    init_table(&klass->staticproperties);
-    init_table(&klass->methods);
-    klass->initializer = EMPTY_VAL;
-    klass->superclass = NULL;
-    return klass;
-}
-
-ObjFunction* new_function(VMState* vm, ObjModule* module, FuncType type)
-{
-    ObjFunction* function = (ObjFunction*)allocate_object(vm, sizeof(ObjFunction), OBJ_FUNCTION);
-    function->arity = 0;
-    function->upvaluecount = 0;
-    function->isvariadic = false;
-    function->name = NULL;
-    function->type = type;
-    function->module = module;
-    init_blob(&function->blob);
-    return function;
-}
-
-ObjInstance* new_instance(VMState* vm, ObjClass* klass)
-{
-    ObjInstance* instance = (ObjInstance*)allocate_object(vm, sizeof(ObjInstance), OBJ_INSTANCE);
-    push(vm, OBJ_VAL(instance));// gc fix
-    instance->klass = klass;
-    init_table(&instance->properties);
-    if(klass->properties.count > 0)
-    {
-        table_copy(vm, &klass->properties, &instance->properties);
-    }
-    pop(vm);// gc fix
-    return instance;
-}
-
-ObjNativeFunction* new_native(VMState* vm, NativeCallbackFunc function, const char* name)
-{
-    ObjNativeFunction* native = (ObjNativeFunction*)allocate_object(vm, sizeof(ObjNativeFunction), OBJ_NATIVE);
-    native->natfn = function;
-    native->name = name;
-    native->type = TYPE_FUNCTION;
-    return native;
-}
-
-ObjClosure* new_closure(VMState* vm, ObjFunction* function)
-{
-    ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvaluecount);
-    for(int i = 0; i < function->upvaluecount; i++)
-    {
-        upvalues[i] = NULL;
-    }
-    ObjClosure* closure = (ObjClosure*)allocate_object(vm, sizeof(ObjClosure), OBJ_CLOSURE);
-    closure->fnptr = function;
-    closure->upvalues = upvalues;
-    closure->upvaluecount = function->upvaluecount;
-    return closure;
-}
-
-ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_t hash)
-{
-    //fprintf(stderr, "call to bl_string_fromallocated! chars=\"%.*s\"\n", length, chars);
-    ObjString* string = (ObjString*)allocate_object(vm, sizeof(ObjString), OBJ_STRING);
-    string->chars = chars;
-    string->length = length;
-    string->utf8length = utf8len(chars);
-    string->isascii = false;
-    string->hash = hash;
-    push(vm, OBJ_VAL(string));// fixing gc corruption
-    table_set(vm, &vm->strings, OBJ_VAL(string), NIL_VAL);
-    pop(vm);// fixing gc corruption
-    return string;
-}
-
-ObjString* take_string(VMState* vm, char* chars, int length)
-{
-    uint32_t hash = hash_string(chars, length);
-    ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
-    if(interned != NULL)
-    {
-        FREE_ARRAY(char, chars, (size_t)length + 1);
-        return interned;
-    }
-    return bl_string_fromallocated(vm, chars, length, hash);
-}
-
-ObjString* copy_string(VMState* vm, const char* chars, int length)
-{
-    uint32_t hash = hash_string(chars, length);
-    ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
-    if(interned != NULL)
-        return interned;
-    char* heapchars = ALLOCATE(char, (size_t)length + 1);
-    memcpy(heapchars, chars, length);
-    heapchars[length] = '\0';
-    return bl_string_fromallocated(vm, heapchars, length, hash);
-}
-
-ObjUpvalue* new_up_value(VMState* vm, Value* slot)
-{
-    ObjUpvalue* upvalue = (ObjUpvalue*)allocate_object(vm, sizeof(ObjUpvalue), OBJ_UP_VALUE);
-    upvalue->closed = NIL_VAL;
-    upvalue->location = slot;
-    upvalue->next = NULL;
-    return upvalue;
-}
-
-static void print_function(ObjFunction* func)
-{
-    if(func->name == NULL)
-    {
-        printf("<script at %p>", (void*)func);
-    }
-    else
-    {
-        printf(func->isvariadic ? "<function %s(%d...) at %p>" : "<function %s(%d) at %p>", func->name->chars, func->arity, (void*)func);
-    }
-}
-
-static void print_list(ObjList* list)
-{
-    printf("[");
-    for(int i = 0; i < list->items.count; i++)
-    {
-        print_value(list->items.values[i]);
-        if(i != list->items.count - 1)
+        rc = pcre2_match(re, subject, subjectlength, startoffset, options, matchdata, NULL);
+        if(rc == PCRE2_ERROR_NOMATCH)
         {
-            printf(", ");
-        }
-    }
-    printf("]");
-}
-
-static void print_bytes(ObjBytes* bytes)
-{
-    printf("(");
-    for(int i = 0; i < bytes->bytes.count; i++)
-    {
-        printf("%x", bytes->bytes.bytes[i]);
-        if(i > 100)
-        {// as bytes can get really heavy
-            printf("...");
-            break;
-        }
-        if(i != bytes->bytes.count - 1)
-        {
-            printf(" ");
-        }
-    }
-    printf(")");
-}
-
-static void print_dict(ObjDict* dict)
-{
-    printf("{");
-    for(int i = 0; i < dict->names.count; i++)
-    {
-        print_value(dict->names.values[i]);
-        printf(": ");
-        Value value;
-        if(table_get(&dict->items, dict->names.values[i], &value))
-        {
-            print_value(value);
-        }
-        if(i != dict->names.count - 1)
-        {
-            printf(", ");
-        }
-    }
-    printf("}");
-}
-
-static void print_file(ObjFile* file)
-{
-    printf("<file at %s in mode %s>", file->path->chars, file->mode->chars);
-}
-
-void print_object(Value value, bool fixstring)
-{
-    switch(OBJ_TYPE(value))
-    {
-        case OBJ_SWITCH:
-        {
-            break;
-        }
-        case OBJ_PTR:
-        {
-            printf("%s", AS_PTR(value)->name);
-            break;
-        }
-        case OBJ_RANGE:
-        {
-            ObjRange* range = AS_RANGE(value);
-            printf("<range %d-%d>", range->lower, range->upper);
-            break;
-        }
-        case OBJ_FILE:
-        {
-            print_file(AS_FILE(value));
-            break;
-        }
-        case OBJ_DICT:
-        {
-            print_dict(AS_DICT(value));
-            break;
-        }
-        case OBJ_LIST:
-        {
-            print_list(AS_LIST(value));
-            break;
-        }
-        case OBJ_BYTES:
-        {
-            print_bytes(AS_BYTES(value));
-            break;
-        }
-        case OBJ_BOUND_METHOD:
-        {
-            print_function(AS_BOUND(value)->method->fnptr);
-            break;
-        }
-        case OBJ_MODULE:
-        {
-            printf("<module %s at %s>", AS_MODULE(value)->name, AS_MODULE(value)->file);
-            break;
-        }
-        case OBJ_CLASS:
-        {
-            printf("<class %s at %p>", AS_CLASS(value)->name->chars, (void*)AS_CLASS(value));
-            break;
-        }
-        case OBJ_CLOSURE:
-        {
-            print_function(AS_CLOSURE(value)->fnptr);
-            break;
-        }
-        case OBJ_FUNCTION:
-        {
-            print_function(AS_FUNCTION(value));
-            break;
-        }
-        case OBJ_INSTANCE:
-        {
-            // @TODO: support the to_string() override
-            ObjInstance* instance = AS_INSTANCE(value);
-            printf("<class %s instance at %p>", instance->klass->name->chars, (void*)instance);
-            break;
-        }
-        case OBJ_NATIVE:
-        {
-            ObjNativeFunction* native = AS_NATIVE(value);
-            printf("<function %s(native) at %p>", native->name, (void*)native);
-            break;
-        }
-        case OBJ_UP_VALUE:
-        {
-            printf("up value");
-            break;
-        }
-        case OBJ_STRING:
-        {
-            ObjString* string = AS_STRING(value);
-            if(fixstring)
+            if(options == 0)
+                break;
+            ovector[1] = startoffset + 1;
+            if(crlfisnewline && startoffset < subjectlength - 1 && subject[startoffset] == '\r' && subject[startoffset + 1] == '\n')
+                ovector[1] += 1;
+            else if(utf8)
             {
-                printf(strchr(string->chars, '\'') != NULL ? "\"%.*s\"" : "'%.*s'", string->length, string->chars);
+                while(ovector[1] < subjectlength)
+                {
+                    if((subject[ovector[1]] & 0xc0) != 0x80)
+                        break;
+                    ovector[1] += 1;
+                }
+            }
+            continue;
+        }
+        if(rc < 0 && rc != PCRE2_ERROR_PARTIAL)
+        {
+            pcre2_match_data_free(matchdata);
+            pcre2_code_free(re);
+            REGEX_ERR("regular expression error %d", rc);
+        }
+        // REGEX_VECTOR_SIZE_WARNING();
+        REGEX_ASSERTION_ERROR(re, matchdata, ovector);
+        for(int i = 0; i < rc; i++)
+        {
+            PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
+            PCRE2_SPTR substringstart = subject + ovector[2 * i];
+            Value vlist;
+            if(dict_get_entry(result, NUMBER_VAL(i), &vlist))
+            {
+                write_list(vm, AS_LIST(vlist), GC_L_STRING((char*)substringstart, (int)substringlength));
             }
             else
             {
-                printf("%.*s", string->length, string->chars);
+                ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+                write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
+                dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
             }
-            break;
         }
-    }
-}
-
-ObjBytes* copy_bytes(VMState* vm, unsigned char* b, int length)
-{
-    ObjBytes* bytes = new_bytes(vm, length);
-    memcpy(bytes->bytes.bytes, b, length);
-    return bytes;
-}
-
-ObjBytes* take_bytes(VMState* vm, unsigned char* b, int length)
-{
-    ObjBytes* bytes = (ObjBytes*)allocate_object(vm, sizeof(ObjBytes), OBJ_BYTES);
-    bytes->bytes.count = length;
-    bytes->bytes.bytes = b;
-    return bytes;
-}
-
-static char* function_to_string(ObjFunction* func)
-{
-    if(func->name == NULL)
-    {
-        return strdup("<script 0x00>");
-    }
-    const char* format = func->isvariadic ? "<function %s(%d...)>" : "<function %s(%d)>";
-    char* str = (char*)malloc(sizeof(char) * (snprintf(NULL, 0, format, func->name->chars, func->arity)));
-    if(str != NULL)
-    {
-        sprintf(str, format, func->name->chars, func->arity);
-        return str;
-    }
-    return strdup(func->name->chars);
-}
-
-static char* list_to_string(VMState* vm, ValArray* array)
-{
-    char* str = strdup("[");
-    for(int i = 0; i < array->count; i++)
-    {
-        char* val = value_to_string(vm, array->values[i]);
-        if(val != NULL)
+        if(namecount > 0)
         {
-            str = append_strings(str, val);
-            free(val);
-        }
-        if(i != array->count - 1)
-        {
-            str = append_strings(str, ", ");
+            PCRE2_SPTR tabptr;
+            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMETABLE, &nametable);
+            (void)pcre2_pattern_info(re, PCRE2_INFO_NAMEENTRYSIZE, &nameentrysize);
+            tabptr = nametable;
+            for(int i = 0; i < (int)namecount; i++)
+            {
+                int n = (tabptr[0] << 8) | tabptr[1];
+                int valuelength = (int)(ovector[2 * n + 1] - ovector[2 * n]);
+                int keylength = (int)nameentrysize - 3;
+                char* _key = ALLOCATE(char, keylength + 1);
+                char* _val = ALLOCATE(char, valuelength + 1);
+                sprintf(_key, "%*s", keylength, tabptr + 2);
+                sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
+                while(isspace((unsigned char)*_key))
+                    _key++;
+                ObjString* name = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _key, keylength));
+                ObjString* value = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _val, valuelength));
+                Value nlist;
+                if(dict_get_entry(result, OBJ_VAL(name), &nlist))
+                {
+                    write_list(vm, AS_LIST(nlist), OBJ_VAL(value));
+                }
+                else
+                {
+                    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+                    write_list(vm, list, OBJ_VAL(value));
+                    dict_set_entry(vm, result, OBJ_VAL(name), OBJ_VAL(list));
+                }
+                tabptr += nameentrysize;
+            }
         }
     }
-    str = append_strings(str, "]");
-    return str;
+    pcre2_match_data_free(matchdata);
+    pcre2_code_free(re);
+    RETURN_OBJ(result);
 }
 
-static char* bytes_to_string(VMState* vm, ByteArray* array)
+bool objfn_string_replace(VMState* vm, int argcount, Value* args)
 {
-    char* str = strdup("(");
-    for(int i = 0; i < array->count; i++)
+    ENFORCE_ARG_COUNT(replace, 2);
+    ENFORCE_ARG_TYPE(replace, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(replace, 1, IS_STRING);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    ObjString* substr = AS_STRING(args[0]);
+    ObjString* repsubstr = AS_STRING(args[1]);
+    if(string->length == 0 && substr->length == 0)
     {
-        char* chars = ALLOCATE(char, snprintf(NULL, 0, "0x%x", array->bytes[i]));
-        if(chars != NULL)
-        {
-            sprintf(chars, "0x%x", array->bytes[i]);
-            str = append_strings(str, chars);
-        }
-        if(i != array->count - 1)
-        {
-            str = append_strings(str, " ");
-        }
+        RETURN_TRUE;
     }
-    str = append_strings(str, ")");
-    return str;
+    else if(string->length == 0 || substr->length == 0)
+    {
+        RETURN_FALSE;
+    }
+    GET_REGEX_COMPILE_OPTIONS(substr, false);
+    char* realregex = remove_regex_delimiter(vm, substr);
+    PCRE2_SPTR input = (PCRE2_SPTR)string->chars;
+    PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
+    PCRE2_SPTR replacement = (PCRE2_SPTR)repsubstr->chars;
+    int result, errornumber;
+    PCRE2_SIZE erroroffset;
+    pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions & PCRE2_MULTILINE, &errornumber, &erroroffset, 0);
+    free(realregex);
+    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    pcre2_match_context* matchcontext = pcre2_match_context_create(0);
+    PCRE2_SIZE outputlength = 0;
+    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_OVERFLOW_LENGTH, 0, matchcontext, replacement,
+                              PCRE2_ZERO_TERMINATED, 0, &outputlength);
+    if(result < 0 && result != PCRE2_ERROR_NOMEMORY)
+    {
+        REGEX_ERR("regular expression post-compilation failed for replacement", result);
+    }
+    PCRE2_UCHAR* outputbuffer = ALLOCATE(PCRE2_UCHAR, outputlength);
+    result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_UNSET_EMPTY, 0, matchcontext, replacement,
+                              PCRE2_ZERO_TERMINATED, outputbuffer, &outputlength);
+    if(result < 0 && result != PCRE2_ERROR_NOMEMORY)
+    {
+        REGEX_ERR("regular expression error at replacement time", result);
+    }
+    ObjString* response = take_string(vm, (char*)outputbuffer, (int)outputlength);
+    pcre2_match_context_free(matchcontext);
+    pcre2_code_free(re);
+    RETURN_OBJ(response);
 }
 
-static char* dict_to_string(VMState* vm, ObjDict* dict)
+bool objfn_string_tobytes(VMState* vm, int argcount, Value* args)
 {
-    char* str = strdup("{");
+    ENFORCE_ARG_COUNT(tobytes, 0);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    RETURN_OBJ(copy_bytes(vm, (unsigned char*)string->chars, string->length));
+}
+
+bool objfn_string_iter(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(__iter__, 1);
+    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    int length = string->isascii ? string->length : string->utf8length;
+    int index = AS_NUMBER(args[0]);
+    if(index > -1 && index < length)
+    {
+        int start = index, end = index + 1;
+        if(!string->isascii)
+        {
+            bl_util_utf8slice(string->chars, &start, &end);
+        }
+        RETURN_L_STRING(string->chars + start, (int)(end - start));
+    }
+    RETURN_NIL;
+}
+
+bool objfn_string_itern(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(__itern__, 1);
+    ObjString* string = AS_STRING(METHOD_OBJECT);
+    int length = string->isascii ? string->length : string->utf8length;
+    if(IS_NIL(args[0]))
+    {
+        if(length == 0)
+        {
+            RETURN_FALSE;
+        }
+        RETURN_NUMBER(0);
+    }
+    if(!IS_NUMBER(args[0]))
+    {
+        RETURN_ERROR("bytes are numerically indexed");
+    }
+    int index = AS_NUMBER(args[0]);
+    if(index < length - 1)
+    {
+        RETURN_NUMBER((double)index + 1);
+    }
+    RETURN_NIL;
+}
+
+
+bool cfn_bytes(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(bytes, 1);
+    if(IS_NUMBER(args[0]))
+    {
+        RETURN_OBJ(new_bytes(vm, (int)AS_NUMBER(args[0])));
+    }
+    else if(IS_LIST(args[0]))
+    {
+        ObjList* list = AS_LIST(args[0]);
+        ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, list->items.count));
+        for(int i = 0; i < list->items.count; i++)
+        {
+            if(IS_NUMBER(list->items.values[i]))
+            {
+                bytes->bytes.bytes[i] = (unsigned char)AS_NUMBER(list->items.values[i]);
+            }
+            else
+            {
+                bytes->bytes.bytes[i] = 0;
+            }
+        }
+        RETURN_OBJ(bytes);
+    }
+    RETURN_ERROR("expected bytes size or bytes list as argument");
+}
+
+bool objfn_bytes_length(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(length, 0);
+    RETURN_NUMBER(AS_BYTES(METHOD_OBJECT)->bytes.count);
+}
+
+bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(append, 1);
+    if(IS_NUMBER(args[0]))
+    {
+        int byte = (int)AS_NUMBER(args[0]);
+        if(byte < 0 || byte > 255)
+        {
+            RETURN_ERROR("invalid byte. bytes range from 0 to 255");
+        }
+        // append here...
+        ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+        int oldcount = bytes->bytes.count;
+        bytes->bytes.count++;
+        bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, oldcount, bytes->bytes.count);
+        bytes->bytes.bytes[bytes->bytes.count - 1] = (unsigned char)byte;
+        RETURN;
+    }
+    else if(IS_LIST(args[0]))
+    {
+        ObjList* list = AS_LIST(args[0]);
+        if(list->items.count > 0)
+        {
+            // append here...
+            ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+            bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, (size_t)bytes->bytes.count + (size_t)list->items.count);
+            if(bytes->bytes.bytes == NULL)
+            {
+                RETURN_ERROR("out of memory");
+            }
+            for(int i = 0; i < list->items.count; i++)
+            {
+                if(!IS_NUMBER(list->items.values[i]))
+                {
+                    RETURN_ERROR("bytes lists can only contain numbers");
+                }
+                int byte = (int)AS_NUMBER(list->items.values[i]);
+                if(byte < 0 || byte > 255)
+                {
+                    RETURN_ERROR("invalid byte. bytes range from 0 to 255");
+                }
+                bytes->bytes.bytes[bytes->bytes.count + i] = (unsigned char)byte;
+            }
+            bytes->bytes.count += list->items.count;
+        }
+        RETURN;
+    }
+    RETURN_ERROR("bytes can only append a byte or a list of bytes");
+}
+
+bool objfn_bytes_clone(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(clone, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
+    memcpy(nbytes->bytes.bytes, bytes->bytes.bytes, bytes->bytes.count);
+    RETURN_OBJ(nbytes);
+}
+
+bool objfn_bytes_extend(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(extend, 1);
+    ENFORCE_ARG_TYPE(extend, 0, IS_BYTES);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    ObjBytes* nbytes = AS_BYTES(args[0]);
+    bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, bytes->bytes.count + nbytes->bytes.count);
+    if(bytes->bytes.bytes == NULL)
+    {
+        RETURN_ERROR("out of memory");
+    }
+    memcpy(bytes->bytes.bytes + bytes->bytes.count, nbytes->bytes.bytes, nbytes->bytes.count);
+    bytes->bytes.count += nbytes->bytes.count;
+    RETURN_OBJ(bytes);
+}
+
+bool objfn_bytes_pop(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(pop, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    unsigned char c = bytes->bytes.bytes[bytes->bytes.count - 1];
+    bytes->bytes.count--;
+    RETURN_NUMBER((double)((int)c));
+}
+
+bool objfn_bytes_remove(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(remove, 1);
+    ENFORCE_ARG_TYPE(remove, 0, IS_NUMBER);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    int index = AS_NUMBER(args[0]);
+    if(index < 0 || index >= bytes->bytes.count)
+    {
+        RETURN_ERROR("bytes index %d out of range", index);
+    }
+    unsigned char val = bytes->bytes.bytes[index];
+    for(int i = index; i < bytes->bytes.count; i++)
+    {
+        bytes->bytes.bytes[i] = bytes->bytes.bytes[i + 1];
+    }
+    bytes->bytes.count--;
+    RETURN_NUMBER((double)((int)val));
+}
+
+bool objfn_bytes_reverse(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(reverse, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        nbytes->bytes.bytes[i] = bytes->bytes.bytes[bytes->bytes.count - i - 1];
+    }
+    RETURN_OBJ(nbytes);
+}
+
+bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(split, 1);
+    ENFORCE_ARG_TYPE(split, 0, IS_BYTES);
+    ByteArray object = AS_BYTES(METHOD_OBJECT)->bytes;
+    ByteArray delimeter = AS_BYTES(args[0])->bytes;
+    if(object.count == 0 || delimeter.count > object.count)
+        RETURN_OBJ(new_list(vm));
+    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    // main work here...
+    if(delimeter.count > 0)
+    {
+        int start = 0;
+        for(int i = 0; i <= object.count; i++)
+        {
+            // match found.
+            if(memcmp(object.bytes + i, delimeter.bytes, delimeter.count) == 0 || i == object.count)
+            {
+                ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, i - start));
+                memcpy(bytes->bytes.bytes, object.bytes + start, i - start);
+                write_list(vm, list, OBJ_VAL(bytes));
+                i += delimeter.count - 1;
+                start = i + 1;
+            }
+        }
+    }
+    else
+    {
+        int length = object.count;
+        for(int i = 0; i < length; i++)
+        {
+            ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, 1));
+            memcpy(bytes->bytes.bytes, object.bytes + i, 1);
+            write_list(vm, list, OBJ_VAL(bytes));
+        }
+    }
+    RETURN_OBJ(list);
+}
+
+bool objfn_bytes_first(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(first, 0);
+    RETURN_NUMBER((double)((int)AS_BYTES(METHOD_OBJECT)->bytes.bytes[0]));
+}
+
+bool objfn_bytes_last(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(first, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    RETURN_NUMBER((double)((int)bytes->bytes.bytes[bytes->bytes.count - 1]));
+}
+
+bool objfn_bytes_get(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(get, 1);
+    ENFORCE_ARG_TYPE(get, 0, IS_NUMBER);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    int index = AS_NUMBER(args[0]);
+    if(index < 0 || index >= bytes->bytes.count)
+    {
+        RETURN_ERROR("bytes index %d out of range", index);
+    }
+    RETURN_NUMBER((double)((int)bytes->bytes.bytes[index]));
+}
+
+bool objfn_bytes_isalpha(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(is_alpha, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        if(!isalpha(bytes->bytes.bytes[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_TRUE;
+}
+
+bool objfn_bytes_isalnum(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(isalnum, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        if(!isalnum(bytes->bytes.bytes[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_TRUE;
+}
+
+bool objfn_bytes_isnumber(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(is_number, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        if(!isdigit(bytes->bytes.bytes[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_TRUE;
+}
+
+bool objfn_bytes_islower(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(islower, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        if(!islower(bytes->bytes.bytes[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_TRUE;
+}
+
+bool objfn_bytes_isupper(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(isupper, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        if(!isupper(bytes->bytes.bytes[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_TRUE;
+}
+
+bool objfn_bytes_isspace(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(isspace, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        if(!isspace(bytes->bytes.bytes[i]))
+        {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_TRUE;
+}
+
+bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(dispose, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    free_byte_arr(vm, &bytes->bytes);
+    RETURN;
+}
+
+bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(to_list, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    for(int i = 0; i < bytes->bytes.count; i++)
+    {
+        write_list(vm, list, NUMBER_VAL((double)((int)bytes->bytes.bytes[i])));
+    }
+    RETURN_OBJ(list);
+}
+
+bool objfn_bytes_tostring(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(to_string, 0);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    char* string = (char*)bytes->bytes.bytes;
+    RETURN_L_STRING(string, bytes->bytes.count);
+}
+
+bool objfn_bytes_iter(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(__iter__, 1);
+    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    int index = AS_NUMBER(args[0]);
+    if(index > -1 && index < bytes->bytes.count)
+    {
+        RETURN_NUMBER((int)bytes->bytes.bytes[index]);
+    }
+    RETURN_NIL;
+}
+
+bool objfn_bytes_itern(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(__itern__, 1);
+    ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
+    if(IS_NIL(args[0]))
+    {
+        if(bytes->bytes.count == 0)
+            RETURN_FALSE;
+        RETURN_NUMBER(0);
+    }
+    if(!IS_NUMBER(args[0]))
+    {
+        RETURN_ERROR("bytes are numerically indexed");
+    }
+    int index = AS_NUMBER(args[0]);
+    if(index < bytes->bytes.count - 1)
+    {
+        RETURN_NUMBER((double)index + 1);
+    }
+    RETURN_NIL;
+}
+
+bool objfn_dict_length(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(dictionary.length, 0);
+    RETURN_NUMBER(AS_DICT(METHOD_OBJECT)->names.count);
+}
+
+bool objfn_dict_add(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(add, 2);
+    ENFORCE_VALID_DICT_KEY(add, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    Value tempvalue;
+    if(table_get(&dict->items, args[0], &tempvalue))
+    {
+        RETURN_ERROR("duplicate key %s at add()", value_to_string(vm, args[0]));
+    }
+    dict_add_entry(vm, dict, args[0], args[1]);
+    RETURN;
+}
+
+bool objfn_dict_set(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(set, 2);
+    ENFORCE_VALID_DICT_KEY(set, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    Value value;
+    if(!table_get(&dict->items, args[0], &value))
+    {
+        dict_add_entry(vm, dict, args[0], args[1]);
+    }
+    else
+    {
+        dict_set_entry(vm, dict, args[0], args[1]);
+    }
+    RETURN;
+}
+
+bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(dict, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    free_value_arr(vm, &dict->names);
+    free_table(vm, &dict->items);
+    RETURN;
+}
+
+bool objfn_dict_clone(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(clone, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    table_add_all(vm, &dict->items, &ndict->items);
     for(int i = 0; i < dict->names.count; i++)
     {
-        // print_value(dict->names.values[i]);
-        Value key = dict->names.values[i];
-        char* _key = value_to_string(vm, key);
-        if(_key != NULL)
+        write_value_arr(vm, &ndict->names, dict->names.values[i]);
+    }
+    RETURN_OBJ(ndict);
+}
+
+bool objfn_dict_compact(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(compact, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    for(int i = 0; i < dict->names.count; i++)
+    {
+        Value tmpvalue;
+        table_get(&dict->items, dict->names.values[i], &tmpvalue);
+        if(!values_equal(tmpvalue, NIL_VAL))
         {
-            str = append_strings(str, _key);
+            dict_add_entry(vm, ndict, dict->names.values[i], tmpvalue);
         }
-        str = append_strings(str, ": ");
+    }
+    RETURN_OBJ(ndict);
+}
+
+bool objfn_dict_contains(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(contains, 1);
+    ENFORCE_VALID_DICT_KEY(contains, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    Value value;
+    RETURN_BOOL(table_get(&dict->items, args[0], &value));
+}
+
+bool objfn_dict_extend(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(extend, 1);
+    ENFORCE_ARG_TYPE(extend, 0, IS_DICT);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    ObjDict* dictcpy = AS_DICT(args[0]);
+    for(int i = 0; i < dictcpy->names.count; i++)
+    {
+        write_value_arr(vm, &dict->names, dictcpy->names.values[i]);
+    }
+    table_add_all(vm, &dictcpy->items, &dict->items);
+    RETURN;
+}
+
+bool objfn_dict_get(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_RANGE(get, 1, 2);
+    ENFORCE_VALID_DICT_KEY(get, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    Value value;
+    if(!dict_get_entry(dict, args[0], &value))
+    {
+        if(argcount == 1)
+        {
+            RETURN_NIL;
+        }
+        else
+        {
+            RETURN_VALUE(args[1]);// return default
+        }
+    }
+    RETURN_VALUE(value);
+}
+
+bool objfn_dict_keys(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(keys, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    for(int i = 0; i < dict->names.count; i++)
+    {
+        write_list(vm, list, dict->names.values[i]);
+    }
+    RETURN_OBJ(list);
+}
+
+bool objfn_dict_values(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(values, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    for(int i = 0; i < dict->names.count; i++)
+    {
+        Value tmpvalue;
+        dict_get_entry(dict, dict->names.values[i], &tmpvalue);
+        write_list(vm, list, tmpvalue);
+    }
+    RETURN_OBJ(list);
+}
+
+bool objfn_dict_remove(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(remove, 1);
+    ENFORCE_VALID_DICT_KEY(remove, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    Value value;
+    if(table_get(&dict->items, args[0], &value))
+    {
+        table_delete(&dict->items, args[0]);
+        int index = -1;
+        for(int i = 0; i < dict->names.count; i++)
+        {
+            if(values_equal(dict->names.values[i], args[0]))
+            {
+                index = i;
+                break;
+            }
+        }
+        for(int i = index; i < dict->names.count; i++)
+        {
+            dict->names.values[i] = dict->names.values[i + 1];
+        }
+        dict->names.count--;
+        RETURN_VALUE(value);
+    }
+    RETURN_NIL;
+}
+
+bool objfn_dict_isempty(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(isempty, 0);
+    RETURN_BOOL(AS_DICT(METHOD_OBJECT)->names.count == 0);
+}
+
+bool objfn_dict_findkey(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(findkey, 1);
+    RETURN_VALUE(table_find_key(&AS_DICT(METHOD_OBJECT)->items, args[0]));
+}
+
+bool objfn_dict_tolist(VMState* vm, int argcount, Value* args)
+{
+    ENFORCE_ARG_COUNT(to_list, 0);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    ObjList* namelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjList* valuelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    for(int i = 0; i < dict->names.count; i++)
+    {
+        write_list(vm, namelist, dict->names.values[i]);
         Value value;
-        table_get(&dict->items, key, &value);
-        char* val = value_to_string(vm, value);
-        if(val != NULL)
+        if(table_get(&dict->items, dict->names.values[i], &value))
         {
-            str = append_strings(str, val);
+            write_list(vm, valuelist, value);
         }
-        if(i != dict->names.count - 1)
-        {
-            str = append_strings(str, ", ");
+        else
+        {// theoretically impossible
+            write_list(vm, valuelist, NIL_VAL);
         }
     }
-    str = append_strings(str, "}");
-    return str;
+    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    write_list(vm, list, OBJ_VAL(namelist));
+    write_list(vm, list, OBJ_VAL(valuelist));
+    RETURN_OBJ(list);
 }
 
-char* object_to_string(VMState* vm, Value value)
+bool objfn_dict_iter(VMState* vm, int argcount, Value* args)
 {
-    switch(OBJ_TYPE(value))
+    ENFORCE_ARG_COUNT(__iter__, 1);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    Value result;
+    if(table_get(&dict->items, args[0], &result))
     {
-        case OBJ_PTR:
-        {
-            return strdup(AS_PTR(value)->name);
-        }
-        case OBJ_SWITCH:
-        {
-            return strdup("<switch>");
-        }
-        case OBJ_CLASS:
-        {
-            const char* format = "<class %s>";
-            char* data = AS_CLASS(value)->name->chars;
-            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
-            if(str != NULL)
-            {
-                sprintf(str, format, data);
-            }
-            return str;
-        }
-        case OBJ_INSTANCE:
-        {
-            const char* format = "<instance of %s>";
-            char* data = AS_INSTANCE(value)->klass->name->chars;
-            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
-            if(str != NULL)
-            {
-                sprintf(str, format, data);
-            }
-            return str;
-        }
-        case OBJ_CLOSURE:
-            return function_to_string(AS_CLOSURE(value)->fnptr);
-        case OBJ_BOUND_METHOD:
-        {
-            return function_to_string(AS_BOUND(value)->method->fnptr);
-        }
-        case OBJ_FUNCTION:
-            return function_to_string(AS_FUNCTION(value));
-        case OBJ_NATIVE:
-        {
-            const char* format = "<function %s(native)>";
-            const char* data = AS_NATIVE(value)->name;
-            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
-            if(str != NULL)
-            {
-                sprintf(str, format, data);
-            }
-            return str;
-        }
-        case OBJ_RANGE:
-        {
-            ObjRange* range = AS_RANGE(value);
-            const char* format = "<range %d..%d>";
-            char* str = ALLOCATE(char, snprintf(NULL, 0, format, range->lower, range->upper));
-            if(str != NULL)
-            {
-                sprintf(str, format, range->lower, range->upper);
-            }
-            return str;
-        }
-        case OBJ_MODULE:
-        {
-            const char* format = "<module %s>";
-            const char* data = AS_MODULE(value)->name;
-            char* str = ALLOCATE(char, snprintf(NULL, 0, format, data));
-            if(str != NULL)
-            {
-                sprintf(str, format, data);
-            }
-            return str;
-        }
-        case OBJ_STRING:
-            return strdup(AS_C_STRING(value));
-        case OBJ_UP_VALUE:
-            return strdup("<up-value>");
-        case OBJ_BYTES:
-            return bytes_to_string(vm, &AS_BYTES(value)->bytes);
-        case OBJ_LIST:
-            return list_to_string(vm, &AS_LIST(value)->items);
-        case OBJ_DICT:
-            return dict_to_string(vm, AS_DICT(value));
-        case OBJ_FILE:
-        {
-            ObjFile* file = AS_FILE(value);
-            const char* format = "<file at %s in mode %s>";
-            char* str = ALLOCATE(char, snprintf(NULL, 0, format, file->path->chars, file->mode->chars));
-            if(str != NULL)
-            {
-                sprintf(str, format, file->path->chars, file->mode->chars);
-            }
-            return str;
-        }
+        RETURN_VALUE(result);
     }
-    return NULL;
+    RETURN_NIL;
 }
 
-const char* object_type(Object* object)
+bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
 {
-    switch(object->type)
+    ENFORCE_ARG_COUNT(__itern__, 1);
+    ObjDict* dict = AS_DICT(METHOD_OBJECT);
+    if(IS_NIL(args[0]))
     {
-        case OBJ_MODULE:
-            return "module";
-        case OBJ_BYTES:
-            return "bytes";
-        case OBJ_RANGE:
-            return "range";
-        case OBJ_FILE:
-            return "file";
-        case OBJ_DICT:
-            return "dictionary";
-        case OBJ_LIST:
-            return "list";
-        case OBJ_CLASS:
-            return "class";
-        case OBJ_FUNCTION:
-        case OBJ_NATIVE:
-        case OBJ_CLOSURE:
-        case OBJ_BOUND_METHOD:
-            return "function";
-        case OBJ_INSTANCE:
-            return ((ObjInstance*)object)->klass->name->chars;
-        case OBJ_STRING:
-            return "string";
-            //
-        case OBJ_PTR:
-            return "pointer";
-        case OBJ_SWITCH:
-            return "switch";
-        default:
-            return "unknown";
+        if(dict->names.count == 0)
+            RETURN_FALSE;
+        RETURN_VALUE(dict->names.values[0]);
     }
+    for(int i = 0; i < dict->names.count; i++)
+    {
+        if(values_equal(args[0], dict->names.values[i]) && (i + 1) < dict->names.count)
+        {
+            RETURN_VALUE(dict->names.values[i + 1]);
+        }
+    }
+    RETURN_NIL;
 }
+
+#undef ENFORCE_VALID_DICT_KEY
+
+void write_list(VMState* vm, ObjList* list, Value value)
+{
+    write_value_arr(vm, &list->items, value);
+}
+
+ObjList* copy_list(VMState* vm, ObjList* list, int start, int length)
+{
+    int i;
+    ObjList* _list;
+    (void)start;
+    (void)length;
+    _list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    for(i = 0; i < list->items.count; i++)
+    {
+        write_list(vm, _list, list->items.values[i]);
+    }
+    return _list;
+}
+
+
 
 void bl_scanner_init(AstScanner* s, const char* source)
 {
@@ -7581,7 +7322,7 @@ static int read_hex_escape(AstParser* p, char* str, int index, int count)
 static int read_unicode_escape(AstParser* p, char* string, char* realstring, int numberbytes, int realindex, int index)
 {
     int value = read_hex_escape(p, realstring, realindex, numberbytes);
-    int count = utf8_number_bytes(value);
+    int count = bl_util_utf8numbytes(value);
     if(count == -1)
     {
         bl_parser_raiseerror(p, "cannot encode a negative unicode value");
@@ -7590,7 +7331,7 @@ static int read_unicode_escape(AstParser* p, char* string, char* realstring, int
         count++;
     if(count != 0)
     {
-        memcpy(string + index, utf8_encode(value), (size_t)count + 1);
+        memcpy(string + index, bl_util_utf8encode(value), (size_t)count + 1);
     }
     /* if (value > 65535) // but greater than \uffff doesn't occupy any extra byte
     count--; */
@@ -8624,7 +8365,7 @@ static void import_statement(AstParser* p)
             }
             else
             {
-                modulefile = append_strings(modulefile, "/../");
+                modulefile = bl_util_appendstring(modulefile, "/../");
             }
         }
         if(modulename != NULL)
@@ -8651,9 +8392,9 @@ static void import_statement(AstParser* p)
         {
             if(modulefile[strlen(modulefile) - 1] != BLADE_PATH_SEPARATOR[0])
             {
-                modulefile = append_strings(modulefile, BLADE_PATH_SEPARATOR);
+                modulefile = bl_util_appendstring(modulefile, BLADE_PATH_SEPARATOR);
             }
-            modulefile = append_strings(modulefile, modulename);
+            modulefile = bl_util_appendstring(modulefile, modulename);
         }
         partcount++;
     } while(bl_parser_match(p, TOK_DOT) || bl_parser_match(p, TOK_RANGE));
@@ -8672,7 +8413,7 @@ static void import_statement(AstParser* p)
         modulename[p->previous.length] = '\0';
         wasrenamed = true;
     }
-    char* modulepath = resolve_import_path(modulefile, p->module->file, isrelative);
+    char* modulepath = bl_util_resolveimportpath(modulefile, p->module->file, isrelative);
     if(modulepath == NULL)
     {
         // check if there is one in the vm's registry
@@ -8695,7 +8436,7 @@ static void import_statement(AstParser* p)
         bl_parser_consumestmtend(p);
     }
     // do the import here...
-    char* source = read_file(modulepath);
+    char* source = bl_util_readfile(modulepath);
     if(source == NULL)
     {
         bl_parser_raiseerror(p, "could not read import file %s", modulepath);
@@ -9417,7 +9158,7 @@ bool objfn_file_exists(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(exists, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
-    RETURN_BOOL(file_exists(file->path->chars));
+    RETURN_BOOL(bl_util_fileexists(file->path->chars));
 }
 
 bool objfn_file_close(VMState* vm, int argcount, Value* args)
@@ -9474,7 +9215,7 @@ bool objfn_file_read(VMState* vm, int argcount, Value* args)
     if(!is_std_file(file))
     {
         // file is in read mode and file does not exist
-        if(strstr(file->mode->chars, "r") != NULL && !file_exists(file->path->chars))
+        if(strstr(file->mode->chars, "r") != NULL && !bl_util_fileexists(file->path->chars))
         {
             FILE_ERROR(NotFound, "no such file or directory");
         }
@@ -9568,7 +9309,7 @@ bool objfn_file_gets(VMState* vm, int argcount, Value* args)
     if(!is_std_file(file))
     {
         // file is in read mode and file does not exist
-        if(strstr(file->mode->chars, "r") != NULL && !file_exists(file->path->chars))
+        if(strstr(file->mode->chars, "r") != NULL && !bl_util_fileexists(file->path->chars))
         {
             FILE_ERROR(NotFound, "no such file or directory");
         }
@@ -9807,7 +9548,7 @@ bool objfn_file_stats(VMState* vm, int argcount, Value* args)
     ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
     if(!is_std_file(file))
     {
-        if(file_exists(file->path->chars))
+        if(bl_util_fileexists(file->path->chars))
         {
             struct stat stats;
             if(lstat(file->path->chars, &stats) == 0)
@@ -9866,7 +9607,7 @@ bool objfn_file_symlink(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(symlink, 0, IS_STRING);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
-    if(file_exists(file->path->chars))
+    if(bl_util_fileexists(file->path->chars))
     {
         ObjString* path = AS_STRING(args[0]);
         RETURN_BOOL(symlink(file->path->chars, path->chars) == 0);
@@ -9895,7 +9636,7 @@ bool objfn_file_rename(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(rename, 0, IS_STRING);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
-    if(file_exists(file->path->chars))
+    if(bl_util_fileexists(file->path->chars))
     {
         ObjString* newname = AS_STRING(args[0]);
         if(newname->length == 0)
@@ -9932,7 +9673,7 @@ bool objfn_file_name(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(name, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
-    char* name = get_real_file_name(file->path->chars);
+    char* name = bl_util_getrealfilename(file->path->chars);
     RETURN_L_STRING(name, strlen(name));
 }
 
@@ -9953,7 +9694,7 @@ bool objfn_file_copy(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(copy, 0, IS_STRING);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
-    if(file_exists(file->path->chars))
+    if(bl_util_fileexists(file->path->chars))
     {
         ObjString* name = AS_STRING(args[0]);
         if(strstr(file->mode->chars, "r") == NULL)
@@ -10020,7 +9761,7 @@ bool objfn_file_chmod(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(chmod, 0, IS_NUMBER);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
-    if(file_exists(file->path->chars))
+    if(bl_util_fileexists(file->path->chars))
     {
         int mode = AS_NUMBER(args[0]);
         RETURN_STATUS(chmod(file->path->chars, (mode_t)mode));
@@ -10039,7 +9780,7 @@ bool objfn_file_settimes(VMState* vm, int argcount, Value* args)
 #ifdef HAVE_UTIME
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
-    if(file_exists(file->path->chars))
+    if(bl_util_fileexists(file->path->chars))
     {
         time_t atime = (time_t)AS_NUMBER(args[0]);
         time_t mtime = (time_t)AS_NUMBER(args[1]);
@@ -10256,7 +9997,7 @@ void bind_user_modules(VMState* vm, char* pkgroot)
             {
                 continue;
             }
-            path = merge_paths(pkgroot, ent->d_name);
+            path = bl_util_mergepaths(pkgroot, ent->d_name);
             if(!path)
             {
                 continue;
@@ -10269,7 +10010,7 @@ void bind_user_modules(VMState* vm, char* pkgroot)
                 {
                     if(memcmp(path + (pathlength - extlength), LIBRARY_FILE_EXTENSION, extlength) == 0)
                     {// library file
-                        filename = get_real_file_name(path);
+                        filename = bl_util_getrealfilename(path);
                         namelength = (int)strlen(filename) - extlength;
                         name = ALLOCATE(char, namelength + 1);
                         memcpy(name, filename, namelength);
@@ -10295,8 +10036,8 @@ void bind_native_modules(VMState* vm)
     {
         load_module(vm, builtinmodules[i], NULL, strdup("<__native__>"), NULL);
     }
-    //bind_user_modules(vm, merge_paths(get_exe_dir(), "dist"));
-    //bind_user_modules(vm, merge_paths(getcwd(NULL, 0), LOCAL_PACKAGES_DIRECTORY LOCAL_EXT_DIRECTORY));
+    //bind_user_modules(vm, bl_util_mergepaths(bl_util_getexedir(), "dist"));
+    //bind_user_modules(vm, bl_util_mergepaths(getcwd(NULL, 0), LOCAL_PACKAGES_DIRECTORY LOCAL_EXT_DIRECTORY));
 }
 
 char* load_user_module(VMState* vm, const char* path, char* name)
@@ -10800,7 +10541,7 @@ bool cfn_tolist(VMState* vm, int argcount, Value* args)
         for(int i = 0; i < str->utf8length; i++)
         {
             int start = i, end = i + 1;
-            utf8slice(str->chars, &start, &end);
+            bl_util_utf8slice(str->chars, &start, &end);
             write_list(vm, list, STRING_L_VAL(str->chars + start, (int)(end - start)));
         }
     }
@@ -10861,7 +10602,7 @@ bool cfn_chr(VMState* vm, int argcount, Value* args)
     char* string;
     ENFORCE_ARG_COUNT(chr, 1);
     ENFORCE_ARG_TYPE(chr, 0, IS_NUMBER);
-    string = utf8_encode((int)AS_NUMBER(args[0]));
+    string = bl_util_utf8encode((int)AS_NUMBER(args[0]));
     RETURN_T_STRING(string, strlen(string));
 }
 
@@ -10886,7 +10627,7 @@ bool cfn_ord(VMState* vm, int argcount, Value* args)
         RETURN_NUMBER(-1);
     }
     // Decode the UTF-8 sequence.
-    RETURN_NUMBER(utf8_decode((uint8_t*)string->chars, string->length));
+    RETURN_NUMBER(bl_util_utf8decode((uint8_t*)string->chars, string->length));
 }
 
 /**
@@ -12630,7 +12371,7 @@ static int read_line(char line[], int max)
     {
         if(nch < max)
         {
-            line[nch] = *utf8_encode(c);
+            line[nch] = *bl_util_utf8encode(c);
             nch = nch + 1;
         }
         else
@@ -13428,7 +13169,7 @@ static int remove_directory(char* path, int pathlength, bool recursive)
                 continue;
             }
             int pathstringlength = pathlength + (int)strlen(ent->d_name) + 2;
-            char* pathstring = merge_paths(path, ent->d_name);
+            char* pathstring = bl_util_mergepaths(path, ent->d_name);
             if(pathstring == NULL)
                 return -1;
             struct stat sb;
@@ -15495,7 +15236,7 @@ static Value get_stack_trace(VMState* vm)
                 sprintf(traceline, traceformat, function->module->file, line, fnname);
                 traceline[(int)tracelinelength] = '\0';
             }
-            trace = append_strings(trace, traceline);
+            trace = bl_util_appendstring(trace, traceline);
             free(traceline);
         }
         return STRING_TT_VAL(trace);
@@ -16356,35 +16097,6 @@ static void define_property(VMState* vm, ObjString* name, bool isstatic)
     pop(vm);
 }
 
-bool is_false(Value value)
-{
-    if(IS_BOOL(value))
-        return IS_BOOL(value) && !AS_BOOL(value);
-    if(IS_NIL(value) || IS_EMPTY(value))
-        return true;
-    // -1 is the number equivalent of false in Blade
-    if(IS_NUMBER(value))
-        return AS_NUMBER(value) < 0;
-    // Non-empty strings are true, empty strings are false.
-    if(IS_STRING(value))
-        return AS_STRING(value)->length < 1;
-    // Non-empty bytes are true, empty strings are false.
-    if(IS_BYTES(value))
-        return AS_BYTES(value)->bytes.count < 1;
-    // Non-empty lists are true, empty lists are false.
-    if(IS_LIST(value))
-        return AS_LIST(value)->items.count == 0;
-    // Non-empty dicts are true, empty dicts are false.
-    if(IS_DICT(value))
-        return AS_DICT(value)->names.count == 0;
-    // All classes are true
-    // All closures are true
-    // All bound methods are true
-    // All functions are in themselves true if you do not account for what they
-    // return.
-    return false;
-}
-
 bool bl_class_isinstanceof(ObjClass* klass1, char* klass2name)
 {
     while(klass1 != NULL)
@@ -16485,7 +16197,7 @@ static bool string_get_index(VMState* vm, ObjString* string, bool willassign)
         int start = index, end = index + 1;
         if(!string->isascii)
         {
-            utf8slice(string->chars, &start, &end);
+            bl_util_utf8slice(string->chars, &start, &end);
         }
         if(!willassign)
         {
@@ -16531,7 +16243,7 @@ static bool string_get_ranged_index(VMState* vm, ObjString* string, bool willass
     int start = lowerindex, end = upperindex;
     if(!string->isascii)
     {
-        utf8slice(string->chars, &start, &end);
+        bl_util_utf8slice(string->chars, &start, &end);
     }
     if(!willassign)
     {
@@ -18150,10 +17862,10 @@ static void repl(VMState* vm)
             if(line[i] == ']' && bracketcount > 0)
                 bracketcount--;
         }
-        source = append_strings(source, line);
+        source = bl_util_appendstring(source, line);
         if(linelength > 0)
         {
-            source = append_strings(source, "\n");
+            source = bl_util_appendstring(source, "\n");
         }
         if(bracketcount == 0 && parencount == 0 && bracecount == 0 && singlequotecount == 0 && doublequotecount == 0)
         {
@@ -18168,13 +17880,13 @@ static void repl(VMState* vm)
 
 static void run_file(VMState* vm, char* file)
 {
-    char* source = read_file(file);
+    char* source = bl_util_readfile(file);
     if(source == NULL)
     {
         // check if it's a Blade library directory by attempting to read the index file.
         char* oldfile = file;
-        file = append_strings((char*)strdup(file), "/" LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
-        source = read_file(file);
+        file = bl_util_appendstring((char*)strdup(file), "/" LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+        source = bl_util_readfile(file);
         if(source == NULL)
         {
             fprintf(stderr, "(Blade):\n  Launch aborted for %s\n  Reason: %s\n", oldfile, strerror(errno));
