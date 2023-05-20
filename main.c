@@ -29,6 +29,8 @@
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
+
+
 #define BLADE_EXTENSION ".b"
 #define BLADE_VERSION_STRING "0.0.74-rc1"
 #define BVM_VERSION "0.0.7"
@@ -177,78 +179,7 @@
 #define NORMALIZE_IS_PTR "ptr"
 #define NORMALIZE(token) NORMALIZE_##token
 
-#define RETURN \
-    { \
-        args[-1] = EMPTY_VAL; \
-        return true; \
-    }
 
-#define RETURN_NIL \
-    { \
-        args[-1] = NIL_VAL; \
-        return true; \
-    }
-
-#define RETURN_EMPTY \
-    { \
-        args[-1] = NIL_VAL; \
-        return false; \
-    }
-
-#define RETURN_ERROR(...) \
-    { \
-        pop_n(vm, argcount); \
-        bl_vm_throwexception(vm, false, ##__VA_ARGS__); \
-        args[-1] = FALSE_VAL; \
-        return false; \
-    }
-
-#define RETURN_BOOL(v) \
-    { \
-        args[-1] = BOOL_VAL(v); \
-        return true; \
-    }
-#define RETURN_TRUE \
-    { \
-        args[-1] = TRUE_VAL; \
-        return true; \
-    }
-#define RETURN_FALSE \
-    { \
-        args[-1] = FALSE_VAL; \
-        return true; \
-    }
-#define RETURN_NUMBER(v) \
-    { \
-        args[-1] = NUMBER_VAL(v); \
-        return true; \
-    }
-#define RETURN_OBJ(v) \
-    { \
-        args[-1] = OBJ_VAL(v); \
-        return true; \
-    }
-
-#define RETURN_L_STRING(v, l) \
-    { \
-        args[-1] = OBJ_VAL(copy_string(vm, v, l)); \
-        return true; \
-    }
-#define RETURN_T_STRING(v, l) \
-    { \
-        args[-1] = OBJ_VAL(take_string(vm, v, l)); \
-        return true; \
-    }
-#define RETURN_TT_STRING(v) \
-    { \
-        args[-1] = OBJ_VAL(take_string(vm, v, (int)strlen(v))); \
-        return true; \
-    }
-#define RETURN_VALUE(v) \
-    { \
-        args[-1] = v; \
-        return true; \
-    }
 #define ENFORCE_ARG_COUNT(name, d) \
     if(argcount != d) \
     { \
@@ -626,11 +557,11 @@ enum TokType
     TOK_ELSE,
     TOK_FALSE,
     TOK_FINALLY,
-    TOK_FOR,
+    TOK_FOREACH,
     TOK_IF,
     TOK_IMPORT,
     TOK_IN,
-    TOK_ITER,
+    TOK_FORLOOP,
     TOK_NIL,
     TOK_OR,
     TOK_PARENT,
@@ -1122,6 +1053,10 @@ struct BProcessShared
 
 #include "prot.inc"
 
+#if defined(__TINYC__)
+int __dso_handle;
+#endif
+
 static bool is_obj_type(Value v, ObjType t)
 {
     if(IS_OBJ(v))
@@ -1600,6 +1535,52 @@ char* bl_util_getrealfilename(char* path)
     return basename(path);
 }
 
+static uint32_t bl_util_hashbits(uint64_t hash)
+{
+    // From v8's ComputeLongHash() which in turn cites:
+    // Thomas Wang, Integer Hash Functions.
+    // http://www.concentric.net/~Ttwang/tech/inthash.htm
+    hash = ~hash + (hash << 18);// hash = (hash << 18) - hash - 1;
+    hash = hash ^ (hash >> 31);
+    hash = hash * 21;// hash = (hash + (hash << 2)) + (hash << 4);
+    hash = hash ^ (hash >> 11);
+    hash = hash + (hash << 6);
+    hash = hash ^ (hash >> 22);
+    return (uint32_t)(hash & 0x3fffffff);
+}
+
+uint32_t bl_util_hashdouble(double value)
+{
+    typedef union bdoubleunion bdoubleunion;
+
+    union bdoubleunion
+    {
+        uint64_t bits;
+        double num;
+    };
+
+    bdoubleunion bits;
+    bits.num = value;
+    return bl_util_hashbits(bits.bits);
+}
+
+uint32_t bl_util_hashstring(const char* key, int length)
+{
+    /*
+    uint32_t hash = 2166136261u;
+    const char* be = key + length;
+    while(key < be)
+    {
+        hash = (hash ^ *key++) * 16777619;
+    }
+    return hash;
+    // return siphash24(127, 255, key, length);
+    */
+    return XXH3_64bits(key, length);
+}
+
+void bl_mem_collectgarbage(VMState* vm);
+
 void bl_mem_free(VMState* vm, void* pointer, size_t sz)
 {
     vm->bytesallocated -= sz;
@@ -1611,7 +1592,7 @@ void* bl_mem_realloc(VMState* vm, void* pointer, size_t oldsize, size_t newsize)
     vm->bytesallocated += newsize - oldsize;
     if(newsize > oldsize && vm->bytesallocated > vm->nextgc)
     {
-        collect_garbage(vm);
+        bl_mem_collectgarbage(vm);
     }
     void* result = realloc(pointer, newsize);
     // just in case reallocation fails... computers ain't infinite!
@@ -1629,7 +1610,7 @@ void* bl_mem_growarray(VMState* vm, void* ptr, size_t tsz, size_t oldcount, size
     return bl_mem_realloc(vm, ptr, tsz * (oldcount), tsz * (newcount));
 }
 
-void mark_object(VMState* vm, Object* object)
+void bl_mem_markobject(VMState* vm, Object* object)
 {
     if(object == NULL)
     {
@@ -1659,21 +1640,35 @@ void mark_object(VMState* vm, Object* object)
     vm->graystack[vm->graycount++] = object;
 }
 
-void mark_value(VMState* vm, Value value)
+void bl_mem_markvalue(VMState* vm, Value value)
 {
     if(IS_OBJ(value))
-        mark_object(vm, AS_OBJ(value));
+        bl_mem_markobject(vm, AS_OBJ(value));
 }
 
-static void mark_array(VMState* vm, ValArray* array)
+void bl_mem_markarray(VMState* vm, ValArray* array)
 {
     for(int i = 0; i < array->count; i++)
     {
-        mark_value(vm, array->values[i]);
+        bl_mem_markvalue(vm, array->values[i]);
     }
 }
 
-void blacken_object(VMState* vm, Object* object)
+void bl_mem_marktable(VMState* vm, HashTable* table)
+{
+    for(int i = 0; i < table->capacity; i++)
+    {
+        HashEntry* entry = &table->entries[i];
+        if(entry != NULL)
+        {
+            bl_mem_markvalue(vm, entry->key);
+            bl_mem_markvalue(vm, entry->value);
+        }
+    }
+}
+
+
+void bl_mem_blackenobject(VMState* vm, Object* object)
 {
     //#if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
     //  printf("%p blacken ", (void *)object);
@@ -1685,84 +1680,84 @@ void blacken_object(VMState* vm, Object* object)
         case OBJ_MODULE:
         {
             ObjModule* module = (ObjModule*)object;
-            mark_table(vm, &module->values);
+            bl_mem_marktable(vm, &module->values);
             break;
         }
         case OBJ_SWITCH:
         {
             ObjSwitch* sw = (ObjSwitch*)object;
-            mark_table(vm, &sw->table);
+            bl_mem_marktable(vm, &sw->table);
             break;
         }
         case OBJ_FILE:
         {
             ObjFile* file = (ObjFile*)object;
-            mark_object(vm, (Object*)file->mode);
-            mark_object(vm, (Object*)file->path);
+            bl_mem_markobject(vm, (Object*)file->mode);
+            bl_mem_markobject(vm, (Object*)file->path);
             break;
         }
         case OBJ_DICT:
         {
             ObjDict* dict = (ObjDict*)object;
-            mark_array(vm, &dict->names);
-            mark_table(vm, &dict->items);
+            bl_mem_markarray(vm, &dict->names);
+            bl_mem_marktable(vm, &dict->items);
             break;
         }
         case OBJ_LIST:
         {
             ObjList* list = (ObjList*)object;
-            mark_array(vm, &list->items);
+            bl_mem_markarray(vm, &list->items);
             break;
         }
         case OBJ_BOUND_METHOD:
         {
             ObjBoundMethod* bound = (ObjBoundMethod*)object;
-            mark_value(vm, bound->receiver);
-            mark_object(vm, (Object*)bound->method);
+            bl_mem_markvalue(vm, bound->receiver);
+            bl_mem_markobject(vm, (Object*)bound->method);
             break;
         }
         case OBJ_CLASS:
         {
             ObjClass* klass = (ObjClass*)object;
-            mark_object(vm, (Object*)klass->name);
-            mark_table(vm, &klass->methods);
-            mark_table(vm, &klass->properties);
-            mark_table(vm, &klass->staticproperties);
-            mark_value(vm, klass->initializer);
+            bl_mem_markobject(vm, (Object*)klass->name);
+            bl_mem_marktable(vm, &klass->methods);
+            bl_mem_marktable(vm, &klass->properties);
+            bl_mem_marktable(vm, &klass->staticproperties);
+            bl_mem_markvalue(vm, klass->initializer);
             if(klass->superclass != NULL)
             {
-                mark_object(vm, (Object*)klass->superclass);
+                bl_mem_markobject(vm, (Object*)klass->superclass);
             }
             break;
         }
         case OBJ_CLOSURE:
         {
             ObjClosure* closure = (ObjClosure*)object;
-            mark_object(vm, (Object*)closure->fnptr);
+            bl_mem_markobject(vm, (Object*)closure->fnptr);
             for(int i = 0; i < closure->upvaluecount; i++)
             {
-                mark_object(vm, (Object*)closure->upvalues[i]);
+                bl_mem_markobject(vm, (Object*)closure->upvalues[i]);
             }
             break;
         }
         case OBJ_FUNCTION:
         {
             ObjFunction* function = (ObjFunction*)object;
-            mark_object(vm, (Object*)function->name);
-            mark_object(vm, (Object*)function->module);
-            mark_array(vm, &function->blob.constants);
+            bl_mem_markobject(vm, (Object*)function->name);
+            bl_mem_markobject(vm, (Object*)function->module);
+            bl_mem_markarray(vm, &function->blob.constants);
             break;
         }
         case OBJ_INSTANCE:
         {
             ObjInstance* instance = (ObjInstance*)object;
-            mark_object(vm, (Object*)instance->klass);
-            mark_table(vm, &instance->properties);
+            bl_mem_markobject(vm, (Object*)instance->klass);
+            bl_mem_marktable(vm, &instance->properties);
             break;
         }
         case OBJ_UP_VALUE:
         {
-            mark_value(vm, ((ObjUpvalue*)object)->closed);
+            bl_mem_markvalue(vm, ((ObjUpvalue*)object)->closed);
             break;
         }
         case OBJ_BYTES:
@@ -1770,7 +1765,7 @@ void blacken_object(VMState* vm, Object* object)
         case OBJ_NATIVE:
         case OBJ_PTR:
         {
-            mark_object(vm, object);
+            bl_mem_markobject(vm, object);
             break;
         }
         case OBJ_STRING:
@@ -1778,7 +1773,7 @@ void blacken_object(VMState* vm, Object* object)
     }
 }
 
-void free_object(VMState* vm, Object** pobject)
+void bl_mem_freeobject(VMState* vm, Object** pobject)
 {
     //#if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
     //  printf("%p free type %d\n", (void *)object, object->type);
@@ -1854,14 +1849,14 @@ void free_object(VMState* vm, Object** pobject)
         case OBJ_CLASS:
         {
             ObjClass* klass = (ObjClass*)object;
-            //free_object(vm, (Object**)&klass->name);
+            //bl_mem_freeobject(vm, (Object**)&klass->name);
             free_table(vm, &klass->methods);
             free_table(vm, &klass->properties);
             free_table(vm, &klass->staticproperties);
             if(!IS_EMPTY(klass->initializer))
             {
                 // FIXME: uninitialized
-                //free_object(vm, &AS_OBJ(klass->initializer));
+                //bl_mem_freeobject(vm, &AS_OBJ(klass->initializer));
             }
             FREE(ObjClass, object);
             break;
@@ -1881,7 +1876,7 @@ void free_object(VMState* vm, Object** pobject)
             free_blob(vm, &function->blob);
             if(function->name != NULL)
             {
-                //free_object(vm, (Object**)&function->name);
+                //bl_mem_freeobject(vm, (Object**)&function->name);
             }
             FREE(ObjFunction, object);
             break;
@@ -1941,7 +1936,7 @@ void free_object(VMState* vm, Object** pobject)
     *pobject = NULL;
 }
 
-static void mark_roots(VMState* vm)
+static void bl_mem_markroots(VMState* vm)
 {
     int i;
     int j;
@@ -1950,44 +1945,44 @@ static void mark_roots(VMState* vm)
     Value* slot;
     for(slot = vm->stack; slot < vm->stacktop; slot++)
     {
-        mark_value(vm, *slot);
+        bl_mem_markvalue(vm, *slot);
     }
     for(i = 0; i < vm->framecount; i++)
     {
-        mark_object(vm, (Object*)vm->frames[i].closure);
+        bl_mem_markobject(vm, (Object*)vm->frames[i].closure);
         for(j = 0; j < vm->frames[i].handlerscount; j++)
         {
             handler = &vm->frames[i].handlers[j];
-            mark_object(vm, (Object*)handler->klass);
+            bl_mem_markobject(vm, (Object*)handler->klass);
         }
     }
     for(upvalue = vm->openupvalues; upvalue != NULL; upvalue = upvalue->next)
     {
-        mark_object(vm, (Object*)upvalue);
+        bl_mem_markobject(vm, (Object*)upvalue);
     }
-    mark_table(vm, &vm->globals);
-    mark_table(vm, &vm->modules);
-    mark_table(vm, &vm->methodsstring);
-    mark_table(vm, &vm->methodsbytes);
-    mark_table(vm, &vm->methodsfile);
-    mark_table(vm, &vm->methodslist);
-    mark_table(vm, &vm->methodsdict);
-    mark_table(vm, &vm->methodsrange);
-    mark_object(vm, (Object*)vm->exceptionclass);
+    bl_mem_marktable(vm, &vm->globals);
+    bl_mem_marktable(vm, &vm->modules);
+    bl_mem_marktable(vm, &vm->methodsstring);
+    bl_mem_marktable(vm, &vm->methodsbytes);
+    bl_mem_marktable(vm, &vm->methodsfile);
+    bl_mem_marktable(vm, &vm->methodslist);
+    bl_mem_marktable(vm, &vm->methodsdict);
+    bl_mem_marktable(vm, &vm->methodsrange);
+    bl_mem_markobject(vm, (Object*)vm->exceptionclass);
     mark_compiler_roots(vm);
 }
 
-static void trace_references(VMState* vm)
+static void bl_mem_tracerefs(VMState* vm)
 {
     Object* object;
     while(vm->graycount > 0)
     {
         object = vm->graystack[--vm->graycount];
-        blacken_object(vm, object);
+        bl_mem_blackenobject(vm, object);
     }
 }
 
-static void sweep(VMState* vm)
+static void bl_mem_gcsweep(VMState* vm)
 {
     Object* previous;
     Object* object;
@@ -2014,12 +2009,12 @@ static void sweep(VMState* vm)
             {
                 vm->objectlinks = object;
             }
-            free_object(vm, &unreached);
+            bl_mem_freeobject(vm, &unreached);
         }
     }
 }
 
-void free_objects(VMState* vm)
+void bl_mem_freegcobjects(VMState* vm)
 {
     size_t i;
     Object* next;
@@ -2029,16 +2024,16 @@ void free_objects(VMState* vm)
     while(object != NULL)
     {
         i++;
-        //fprintf(stderr, "free_objects: index %d of %d\n", i, vm->objectcount);
+        //fprintf(stderr, "bl_mem_freegcobjects: index %d of %d\n", i, vm->objectcount);
         next = object->sibling;
-        free_object(vm, &object);
+        bl_mem_freeobject(vm, &object);
         object = next;
     }
     free(vm->graystack);
     vm->graystack = NULL;
 }
 
-void collect_garbage(VMState* vm)
+void bl_mem_collectgarbage(VMState* vm)
 {
     if(!vm->allowgc)
     {
@@ -2056,11 +2051,11 @@ void collect_garbage(VMState* vm)
     tin_gcmem_vmsweep(vm);
     vm->state->gcnext = vm->state->gcbytescount * TIN_GC_HEAP_GROW_FACTOR;
     */
-    mark_roots(vm);
-    trace_references(vm);
+    bl_mem_markroots(vm);
+    bl_mem_tracerefs(vm);
     table_remove_whites(vm, &vm->strings);
     table_remove_whites(vm, &vm->modules);
-    sweep(vm);
+    bl_mem_gcsweep(vm);
     vm->nextgc = vm->bytesallocated * GC_HEAP_GROWTH_FACTOR;
     vm->allowgc = true;
 #if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
@@ -2242,49 +2237,7 @@ bool values_equal(Value a, Value b)
     }
 }
 
-static uint32_t hash_bits(uint64_t hash)
-{
-    // From v8's ComputeLongHash() which in turn cites:
-    // Thomas Wang, Integer Hash Functions.
-    // http://www.concentric.net/~Ttwang/tech/inthash.htm
-    hash = ~hash + (hash << 18);// hash = (hash << 18) - hash - 1;
-    hash = hash ^ (hash >> 31);
-    hash = hash * 21;// hash = (hash + (hash << 2)) + (hash << 4);
-    hash = hash ^ (hash >> 11);
-    hash = hash + (hash << 6);
-    hash = hash ^ (hash >> 22);
-    return (uint32_t)(hash & 0x3fffffff);
-}
 
-uint32_t hash_double(double value)
-{
-    typedef union bdoubleunion bdoubleunion;
-
-    union bdoubleunion
-    {
-        uint64_t bits;
-        double num;
-    };
-
-    bdoubleunion bits;
-    bits.num = value;
-    return hash_bits(bits.bits);
-}
-
-uint32_t hash_string(const char* key, int length)
-{
-    /*
-    uint32_t hash = 2166136261u;
-    const char* be = key + length;
-    while(key < be)
-    {
-        hash = (hash ^ *key++) * 16777619;
-    }
-    return hash;
-    // return siphash24(127, 255, key, length);
-    */
-    return XXH3_64bits(key, length);
-}
 
 // Generates a hash code for [object].
 static uint32_t hash_object(Object* object)
@@ -2301,14 +2254,14 @@ static uint32_t hash_object(Object* object)
         case OBJ_FUNCTION:
         {
             ObjFunction* fn = (ObjFunction*)object;
-            return hash_double(fn->arity) ^ hash_double(fn->blob.count);
+            return bl_util_hashdouble(fn->arity) ^ bl_util_hashdouble(fn->blob.count);
         }
         case OBJ_STRING:
             return ((ObjString*)object)->hash;
         case OBJ_BYTES:
         {
             ObjBytes* bytes = ((ObjBytes*)object);
-            return hash_string((const char*)bytes->bytes.bytes, bytes->bytes.count);
+            return bl_util_hashstring((const char*)bytes->bytes.bytes, bytes->bytes.count);
         }
         default:
             return 0;
@@ -2324,7 +2277,7 @@ uint32_t hash_value(Value value)
         case VAL_NIL:
             return 7;
         case VAL_NUMBER:
-            return hash_double(AS_NUMBER(value));
+            return bl_util_hashdouble(AS_NUMBER(value));
         case VAL_OBJ:
             return hash_object(AS_OBJ(value));
         default:// VAL_EMPTY
@@ -2506,6 +2459,84 @@ Value copy_value(VMState* vm, Value value)
     return value;
 }
 
+bool bl_value_returnvalue(VMState* vm, Value* args, Value val, bool b)
+{
+    args[-1] = val;
+    return b;
+}
+
+bool bl_value_returnempty(VMState* vm, Value* args)
+{
+    return bl_value_returnvalue(vm, args, EMPTY_VAL, true);
+}
+
+bool bl_value_returnnil(VMState* vm, Value* args)
+{
+    return bl_value_returnvalue(vm, args, NIL_VAL, true);
+}
+
+#define RETURN_EMPTY \
+    { \
+        args[-1] = NIL_VAL; \
+        return false; \
+    }
+
+#define RETURN_ERROR(...) \
+    { \
+        pop_n(vm, argcount); \
+        bl_vm_throwexception(vm, false, ##__VA_ARGS__); \
+        args[-1] = FALSE_VAL; \
+        return false; \
+    }
+
+#define RETURN_BOOL(v) \
+    { \
+        args[-1] = BOOL_VAL(v); \
+        return true; \
+    }
+#define RETURN_TRUE \
+    { \
+        args[-1] = TRUE_VAL; \
+        return true; \
+    }
+#define RETURN_FALSE \
+    { \
+        args[-1] = FALSE_VAL; \
+        return true; \
+    }
+#define RETURN_NUMBER(v) \
+    { \
+        args[-1] = NUMBER_VAL(v); \
+        return true; \
+    }
+#define RETURN_OBJ(v) \
+    { \
+        args[-1] = OBJ_VAL(v); \
+        return true; \
+    }
+
+#define RETURN_L_STRING(v, l) \
+    { \
+        args[-1] = OBJ_VAL(copy_string(vm, v, l)); \
+        return true; \
+    }
+#define RETURN_T_STRING(v, l) \
+    { \
+        args[-1] = OBJ_VAL(take_string(vm, v, l)); \
+        return true; \
+    }
+#define RETURN_TT_STRING(v) \
+    { \
+        args[-1] = OBJ_VAL(take_string(vm, v, (int)strlen(v))); \
+        return true; \
+    }
+#define RETURN_VALUE(v) \
+    { \
+        args[-1] = v; \
+        return true; \
+    }
+
+
 
 void reset_table(HashTable* table)
 {
@@ -2537,13 +2568,13 @@ void clean_free_table(VMState* vm, HashTable* table)
 #if 0
             if(IS_OBJ(entry->key))
             {
-                free_object(vm, &AS_OBJ(entry->key));
+                bl_mem_freeobject(vm, &AS_OBJ(entry->key));
             }
 #endif
 #if 0
             if(IS_OBJ(entry->value))
             {
-                free_object(vm, &AS_OBJ(entry->value));
+                bl_mem_freeobject(vm, &AS_OBJ(entry->value));
             }
 #endif
         }
@@ -2796,18 +2827,6 @@ void table_print(HashTable* table)
     printf("}>\n");
 }
 
-void mark_table(VMState* vm, HashTable* table)
-{
-    for(int i = 0; i < table->capacity; i++)
-    {
-        HashEntry* entry = &table->entries[i];
-        if(entry != NULL)
-        {
-            mark_value(vm, entry->key);
-            mark_value(vm, entry->value);
-        }
-    }
-}
 
 void table_remove_whites(VMState* vm, HashTable* table)
 {
@@ -3197,7 +3216,7 @@ ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_
 
 ObjString* take_string(VMState* vm, char* chars, int length)
 {
-    uint32_t hash = hash_string(chars, length);
+    uint32_t hash = bl_util_hashstring(chars, length);
     ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
     if(interned != NULL)
     {
@@ -3209,7 +3228,7 @@ ObjString* take_string(VMState* vm, char* chars, int length)
 
 ObjString* copy_string(VMState* vm, const char* chars, int length)
 {
-    uint32_t hash = hash_string(chars, length);
+    uint32_t hash = bl_util_hashstring(chars, length);
     ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
     if(interned != NULL)
         return interned;
@@ -3670,14 +3689,14 @@ bool objfn_list_append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 1);
     write_list(vm, AS_LIST(METHOD_OBJECT), args[0]);
-    RETURN;
+    return bl_value_returnempty(vm, args);
 }
 
 bool objfn_list_clear(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clear, 0);
     free_value_arr(vm, &AS_LIST(METHOD_OBJECT)->items);
-    RETURN;
+    return bl_value_returnempty(vm, args);
 }
 
 bool objfn_list_clone(VMState* vm, int argcount, Value* args)
@@ -3710,7 +3729,7 @@ bool objfn_list_extend(VMState* vm, int argcount, Value* args)
     {
         write_list(vm, list, list2->items.values[i]);
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_list_indexof(VMState* vm, int argcount, Value* args)
@@ -3734,7 +3753,7 @@ bool objfn_list_insert(VMState* vm, int argcount, Value* args)
     ObjList* list = AS_LIST(METHOD_OBJECT);
     int index = (int)AS_NUMBER(args[1]);
     insert_value_arr(vm, &list->items, args[0], index);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_list_pop(VMState* vm, int argcount, Value* args)
@@ -3747,7 +3766,7 @@ bool objfn_list_pop(VMState* vm, int argcount, Value* args)
         list->items.count--;
         RETURN_VALUE(value);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_list_shift(VMState* vm, int argcount, Value* args)
@@ -3763,7 +3782,7 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
     if(count >= list->items.count || list->items.count == 1)
     {
         list->items.count = 0;
-        RETURN_NIL;
+        return bl_value_returnnil(vm, args);
     }
     else if(count > 0)
     {
@@ -3786,7 +3805,7 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
             RETURN_OBJ(nlist);
         }
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_list_removeat(VMState* vm, int argcount, Value* args)
@@ -3829,7 +3848,7 @@ bool objfn_list_remove(VMState* vm, int argcount, Value* args)
         }
         list->items.count--;
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_list_reverse(VMState* vm, int argcount, Value* args)
@@ -3858,7 +3877,7 @@ bool objfn_list_sort(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(sort, 0);
     ObjList* list = AS_LIST(METHOD_OBJECT);
     sort_values(list->items.values, list->items.count);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_list_contains(VMState* vm, int argcount, Value* args)
@@ -3911,10 +3930,7 @@ bool objfn_list_first(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(list->items.values[0]);
     }
-    else
-    {
-        RETURN_NIL;
-    }
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_list_last(VMState* vm, int argcount, Value* args)
@@ -3925,10 +3941,7 @@ bool objfn_list_last(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(list->items.values[list->items.count - 1]);
     }
-    else
-    {
-        RETURN_NIL;
-    }
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_list_isempty(VMState* vm, int argcount, Value* args)
@@ -4056,7 +4069,7 @@ bool objfn_list_iter(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(list->items.values[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_list_itern(VMState* vm, int argcount, Value* args)
@@ -4080,7 +4093,7 @@ bool objfn_list_itern(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER((double)index + 1);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 
@@ -4922,7 +4935,7 @@ bool objfn_string_iter(VMState* vm, int argcount, Value* args)
         }
         RETURN_L_STRING(string->chars + start, (int)(end - start));
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_string_itern(VMState* vm, int argcount, Value* args)
@@ -4947,7 +4960,7 @@ bool objfn_string_itern(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER((double)index + 1);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 
@@ -5000,7 +5013,7 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
         bytes->bytes.count++;
         bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, oldcount, bytes->bytes.count);
         bytes->bytes.bytes[bytes->bytes.count - 1] = (unsigned char)byte;
-        RETURN;
+        return bl_value_returnempty(vm, args);;
     }
     else if(IS_LIST(args[0]))
     {
@@ -5029,7 +5042,7 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
             }
             bytes->bytes.count += list->items.count;
         }
-        RETURN;
+        return bl_value_returnempty(vm, args);;
     }
     RETURN_ERROR("bytes can only append a byte or a list of bytes");
 }
@@ -5253,7 +5266,7 @@ bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(dispose, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     free_byte_arr(vm, &bytes->bytes);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args)
@@ -5286,7 +5299,7 @@ bool objfn_bytes_iter(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER((int)bytes->bytes.bytes[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_bytes_itern(VMState* vm, int argcount, Value* args)
@@ -5308,7 +5321,7 @@ bool objfn_bytes_itern(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER((double)index + 1);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_dict_length(VMState* vm, int argcount, Value* args)
@@ -5328,7 +5341,7 @@ bool objfn_dict_add(VMState* vm, int argcount, Value* args)
         RETURN_ERROR("duplicate key %s at add()", value_to_string(vm, args[0]));
     }
     dict_add_entry(vm, dict, args[0], args[1]);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_dict_set(VMState* vm, int argcount, Value* args)
@@ -5345,7 +5358,7 @@ bool objfn_dict_set(VMState* vm, int argcount, Value* args)
     {
         dict_set_entry(vm, dict, args[0], args[1]);
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
@@ -5354,7 +5367,7 @@ bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     free_value_arr(vm, &dict->names);
     free_table(vm, &dict->items);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_dict_clone(VMState* vm, int argcount, Value* args)
@@ -5407,7 +5420,7 @@ bool objfn_dict_extend(VMState* vm, int argcount, Value* args)
         write_value_arr(vm, &dict->names, dictcpy->names.values[i]);
     }
     table_add_all(vm, &dictcpy->items, &dict->items);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_dict_get(VMState* vm, int argcount, Value* args)
@@ -5420,7 +5433,7 @@ bool objfn_dict_get(VMState* vm, int argcount, Value* args)
     {
         if(argcount == 1)
         {
-            RETURN_NIL;
+            return bl_value_returnnil(vm, args);
         }
         else
         {
@@ -5481,7 +5494,7 @@ bool objfn_dict_remove(VMState* vm, int argcount, Value* args)
         dict->names.count--;
         RETURN_VALUE(value);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_dict_isempty(VMState* vm, int argcount, Value* args)
@@ -5530,7 +5543,7 @@ bool objfn_dict_iter(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(result);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
@@ -5550,7 +5563,7 @@ bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
             RETURN_VALUE(dict->names.values[i + 1]);
         }
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 #undef ENFORCE_VALID_DICT_KEY
@@ -5856,11 +5869,11 @@ static TokType bl_scanner_scanidenttype(AstScanner* s)
                      { TOK_EMPTY, "empty" },
                      { TOK_FALSE, "false" },
                      { TOK_FINALLY, "finally" },
-                     { TOK_FOR, "for" },
+                     { TOK_FOREACH, "foreach" },
                      { TOK_IF, "if" },
                      { TOK_IMPORT, "import" },
                      { TOK_IN, "in" },
-                     { TOK_ITER, "iter" },
+                     { TOK_FORLOOP, "for" },
                      { TOK_NIL, "nil" },
                      { TOK_OR, "or" },
                      { TOK_PARENT, "parent" },
@@ -6119,8 +6132,8 @@ static void class_declaration(AstParser* p);
 static void compile_var_declaration(AstParser* p, bool isinitializer);
 static void var_declaration(AstParser* p);
 static void expression_statement(AstParser* p, bool isinitializer, bool semi);
-static void iter_statement(AstParser* p);
-static void for_statement(AstParser* p);
+static void forloop_statement(AstParser* p);
+static void foreach_statement(AstParser* p);
 static void using_statement(AstParser* p);
 static void if_statement(AstParser* p);
 static void echo_statement(AstParser* p);
@@ -7615,11 +7628,11 @@ static AstRule parserules[] = {
     [TOK_ECHO] = { NULL, NULL, PREC_NONE },
     [TOK_ELSE] = { NULL, NULL, PREC_NONE },
     [TOK_FALSE] = { bl_parser_ruleliteral, NULL, PREC_NONE },
-    [TOK_FOR] = { NULL, NULL, PREC_NONE },
+    [TOK_FOREACH] = { NULL, NULL, PREC_NONE },
     [TOK_IF] = { NULL, NULL, PREC_NONE },
     [TOK_IMPORT] = { NULL, NULL, PREC_NONE },
     [TOK_IN] = { NULL, NULL, PREC_NONE },
-    [TOK_ITER] = { NULL, NULL, PREC_NONE },
+    [TOK_FORLOOP] = { NULL, NULL, PREC_NONE },
     [TOK_VAR] = { NULL, NULL, PREC_NONE },
     [TOK_NIL] = { bl_parser_ruleliteral, NULL, PREC_NONE },
     [TOK_OR] = { NULL, bl_parser_ruleor, PREC_OR },
@@ -7961,7 +7974,7 @@ static void expression_statement(AstParser* p, bool isinitializer, bool semi)
  *    i = i + 1
  * }
  */
-static void iter_statement(AstParser* p)
+static void forloop_statement(AstParser* p)
 {
     bl_parser_beginscope(p);
     // parse initializer...
@@ -8066,7 +8079,7 @@ static void iter_statement(AstParser* p)
  * @itern(x) function returns a false value. so the @iter(x) never needs
  * to return a false value
  */
-static void for_statement(AstParser* p)
+static void foreach_statement(AstParser* p)
 {
     bl_parser_beginscope(p);
     // define @iter and @itern constant
@@ -8648,11 +8661,11 @@ static void synchronize(AstParser* p)
             case TOK_CLASS:
             case TOK_DEF:
             case TOK_VAR:
-            case TOK_FOR:
+            case TOK_FOREACH:
             case TOK_IF:
             case TOK_USING:
             case TOK_WHEN:
-            case TOK_ITER:
+            case TOK_FORLOOP:
             case TOK_DO:
             case TOK_WHILE:
             case TOK_ECHO:
@@ -8733,13 +8746,13 @@ static void bl_parser_parsestmt(AstParser* p)
     {
         while_statement(p);
     }
-    else if(bl_parser_match(p, TOK_ITER))
+    else if(bl_parser_match(p, TOK_FORLOOP))
     {
-        iter_statement(p);
+        forloop_statement(p);
     }
-    else if(bl_parser_match(p, TOK_FOR))
+    else if(bl_parser_match(p, TOK_FOREACH))
     {
-        for_statement(p);
+        foreach_statement(p);
     }
     else if(bl_parser_match(p, TOK_USING))
     {
@@ -8821,7 +8834,7 @@ void mark_compiler_roots(VMState* vm)
     AstCompiler* compiler = vm->compiler;
     while(compiler != NULL)
     {
-        mark_object(vm, (Object*)compiler->currfunc);
+        bl_mem_markobject(vm, (Object*)compiler->currfunc);
         compiler = compiler->enclosing;
     }
 }
@@ -9165,14 +9178,14 @@ bool objfn_file_close(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(close, 0);
     file_close(AS_FILE(METHOD_OBJECT));
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_file_open(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(open, 0);
     file_open(AS_FILE(METHOD_OBJECT));
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_file_isopen(VMState* vm, int argcount, Value* args)
@@ -9538,7 +9551,7 @@ bool objfn_file_flush(VMState* vm, int argcount, Value* args)
 #else
     fflush(file->file);
 #endif
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_file_stats(VMState* vm, int argcount, Value* args)
@@ -10220,7 +10233,7 @@ bool cfn_getprop(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(value);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 /**
@@ -10913,7 +10926,7 @@ bool objfn_range_iter(VMState* vm, int argcount, Value* args)
             RETURN_NUMBER(range->lower);
         RETURN_NUMBER(range->lower > range->upper ? --range->lower : ++range->lower);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool objfn_range_itern(VMState* vm, int argcount, Value* args)
@@ -10924,7 +10937,7 @@ bool objfn_range_itern(VMState* vm, int argcount, Value* args)
     {
         if(range->range == 0)
         {
-            RETURN_NIL;
+            return bl_value_returnnil(vm, args);
         }
         RETURN_NUMBER(0);
     }
@@ -10937,7 +10950,7 @@ bool objfn_range_itern(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER(index);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 void array_free(void* data)
@@ -11023,7 +11036,7 @@ bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("Int16Array can only append an int16 or a list of int16");
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_array_int16get(VMState* vm, int argcount, Value* args)
@@ -11132,7 +11145,7 @@ bool modfn_array_int16iter_(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER(values[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 //--------- INT 32 STARTS -------------------------
@@ -11203,7 +11216,7 @@ bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("Int32Array can only append an int32 or a list of int32");
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_array_int32get(VMState* vm, int argcount, Value* args)
@@ -11312,7 +11325,7 @@ bool modfn_array_int32iter_(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER(values[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 //--------- INT 64 STARTS -------------------------
@@ -11383,7 +11396,7 @@ bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("Int64Array can only append an int64 or a list of int64");
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_array_int64get(VMState* vm, int argcount, Value* args)
@@ -11492,7 +11505,7 @@ bool modfn_array_int64iter_(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER(values[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 //--------- Unsigned INT 16 STARTS ----------------
@@ -11563,7 +11576,7 @@ bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("UInt16Array can only append an uint16 or a list of uint16");
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_array_uint16get(VMState* vm, int argcount, Value* args)
@@ -11672,7 +11685,7 @@ bool modfn_array_uint16iter_(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER(values[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 //--------- Unsigned INT 32 STARTS ----------------
@@ -11743,7 +11756,7 @@ bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("UInt32Array can only append an uint32 or a list of uint32");
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_array_uint32get(VMState* vm, int argcount, Value* args)
@@ -11852,7 +11865,7 @@ bool modfn_array_uint32iter_(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER(values[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 //--------- Unsigned INT 64 STARTS ----------------
@@ -11923,7 +11936,7 @@ bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("UInt64Array can only append an uint64 or a list of uint64");
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_array_uint64get(VMState* vm, int argcount, Value* args)
@@ -12032,7 +12045,7 @@ bool modfn_array_uint64iter_(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER(values[index]);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 //--------- COMMON STARTS -------------------------
@@ -12069,7 +12082,7 @@ bool modfn_array_extend(VMState* vm, int argcount, Value* args)
     array->buffer = GROW_ARRAY(void, array->buffer, array->length, array->length + array2->length);
     memcpy(array->buffer + array->length, array2->buffer, array2->length);
     array->length += array2->length;
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_array_tostring(VMState* vm, int argcount, Value* args)
@@ -12101,7 +12114,7 @@ bool modfn_array_itern_(VMState* vm, int argcount, Value* args)
     {
         RETURN_NUMBER((double)index + 1);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 RegModule* bl_modload_array(VMState* vm)
@@ -12507,7 +12520,7 @@ bool modfn_io_ttyexitraw(VMState* vm, int argcount, Value* args)
 #ifdef HAVE_TERMIOS_H
     ENFORCE_ARG_COUNT(TTY.exit_raw, 0);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &origtermios);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 #else
     RETURN_ERROR("exit_raw() is not supported on this platform");
 #endif /* HAVE_TERMIOS_H */
@@ -12523,7 +12536,7 @@ bool modfn_io_ttyflush(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(TTY.flush, 0);
     fflush(stdout);
     fflush(stderr);
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 /**
@@ -12540,7 +12553,7 @@ bool modfn_io_flush(VMState* vm, int argcount, Value* args)
     {
         fflush(file->file);
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 /**
@@ -12609,7 +12622,7 @@ bool modfn_io_putc(VMState* vm, int argcount, Value* args)
     {
         fflush(stdout);
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 /**
@@ -12907,12 +12920,12 @@ bool modfn_os_exec(VMState* vm, int argcount, Value* args)
     ObjString* string = AS_STRING(args[0]);
     if(string->length == 0)
     {
-        RETURN_NIL;
+        return bl_value_returnnil(vm, args);
     }
     fflush(stdout);
     FILE* fd = popen(string->chars, "r");
     if(!fd)
-        RETURN_NIL;
+        return bl_value_returnnil(vm, args);
     char buffer[256];
     size_t nread;
     size_t outputsize = 256;
@@ -12946,7 +12959,7 @@ bool modfn_os_exec(VMState* vm, int argcount, Value* args)
         if(length == 0)
         {
             pclose(fd);
-            RETURN_NIL;
+            return bl_value_returnnil(vm, args);
         }
         output[length - 1] = '\0';
         pclose(fd);
@@ -12982,7 +12995,7 @@ bool modfn_os_sleep(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(sleep, 1);
     ENFORCE_ARG_TYPE(sleep, 0, IS_NUMBER);
     sleep((int)AS_NUMBER(args[0]));
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 Value get_os_platform(VMState* vm)
@@ -13056,7 +13069,7 @@ bool modfn_os_getenv(VMState* vm, int argcount, Value* args)
     }
     else
     {
-        RETURN_NIL;
+        return bl_value_returnnil(vm, args);
     }
 }
 
@@ -13252,7 +13265,7 @@ bool modfn_os_exit(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(exit, 1);
     ENFORCE_ARG_TYPE(exit, 0, IS_NUMBER);
     exit((int)AS_NUMBER(args[0]));
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_os_cwd(VMState* vm, int argcount, Value* args)
@@ -13570,7 +13583,7 @@ bool modfn_process_sharedread(VMState* vm, int argcount, Value* args)
         write_list(vm, list, OBJ_VAL(bytes));
         RETURN_OBJ(list);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool modfn_process_sharedlock(VMState* vm, int argcount, Value* args)
@@ -13579,7 +13592,7 @@ bool modfn_process_sharedlock(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(sharedlock, 0, IS_PTR);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = true;
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args)
@@ -13588,7 +13601,7 @@ bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(sharedunlock, 0, IS_PTR);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = false;
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_process_sharedislocked(VMState* vm, int argcount, Value* args)
@@ -13659,7 +13672,7 @@ bool modfn_reflect_getprop(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(value);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 /**
@@ -13730,7 +13743,7 @@ bool modfn_reflect_getmethod(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(value);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
@@ -13755,7 +13768,7 @@ bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
         }
         return call_value(vm, OBJ_VAL(bound), list->items.count);
     }
-    RETURN;
+    return bl_value_returnempty(vm, args);;
 }
 
 bool modfn_reflect_bindmethod(VMState* vm, int argcount, Value* args)
@@ -13779,7 +13792,7 @@ bool modfn_reflect_getboundmethod(VMState* vm, int argcount, Value* args)
         ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)new_bound_method(vm, args[0], AS_CLOSURE(value)));
         RETURN_OBJ(bound);
     }
-    RETURN_NIL;
+    return bl_value_returnnil(vm, args);
 }
 
 bool modfn_reflect_gettype(VMState* vm, int argcount, Value* args)
@@ -15341,7 +15354,7 @@ static void initialize_exceptions(VMState* vm, ObjModule* module)
     sstr = "Exception";
     slen = strlen(sstr);
     //classname = copy_string(vm, sstr, slen);
-    classname = bl_string_fromallocated(vm, strdup(sstr), slen, hash_string(sstr, slen));
+    classname = bl_string_fromallocated(vm, strdup(sstr), slen, bl_util_hashstring(sstr, slen));
     push(vm, OBJ_VAL(classname));
     ObjClass* klass = new_class(vm, classname);
     pop(vm);
@@ -15708,7 +15721,7 @@ void free_vm(VMState* vm)
 {
     fprintf(stderr, "call to free_vm()\n");
     //@TODO: Fix segfault from enabling this...
-    free_objects(vm);
+    bl_mem_freegcobjects(vm);
     free_table(vm, &vm->strings);
     free_table(vm, &vm->globals);
     // since object in module can exist in globals
@@ -18026,7 +18039,7 @@ int main(int argc, char* argv[])
             run_file(vm, argv[optind]);
         }
         fprintf(stderr, "freeing up memory?\n");
-        collect_garbage(vm);
+        bl_mem_collectgarbage(vm);
         free(stdargs);
         free_vm(vm);
         free(vm);

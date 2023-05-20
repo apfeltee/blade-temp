@@ -2,10 +2,12 @@
 
 def bf(src, input)
 {
+    var i
     var memory = []
-    for i in 0..300
+    // foreach i in 0..300
+    for i=0; i<300; i++
     {
-        memory.push(0)
+        memory.append(0)
     }
     var memptr  = 0
     var inptr = 0
@@ -15,7 +17,7 @@ def bf(src, input)
     {
         if(instr < 0)
         {
-            println("Invalid instruction pointer (instr=" + instr + ")")
+            print("Invalid instruction pointer (instr=" + instr + ")")
         }
         var c = src[instr]
         if(c == "+")
@@ -62,7 +64,7 @@ def bf(src, input)
         else if(c == "[")
         {
             if (memory[memptr] != 0)
-                stack.push(instr)
+                stack.append(instr)
             else
             {
                 var bcount = 0
