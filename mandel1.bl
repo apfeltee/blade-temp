@@ -14,7 +14,7 @@ while(y0 > bottom_edge)
     {
         var y = 0;
         var x = 0;
-        var the_char = 32;
+        var tch = 32;
         var i = 0;
         while (i < max_iter)
         {
@@ -22,10 +22,10 @@ while(y0 > bottom_edge)
             var y_y = (y * y) / 200;
             if (x_x + y_y > 800)
             {
-                the_char = 48 + i;
+                tch = 48 + i;
                 if(i > 9)
                 {
-                    the_char = 64;
+                    tch = 64;
                 }
                 i = max_iter;
             }
@@ -33,7 +33,16 @@ while(y0 > bottom_edge)
             x = x_x - y_y + x0;
             i = i + 1;
         }
-        print(chr(the_char));
+        var sch = '%';
+        if (tch > 60){ sch = 'o'; }
+        else if (tch > 50){ sch = ' '; }
+        else if (tch > 40){ sch = '/'; }
+        else if (tch > 30){ sch = '='; }
+        else if (tch > 20){ sch = '$'; }
+
+
+        #print(chr(tch));
+        print(sch);
         x0 = x0 + x_step;
     }
     print("\n");
