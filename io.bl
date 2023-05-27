@@ -1,0 +1,14 @@
+
+var fh = nil
+
+fh = file("foo.txt", "rb")
+
+try
+{
+    fh.read()
+}
+catch Exception e
+{
+    print("exception: ", e.message, "\n")
+}
+

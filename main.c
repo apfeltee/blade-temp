@@ -164,6 +164,7 @@
 // failure to do so will lead to the first object created
 // within the function to appear as METHOD_OBJECT
 #define METHOD_OBJECT args[-1]
+/*
 #define NORMALIZE_IS_BOOL "bool"
 #define NORMALIZE_IS_BYTES "bytes"
 #define NORMALIZE_IS_NUMBER "number"
@@ -178,6 +179,8 @@
 #define NORMALIZE_IS_FILE "file"
 #define NORMALIZE_IS_PTR "ptr"
 #define NORMALIZE(token) NORMALIZE_##token
+*/
+#define NORMALIZE(token) #token
 
 
 #define ENFORCE_ARG_COUNT(name, d) \
@@ -201,22 +204,22 @@
 #define ENFORCE_ARG_TYPE(name, i, type) \
     if(!type(args[i])) \
     { \
-        RETURN_ERROR(#name "() expects argument %d as " NORMALIZE(type) ", %s given", (i) + 1, value_type(args[i])); \
+        RETURN_ERROR(#name "() expects argument %d as " NORMALIZE(type) ", %s given", (i) + 1, bl_value_typename(args[i])); \
     }
 
 #define EXCLUDE_ARG_TYPE(methodname, arg_type, index) \
     if(arg_type(args[index])) \
     { \
-        RETURN_ERROR("invalid type %s() as argument %d in %s()", value_type(args[index]), (index) + 1, #methodname); \
+        RETURN_ERROR("invalid type %s() as argument %d in %s()", bl_value_typename(args[index]), (index) + 1, #methodname); \
     }
 
 #define METHOD_OVERRIDE(override, i) \
     do \
     { \
-        if(IS_INSTANCE(args[0])) \
+        if(bl_value_isinstance(args[0])) \
         { \
             ObjInstance* instance = AS_INSTANCE(args[0]); \
-            if(invoke_from_class(vm, instance->klass, copy_string(vm, "@" #override, (i) + 1), 0)) \
+            if(bl_instance_invokefromclass(vm, instance->klass, copy_string(vm, "@" #override, (i) + 1), 0)) \
             { \
                 args[-1] = TRUE_VAL; \
                 return false; \
@@ -257,7 +260,7 @@
 #define REGEX_RC_ERROR() REGEX_ERR("%d", rc);
 
 #define GET_REGEX_COMPILE_OPTIONS(string, regexshowerror) \
-    uint32_t compileoptions = is_regex(string); \
+    uint32_t compileoptions = bl_helper_objstringisregex(string); \
     if((regexshowerror) && (int)compileoptions == -1) \
     { \
         RETURN_ERROR("RegexError: Invalid regex"); \
@@ -294,11 +297,7 @@
 #define AS_OBJ(v) ((v).as.obj)
 
 // testing blade value types
-#define IS_NIL(v) ((v).type == VAL_NIL)
-#define IS_BOOL(v) ((v).type == VAL_BOOL)
-#define IS_NUMBER(v) ((v).type == VAL_NUMBER)
-#define IS_OBJ(v) ((v).type == VAL_OBJ)
-#define IS_EMPTY(v) ((v).type == VAL_EMPTY)
+
 #define GROW_CAPACITY(capacity) ((capacity) < 4 ? 4 : (capacity)*2)
 #define GROW_ARRAY(type, pointer, oldcount, newcount) (type*)bl_mem_growarray(vm, pointer, sizeof(type), oldcount, newcount)
 #define FREE_ARRAY(type, pointer, oldcount) bl_mem_free(vm, pointer, sizeof(type) * (oldcount))
@@ -309,21 +308,7 @@
 #define STRING_TT_VAL(val) OBJ_VAL(take_string(vm, val, (int)strlen(val)))
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
-// object type checks
-#define IS_STRING(v) is_obj_type(v, OBJ_STRING)
-#define IS_NATIVE(v) is_obj_type(v, OBJ_NATIVE)
-#define IS_FUNCTION(v) is_obj_type(v, OBJ_FUNCTION)
-#define IS_CLOSURE(v) is_obj_type(v, OBJ_CLOSURE)
-#define IS_CLASS(v) is_obj_type(v, OBJ_CLASS)
-#define IS_INSTANCE(v) is_obj_type(v, OBJ_INSTANCE)
-#define IS_BOUND(v) is_obj_type(v, OBJ_BOUND_METHOD)
 
-// containers
-#define IS_BYTES(v) is_obj_type(v, OBJ_BYTES)
-#define IS_LIST(v) is_obj_type(v, OBJ_LIST)
-#define IS_DICT(v) is_obj_type(v, OBJ_DICT)
-#define IS_FILE(v) is_obj_type(v, OBJ_FILE)
-#define IS_RANGE(v) is_obj_type(v, OBJ_RANGE)
 
 // promote Value to object
 #define AS_STRING(v) ((ObjString*)AS_OBJ(v))
@@ -337,13 +322,12 @@
 // non-user objects
 #define AS_SWITCH(v) ((ObjSwitch*)AS_OBJ(v))
 #define AS_PTR(v) ((ObjPointer*)AS_OBJ(v))
-#define IS_PTR(v) is_obj_type(v, OBJ_PTR)
+
 #define AS_MODULE(v) ((ObjModule*)AS_OBJ(v))
-#define IS_MODULE(v) is_obj_type(v, OBJ_MODULE)
 
 // containers
 #define AS_BYTES(v) ((ObjBytes*)AS_OBJ(v))
-#define AS_LIST(v) ((ObjList*)AS_OBJ(v))
+#define AS_LIST(v) ((ObjArray*)AS_OBJ(v))
 #define AS_DICT(v) ((ObjDict*)AS_OBJ(v))
 #define AS_FILE(v) ((ObjFile*)AS_OBJ(v))
 #define AS_RANGE(v) ((ObjRange*)AS_OBJ(v))
@@ -351,7 +335,7 @@
 // demote blade value to c string
 #define AS_C_STRING(v) (((ObjString*)AS_OBJ(v))->chars)
 
-#define IS_CHAR(v) (IS_STRING(v) && (AS_STRING(v)->length == 1 || AS_STRING(v)->length == 0))
+#define IS_CHAR(v) (bl_value_isstring(v) && (AS_STRING(v)->length == 1 || AS_STRING(v)->length == 0))
 
 #define EXIT_VM() return PTR_RUNTIME_ERR
 
@@ -468,17 +452,18 @@ enum ObjType
     // containers
     OBJ_STRING,
     OBJ_RANGE,
-    OBJ_LIST,
+    OBJ_ARRAY,
     OBJ_DICT,
     OBJ_FILE,
     OBJ_BYTES,
     // base object types
     OBJ_UP_VALUE,
-    OBJ_BOUND_METHOD,
+    OBJ_BOUNDFUNCTION,
+    OBJ_BOUNDMETHOD = OBJ_BOUNDFUNCTION,
     OBJ_CLOSURE,
-    OBJ_FUNCTION,
+    OBJ_SCRIPTFUNCTION,
     OBJ_INSTANCE,
-    OBJ_NATIVE,
+    OBJ_NATIVEFUNCTION,
     OBJ_CLASS,
     // non-user objects
     OBJ_MODULE,
@@ -618,7 +603,7 @@ typedef struct ObjClass ObjClass;
 typedef struct ObjInstance ObjInstance;
 typedef struct ObjBoundMethod ObjBoundMethod;
 typedef struct ObjNativeFunction ObjNativeFunction;
-typedef struct ObjList ObjList;
+typedef struct ObjArray ObjArray;
 typedef struct ObjRange ObjRange;
 typedef struct ObjBytes ObjBytes;
 typedef struct ObjDict ObjDict;
@@ -814,7 +799,7 @@ struct ObjNativeFunction
     NativeCallbackFunc natfn;
 };
 
-struct ObjList
+struct ObjArray
 {
     Object obj;
     ValArray items;
@@ -1057,14 +1042,6 @@ struct BProcessShared
 int __dso_handle;
 #endif
 
-static bool is_obj_type(Value v, ObjType t)
-{
-    if(IS_OBJ(v))
-    {
-        return (AS_OBJ(v)->type == t);
-    }
-    return false;
-}
 
 static bool is_std_file(ObjFile* file)
 {
@@ -1077,21 +1054,21 @@ static void add_module(VMState* vm, ObjModule* module)
     const char* cs;
     cs = module->file;
     len = strlen(cs);
-    table_set(vm, &vm->modules, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
+    bl_hashtable_set(vm, &vm->modules, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
     if(vm->framecount == 0)
     {
-        table_set(vm, &vm->globals, STRING_VAL(module->name), OBJ_VAL(module));
+        bl_hashtable_set(vm, &vm->globals, STRING_VAL(module->name), OBJ_VAL(module));
     }
     else
     {
         cs = module->name;
-        table_set(vm, &vm->frames[vm->framecount - 1].closure->fnptr->module->values, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
+        bl_hashtable_set(vm, &vm->frames[vm->framecount - 1].closure->fnptr->module->values, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
     }
 }
 
 static Object* gc_protect(VMState* vm, Object* object)
 {
-    push(vm, OBJ_VAL(object));
+    bl_vm_pushvalue(vm, OBJ_VAL(object));
     vm->gcprotected++;
     return object;
 }
@@ -1579,6 +1556,129 @@ uint32_t bl_util_hashstring(const char* key, int length)
     return XXH3_64bits(key, length);
 }
 
+static uint16_t bl_util_reverseint16(uint16_t arg)
+{
+    return ((arg & 0xFF) << 8) | ((arg >> 8) & 0xFF);
+}
+
+static uint32_t bl_util_reverseint32(uint32_t arg)
+{
+    uint32_t result;
+    result = ((arg & 0xFF) << 24) | ((arg & 0xFF00) << 8) | ((arg >> 8) & 0xFF00) | ((arg >> 24) & 0xFF);
+    return result;
+}
+
+static uint64_t bl_util_reverseint64(uint64_t arg)
+{
+    union swaptag
+    {
+        uint64_t i;
+        uint32_t ul[2];
+    } tmp, result;
+
+    tmp.i = arg;
+    result.ul[0] = bl_util_reverseint32(tmp.ul[1]);
+    result.ul[1] = bl_util_reverseint32(tmp.ul[0]);
+    return result.i;
+}
+
+static void bl_util_copyfloat(int islittleendian, void* dst, float f)
+{
+    union floattag
+    {
+        float f;
+        uint32_t i;
+    } m;
+
+    m.f = f;
+#if IS_BIG_ENDIAN
+    if(islittleendian)
+    {
+#else
+    if(!islittleendian)
+    {
+#endif
+        m.i = bl_util_reverseint32(m.i);
+    }
+
+    memcpy(dst, &m.f, sizeof(float));
+}
+
+static void bl_util_copydouble(int islittleendian, void* dst, double d)
+{
+    union doubletag
+    {
+        double d;
+        uint64_t i;
+    } m;
+
+    m.d = d;
+#if IS_BIG_ENDIAN
+    if(islittleendian)
+    {
+#else
+    if(!islittleendian)
+    {
+#endif
+        m.i = bl_util_reverseint64(m.i);
+    }
+
+    memcpy(dst, &m.d, sizeof(double));
+}
+
+static char* bl_util_ulongtobuffer(char* buf, long num)
+{
+    *buf = '\0';
+    do
+    {
+        *--buf = (char)((char)(num % 10) + '0');
+        num /= 10;
+    } while(num > 0);
+    return buf;
+}
+
+static float bl_util_parsefloat(int islittleendian, void* src)
+{
+    union floattag
+    {
+        float f;
+        uint32_t i;
+    } m;
+    memcpy(&m.i, src, sizeof(float));
+#if IS_BIG_ENDIAN
+    if(islittleendian)
+#else
+    if(!islittleendian)
+#endif
+    {
+        m.i = bl_util_reverseint32(m.i);
+    }
+
+    return m.f;
+}
+
+static double bl_util_parsedouble(int islittleendian, void* src)
+{
+    union doubletag
+    {
+        double d;
+        uint64_t i;
+    } m;
+
+    memcpy(&m.i, src, sizeof(double));
+#if IS_BIG_ENDIAN
+    if(islittleendian)
+    {
+#else
+    if(!islittleendian)
+    {
+#endif
+        m.i = bl_util_reverseint64(m.i);
+    }
+
+    return m.d;
+}
+
 void bl_mem_collectgarbage(VMState* vm);
 
 void bl_mem_free(VMState* vm, void* pointer, size_t sz)
@@ -1642,7 +1742,7 @@ void bl_mem_markobject(VMState* vm, Object* object)
 
 void bl_mem_markvalue(VMState* vm, Value value)
 {
-    if(IS_OBJ(value))
+    if(bl_value_isobject(value))
         bl_mem_markobject(vm, AS_OBJ(value));
 }
 
@@ -1666,7 +1766,6 @@ void bl_mem_marktable(VMState* vm, HashTable* table)
         }
     }
 }
-
 
 void bl_mem_blackenobject(VMState* vm, Object* object)
 {
@@ -1703,72 +1802,74 @@ void bl_mem_blackenobject(VMState* vm, Object* object)
             bl_mem_marktable(vm, &dict->items);
             break;
         }
-        case OBJ_LIST:
+        case OBJ_ARRAY:
         {
-            ObjList* list = (ObjList*)object;
+            ObjArray* list = (ObjArray*)object;
             bl_mem_markarray(vm, &list->items);
             break;
         }
-        case OBJ_BOUND_METHOD:
-        {
-            ObjBoundMethod* bound = (ObjBoundMethod*)object;
-            bl_mem_markvalue(vm, bound->receiver);
-            bl_mem_markobject(vm, (Object*)bound->method);
+        case OBJ_BOUNDFUNCTION:
+            {
+                ObjBoundMethod* bound = (ObjBoundMethod*)object;
+                bl_mem_markvalue(vm, bound->receiver);
+                bl_mem_markobject(vm, (Object*)bound->method);
+            }
             break;
-        }
         case OBJ_CLASS:
-        {
-            ObjClass* klass = (ObjClass*)object;
-            bl_mem_markobject(vm, (Object*)klass->name);
-            bl_mem_marktable(vm, &klass->methods);
-            bl_mem_marktable(vm, &klass->properties);
-            bl_mem_marktable(vm, &klass->staticproperties);
-            bl_mem_markvalue(vm, klass->initializer);
-            if(klass->superclass != NULL)
             {
-                bl_mem_markobject(vm, (Object*)klass->superclass);
+                ObjClass* klass = (ObjClass*)object;
+                bl_mem_markobject(vm, (Object*)klass->name);
+                bl_mem_marktable(vm, &klass->methods);
+                bl_mem_marktable(vm, &klass->properties);
+                bl_mem_marktable(vm, &klass->staticproperties);
+                bl_mem_markvalue(vm, klass->initializer);
+                if(klass->superclass != NULL)
+                {
+                    bl_mem_markobject(vm, (Object*)klass->superclass);
+                }
             }
             break;
-        }
         case OBJ_CLOSURE:
-        {
-            ObjClosure* closure = (ObjClosure*)object;
-            bl_mem_markobject(vm, (Object*)closure->fnptr);
-            for(int i = 0; i < closure->upvaluecount; i++)
             {
-                bl_mem_markobject(vm, (Object*)closure->upvalues[i]);
+                ObjClosure* closure = (ObjClosure*)object;
+                bl_mem_markobject(vm, (Object*)closure->fnptr);
+                for(int i = 0; i < closure->upvaluecount; i++)
+                {
+                    bl_mem_markobject(vm, (Object*)closure->upvalues[i]);
+                }
             }
             break;
-        }
-        case OBJ_FUNCTION:
-        {
-            ObjFunction* function = (ObjFunction*)object;
-            bl_mem_markobject(vm, (Object*)function->name);
-            bl_mem_markobject(vm, (Object*)function->module);
-            bl_mem_markarray(vm, &function->blob.constants);
+        case OBJ_SCRIPTFUNCTION:
+            {
+                ObjFunction* function = (ObjFunction*)object;
+                bl_mem_markobject(vm, (Object*)function->name);
+                bl_mem_markobject(vm, (Object*)function->module);
+                bl_mem_markarray(vm, &function->blob.constants);
+            }
             break;
-        }
         case OBJ_INSTANCE:
-        {
-            ObjInstance* instance = (ObjInstance*)object;
-            bl_mem_markobject(vm, (Object*)instance->klass);
-            bl_mem_marktable(vm, &instance->properties);
+            {
+                ObjInstance* instance = (ObjInstance*)object;
+                bl_mem_markobject(vm, (Object*)instance->klass);
+                bl_mem_marktable(vm, &instance->properties);
+            }
             break;
-        }
         case OBJ_UP_VALUE:
-        {
-            bl_mem_markvalue(vm, ((ObjUpvalue*)object)->closed);
+            {
+                bl_mem_markvalue(vm, ((ObjUpvalue*)object)->closed);
+            }
             break;
-        }
         case OBJ_BYTES:
         case OBJ_RANGE:
-        case OBJ_NATIVE:
+        case OBJ_NATIVEFUNCTION:
         case OBJ_PTR:
-        {
-            bl_mem_markobject(vm, object);
+            {
+                bl_mem_markobject(vm, object);
+            }
             break;
-        }
         case OBJ_STRING:
+            {
+            }
             break;
     }
 }
@@ -1793,7 +1894,7 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
         case OBJ_MODULE:
         {
             ObjModule* module = (ObjModule*)object;
-            free_table(vm, &module->values);
+            bl_hashtable_free(vm, &module->values);
             free(module->name);
             free(module->file);
             if(module->unloader != NULL && module->imported)
@@ -1810,7 +1911,7 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
         case OBJ_BYTES:
         {
             ObjBytes* bytes = (ObjBytes*)object;
-            free_byte_arr(vm, &bytes->bytes);
+            bl_bytearray_free(vm, &bytes->bytes);
             FREE(ObjBytes, object);
             break;
         }
@@ -1827,19 +1928,19 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
         case OBJ_DICT:
         {
             ObjDict* dict = (ObjDict*)object;
-            free_value_arr(vm, &dict->names);
-            free_table(vm, &dict->items);
+            bl_valarray_free(vm, &dict->names);
+            bl_hashtable_free(vm, &dict->items);
             FREE(ObjDict, object);
             break;
         }
-        case OBJ_LIST:
+        case OBJ_ARRAY:
         {
-            ObjList* list = (ObjList*)object;
-            free_value_arr(vm, &list->items);
-            FREE(ObjList, object);
+            ObjArray* list = (ObjArray*)object;
+            bl_valarray_free(vm, &list->items);
+            FREE(ObjArray, object);
             break;
         }
-        case OBJ_BOUND_METHOD:
+        case OBJ_BOUNDFUNCTION:
         {
             // a closure may be bound to multiple instances
             // for this reason, we do not free closures when freeing bound methods
@@ -1850,10 +1951,10 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
         {
             ObjClass* klass = (ObjClass*)object;
             //bl_mem_freeobject(vm, (Object**)&klass->name);
-            free_table(vm, &klass->methods);
-            free_table(vm, &klass->properties);
-            free_table(vm, &klass->staticproperties);
-            if(!IS_EMPTY(klass->initializer))
+            bl_hashtable_free(vm, &klass->methods);
+            bl_hashtable_free(vm, &klass->properties);
+            bl_hashtable_free(vm, &klass->staticproperties);
+            if(!bl_value_isempty(klass->initializer))
             {
                 // FIXME: uninitialized
                 //bl_mem_freeobject(vm, &AS_OBJ(klass->initializer));
@@ -1870,10 +1971,10 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
             FREE(ObjClosure, object);
             break;
         }
-        case OBJ_FUNCTION:
+        case OBJ_SCRIPTFUNCTION:
         {
             ObjFunction* function = (ObjFunction*)object;
-            free_blob(vm, &function->blob);
+            bl_blob_free(vm, &function->blob);
             if(function->name != NULL)
             {
                 //bl_mem_freeobject(vm, (Object**)&function->name);
@@ -1884,11 +1985,11 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
         case OBJ_INSTANCE:
         {
             ObjInstance* instance = (ObjInstance*)object;
-            free_table(vm, &instance->properties);
+            bl_hashtable_free(vm, &instance->properties);
             FREE(ObjInstance, object);
             break;
         }
-        case OBJ_NATIVE:
+        case OBJ_NATIVEFUNCTION:
         {
             FREE(ObjNativeFunction, object);
             break;
@@ -1916,7 +2017,7 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
         case OBJ_SWITCH:
         {
             ObjSwitch* sw = (ObjSwitch*)object;
-            free_table(vm, &sw->table);
+            bl_hashtable_free(vm, &sw->table);
             FREE(ObjSwitch, object);
             break;
         }
@@ -2053,8 +2154,8 @@ void bl_mem_collectgarbage(VMState* vm)
     */
     bl_mem_markroots(vm);
     bl_mem_tracerefs(vm);
-    table_remove_whites(vm, &vm->strings);
-    table_remove_whites(vm, &vm->modules);
+    bl_hashtable_removewhites(vm, &vm->strings);
+    bl_hashtable_removewhites(vm, &vm->modules);
     bl_mem_gcsweep(vm);
     vm->nextgc = vm->bytesallocated * GC_HEAP_GROWTH_FACTOR;
     vm->allowgc = true;
@@ -2065,81 +2166,128 @@ void bl_mem_collectgarbage(VMState* vm)
 }
 
 
-void init_value_arr(ValArray* array)
+
+static char* number_to_string(VMState* vm, double number)
 {
-    array->capacity = 0;
-    array->count = 0;
-    array->values = NULL;
+    int length = snprintf(NULL, 0, NUMBER_FORMAT, number);
+    char* numstr = ALLOCATE(char, length + 1);
+    if(numstr != NULL)
+    {
+        sprintf(numstr, NUMBER_FORMAT, number);
+        return numstr;
+    }
+    return "";
 }
 
-void init_byte_arr(VMState* vm, ByteArray* array, int length)
+// valuetop
+
+
+static bool bl_value_isobjtype(Value v, ObjType t)
 {
-    array->count = length;
-    array->bytes = (unsigned char*)calloc(length, sizeof(unsigned char));
-    vm->bytesallocated += sizeof(unsigned char) * length;
+    if(bl_value_isobject(v))
+    {
+        return (AS_OBJ(v)->type == t);
+    }
+    return false;
 }
 
-void write_value_arr(VMState* vm, ValArray* array, Value value)
+// object type checks
+bool bl_value_isstring(Value v)
 {
-    if(array->capacity < array->count + 1)
-    {
-        int oldcapacity = array->capacity;
-        array->capacity = GROW_CAPACITY(oldcapacity);
-        array->values = GROW_ARRAY(Value, array->values, oldcapacity, array->capacity);
-    }
-    array->values[array->count] = value;
-    array->count++;
+    return bl_value_isobjtype(v, OBJ_STRING);
 }
 
-void insert_value_arr(VMState* vm, ValArray* array, Value value, int index)
+bool bl_value_isnativefunction(Value v)
 {
-    if(array->capacity <= index)
-    {
-        array->capacity = GROW_CAPACITY(index);
-        array->values = GROW_ARRAY(Value, array->values, array->count, array->capacity);
-    }
-    else if(array->capacity < array->count + 2)
-    {
-        int capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(capacity);
-        array->values = GROW_ARRAY(Value, array->values, capacity, array->capacity);
-    }
-    if(index <= array->count)
-    {
-        for(int i = array->count - 1; i >= index; i--)
-        {
-            array->values[i + 1] = array->values[i];
-        }
-    }
-    else
-    {
-        for(int i = array->count; i < index; i++)
-        {
-            array->values[i] = NIL_VAL;// nil out overflow indices
-            array->count++;
-        }
-    }
-    array->values[index] = value;
-    array->count++;
+    return bl_value_isobjtype(v, OBJ_NATIVEFUNCTION);
 }
 
-void free_value_arr(VMState* vm, ValArray* array)
+bool bl_value_isscriptfunction(Value v)
 {
-    FREE_ARRAY(Value, array->values, array->capacity);
-    init_value_arr(array);
+    return bl_value_isobjtype(v, OBJ_SCRIPTFUNCTION);
 }
 
-void free_byte_arr(VMState* vm, ByteArray* array)
+bool bl_value_isclosure(Value v)
 {
-    if(array && array->count > 0)
-    {
-        FREE_ARRAY(unsigned char, array->bytes, array->count);
-        array->count = 0;
-        array->bytes = NULL;
-    }
+    return bl_value_isobjtype(v, OBJ_CLOSURE);
 }
 
-static void do_print_value(Value value, bool fixstring)
+bool bl_value_isclass(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_CLASS);
+}
+
+bool bl_value_isinstance(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_INSTANCE);
+}
+
+bool bl_value_isboundfunction(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_BOUNDFUNCTION);
+}
+
+bool bl_value_isnil(Value v)
+{
+    return ((v).type == VAL_NIL);
+}
+
+bool bl_value_isbool(Value v)
+{
+    return ((v).type == VAL_BOOL);
+}
+
+bool bl_value_isnumber(Value v)
+{
+    return ((v).type == VAL_NUMBER);
+}
+
+bool bl_value_isobject(Value v)
+{
+    return ((v).type == VAL_OBJ);
+}
+
+bool bl_value_isempty(Value v)
+{
+    return ((v).type == VAL_EMPTY);
+}
+
+bool bl_value_ismodule(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_MODULE);
+}
+
+bool bl_value_ispointer(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_PTR);
+}
+
+bool bl_value_isbytes(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_BYTES);
+}
+
+bool bl_value_isarray(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_ARRAY);
+}
+
+bool bl_value_isdict(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_DICT);
+}
+
+bool bl_value_isfile(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_FILE);
+}
+
+bool bl_value_isrange(Value v)
+{
+    return bl_value_isobjtype(v, OBJ_RANGE);
+}
+
+static void bl_value_doprintvalue(Value value, bool fixstring)
 {
     switch(value.type)
     {
@@ -2162,29 +2310,17 @@ static void do_print_value(Value value, bool fixstring)
     }
 }
 
-void print_value(Value value)
+void bl_value_printvalue(Value value)
 {
-    do_print_value(value, false);
+    bl_value_doprintvalue(value, false);
 }
 
-void echo_value(Value value)
+void bl_value_echovalue(Value value)
 {
-    do_print_value(value, true);
+    bl_value_doprintvalue(value, true);
 }
 
-static char* number_to_string(VMState* vm, double number)
-{
-    int length = snprintf(NULL, 0, NUMBER_FORMAT, number);
-    char* numstr = ALLOCATE(char, length + 1);
-    if(numstr != NULL)
-    {
-        sprintf(numstr, NUMBER_FORMAT, number);
-        return numstr;
-    }
-    return "";
-}
-
-char* value_to_string(VMState* vm, Value value)
+char* bl_value_tostring(VMState* vm, Value value)
 {
     switch(value.type)
     {
@@ -2201,23 +2337,23 @@ char* value_to_string(VMState* vm, Value value)
     }
 }
 
-const char* value_type(Value value)
+const char* bl_value_typename(Value value)
 {
-    if(IS_EMPTY(value))
+    if(bl_value_isempty(value))
         return "empty";
-    if(IS_NIL(value))
+    if(bl_value_isnil(value))
         return "nil";
-    else if(IS_BOOL(value))
+    else if(bl_value_isbool(value))
         return "boolean";
-    else if(IS_NUMBER(value))
+    else if(bl_value_isnumber(value))
         return "number";
-    else if(IS_OBJ(value))
+    else if(bl_value_isobject(value))
         return object_type(AS_OBJ(value));
     else
         return "unknown";
 }
 
-bool values_equal(Value a, Value b)
+bool bl_value_valuesequal(Value a, Value b)
 {
     if(a.type != b.type)
         return false;
@@ -2237,10 +2373,8 @@ bool values_equal(Value a, Value b)
     }
 }
 
-
-
 // Generates a hash code for [object].
-static uint32_t hash_object(Object* object)
+static uint32_t bl_object_hashobject(Object* object)
 {
     switch(object->type)
     {
@@ -2251,7 +2385,7 @@ static uint32_t hash_object(Object* object)
             // existing constants in a function's constant table. This is only used
             // internally. Since user code never sees a non-closure function, they
             // cannot use them as map keys.
-        case OBJ_FUNCTION:
+        case OBJ_SCRIPTFUNCTION:
         {
             ObjFunction* fn = (ObjFunction*)object;
             return bl_util_hashdouble(fn->arity) ^ bl_util_hashdouble(fn->blob.count);
@@ -2268,7 +2402,7 @@ static uint32_t hash_object(Object* object)
     }
 }
 
-uint32_t hash_value(Value value)
+uint32_t bl_value_hashvalue(Value value)
 {
     switch(value.type)
     {
@@ -2279,7 +2413,7 @@ uint32_t hash_value(Value value)
         case VAL_NUMBER:
             return bl_util_hashdouble(AS_NUMBER(value));
         case VAL_OBJ:
-            return hash_object(AS_OBJ(value));
+            return bl_object_hashobject(AS_OBJ(value));
         default:// VAL_EMPTY
             return 0;
     }
@@ -2289,67 +2423,67 @@ uint32_t hash_value(Value value)
  * returns the greater of the two values.
  * this function encapsulates Blade's object hierarchy
  */
-static Value find_max_value(Value a, Value b)
+static Value bl_value_findmaxvalue(Value a, Value b)
 {
-    if(IS_NIL(a))
+    if(bl_value_isnil(a))
     {
         return b;
     }
-    else if(IS_BOOL(a))
+    else if(bl_value_isbool(a))
     {
-        if(IS_NIL(b) || (IS_BOOL(b) && AS_BOOL(b) == false))
+        if(bl_value_isnil(b) || (bl_value_isbool(b) && AS_BOOL(b) == false))
             return a;// only nil, false and false are lower than numbers
         else
             return b;
     }
-    else if(IS_NUMBER(a))
+    else if(bl_value_isnumber(a))
     {
-        if(IS_NIL(b) || IS_BOOL(b))
+        if(bl_value_isnil(b) || bl_value_isbool(b))
             return a;
-        else if(IS_NUMBER(b))
+        else if(bl_value_isnumber(b))
             return AS_NUMBER(a) >= AS_NUMBER(b) ? a : b;
         else
             return b;// every other thing is greater than a number
     }
-    else if(IS_OBJ(a))
+    else if(bl_value_isobject(a))
     {
-        if(IS_STRING(a) && IS_STRING(b))
+        if(bl_value_isstring(a) && bl_value_isstring(b))
         {
             return strcmp(AS_C_STRING(a), AS_C_STRING(b)) >= 0 ? a : b;
         }
-        else if(IS_FUNCTION(a) && IS_FUNCTION(b))
+        else if(bl_value_isscriptfunction(a) && bl_value_isscriptfunction(b))
         {
             return AS_FUNCTION(a)->arity >= AS_FUNCTION(b)->arity ? a : b;
         }
-        else if(IS_CLOSURE(a) && IS_CLOSURE(b))
+        else if(bl_value_isclosure(a) && bl_value_isclosure(b))
         {
             return AS_CLOSURE(a)->fnptr->arity >= AS_CLOSURE(b)->fnptr->arity ? a : b;
         }
-        else if(IS_RANGE(a) && IS_RANGE(b))
+        else if(bl_value_isrange(a) && bl_value_isrange(b))
         {
             return AS_RANGE(a)->lower >= AS_RANGE(b)->lower ? a : b;
         }
-        else if(IS_CLASS(a) && IS_CLASS(b))
+        else if(bl_value_isclass(a) && bl_value_isclass(b))
         {
             return AS_CLASS(a)->methods.count >= AS_CLASS(b)->methods.count ? a : b;
         }
-        else if(IS_LIST(a) && IS_LIST(b))
+        else if(bl_value_isarray(a) && bl_value_isarray(b))
         {
             return AS_LIST(a)->items.count >= AS_LIST(b)->items.count ? a : b;
         }
-        else if(IS_DICT(a) && IS_DICT(b))
+        else if(bl_value_isdict(a) && bl_value_isdict(b))
         {
             return AS_DICT(a)->names.count >= AS_DICT(b)->names.count ? a : b;
         }
-        else if(IS_BYTES(a) && IS_BYTES(b))
+        else if(bl_value_isbytes(a) && bl_value_isbytes(b))
         {
             return AS_BYTES(a)->bytes.count >= AS_BYTES(b)->bytes.count ? a : b;
         }
-        else if(IS_FILE(a) && IS_FILE(b))
+        else if(bl_value_isfile(a) && bl_value_isfile(b))
         {
             return strcmp(AS_FILE(a)->path->chars, AS_FILE(b)->path->chars) >= 0 ? a : b;
         }
-        else if(IS_OBJ(b))
+        else if(bl_value_isobject(b))
         {
             return AS_OBJ(a)->type >= AS_OBJ(b)->type ? a : b;
         }
@@ -2358,56 +2492,59 @@ static Value find_max_value(Value a, Value b)
             return a;
         }
     }
-    else
-    {
-        return a;
-    }
+    return a;
 }
 
 /**
  * sorts values in an array using the bubble-sort algorithm
  */
-void sort_values(Value* values, int count)
+void bl_value_sortbubblesort(Value* values, int count)
 {
-    for(int i = 0; i < count; i++)
+    int i;
+    int j;
+    Value* temp;
+    for(i = 0; i < count; i++)
     {
-        for(int j = 0; j < count; j++)
+        for(j = 0; j < count; j++)
         {
-            if(values_equal(values[j], find_max_value(values[i], values[j])))
+            if(bl_value_valuesequal(values[j], bl_value_findmaxvalue(values[i], values[j])))
             {
-                Value temp = values[i];
+                temp = &values[i];
                 values[i] = values[j];
-                values[j] = temp;
-                if(IS_LIST(values[i]))
-                    sort_values(AS_LIST(values[i])->items.values, AS_LIST(values[i])->items.count);
-                if(IS_LIST(values[j]))
-                    sort_values(AS_LIST(values[j])->items.values, AS_LIST(values[j])->items.count);
+                values[j] = *temp;
+                if(bl_value_isarray(values[i]))
+                {
+                    bl_value_sortbubblesort(AS_LIST(values[i])->items.values, AS_LIST(values[i])->items.count);
+                }
+                if(bl_value_isarray(values[j]))
+                {
+                    bl_value_sortbubblesort(AS_LIST(values[j])->items.values, AS_LIST(values[j])->items.count);
+                }
             }
         }
     }
 }
 
-
-bool is_false(Value value)
+bool bl_value_isfalse(Value value)
 {
-    if(IS_BOOL(value))
-        return IS_BOOL(value) && !AS_BOOL(value);
-    if(IS_NIL(value) || IS_EMPTY(value))
+    if(bl_value_isbool(value))
+        return bl_value_isbool(value) && !AS_BOOL(value);
+    if(bl_value_isnil(value) || bl_value_isempty(value))
         return true;
     // -1 is the number equivalent of false in Blade
-    if(IS_NUMBER(value))
+    if(bl_value_isnumber(value))
         return AS_NUMBER(value) < 0;
     // Non-empty strings are true, empty strings are false.
-    if(IS_STRING(value))
+    if(bl_value_isstring(value))
         return AS_STRING(value)->length < 1;
     // Non-empty bytes are true, empty strings are false.
-    if(IS_BYTES(value))
+    if(bl_value_isbytes(value))
         return AS_BYTES(value)->bytes.count < 1;
     // Non-empty lists are true, empty lists are false.
-    if(IS_LIST(value))
+    if(bl_value_isarray(value))
         return AS_LIST(value)->items.count == 0;
     // Non-empty dicts are true, empty dicts are false.
-    if(IS_DICT(value))
+    if(bl_value_isdict(value))
         return AS_DICT(value)->names.count == 0;
     // All classes are true
     // All closures are true
@@ -2418,9 +2555,9 @@ bool is_false(Value value)
 }
 
 
-Value copy_value(VMState* vm, Value value)
+Value bl_value_copyvalue(VMState* vm, Value value)
 {
-    if(IS_OBJ(value))
+    if(bl_value_isobject(value))
     {
         switch(AS_OBJ(value)->type)
         {
@@ -2434,24 +2571,28 @@ Value copy_value(VMState* vm, Value value)
                 ObjBytes* bytes = AS_BYTES(value);
                 return OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes, bytes->bytes.count));
             }
-            case OBJ_LIST:
+            case OBJ_ARRAY:
             {
-                ObjList* list = AS_LIST(value);
-                ObjList* nlist = new_list(vm);
-                push(vm, OBJ_VAL(nlist));
+                ObjArray* list = AS_LIST(value);
+                ObjArray* nlist = bl_object_makelist(vm);
+                bl_vm_pushvalue(vm, OBJ_VAL(nlist));
                 for(int i = 0; i < list->items.count; i++)
                 {
-                    write_value_arr(vm, &nlist->items, list->items.values[i]);
+                    bl_valarray_push(vm, &nlist->items, list->items.values[i]);
                 }
-                pop(vm);
+                bl_vm_popvalue(vm);
                 return OBJ_VAL(nlist);
             }
-            /*case OBJ_DICT: {
-        ObjDict *dict = AS_DICT(value);
-        ObjDict *ndict = new_dict(vm);
-        // @TODO: Figure out how to handle dictionary values correctly
-        // remember that copying keys is redundant and unnecessary
-      }*/
+            /*
+            case OBJ_DICT:
+                {
+                    ObjDict *dict = AS_DICT(value);
+                    ObjDict *ndict = bl_object_makedict(vm);
+                    // @TODO: Figure out how to handle dictionary values correctly
+                    // remember that copying keys is redundant and unnecessary
+                }
+                break;
+            */
             default:
                 return value;
         }
@@ -2461,6 +2602,7 @@ Value copy_value(VMState* vm, Value value)
 
 bool bl_value_returnvalue(VMState* vm, Value* args, Value val, bool b)
 {
+    (void)vm;
     args[-1] = val;
     return b;
 }
@@ -2483,7 +2625,7 @@ bool bl_value_returnnil(VMState* vm, Value* args)
 
 #define RETURN_ERROR(...) \
     { \
-        pop_n(vm, argcount); \
+        bl_vm_popvaluen(vm, argcount); \
         bl_vm_throwexception(vm, false, ##__VA_ARGS__); \
         args[-1] = FALSE_VAL; \
         return false; \
@@ -2536,27 +2678,25 @@ bool bl_value_returnnil(VMState* vm, Value* args)
         return true; \
     }
 
-
-
-void reset_table(HashTable* table)
+void bl_hashtable_reset(HashTable* table)
 {
     table->count = 0;
     table->capacity = 0;
     table->entries = NULL;
 }
 
-void init_table(HashTable* table)
+void bl_hashtable_init(HashTable* table)
 {
-    reset_table(table);
+    bl_hashtable_reset(table);
 }
 
-void free_table(VMState* vm, HashTable* table)
+void bl_hashtable_free(VMState* vm, HashTable* table)
 {
     FREE_ARRAY(HashEntry, table->entries, table->capacity);
-    reset_table(table);
+    bl_hashtable_reset(table);
 }
 
-void clean_free_table(VMState* vm, HashTable* table)
+void bl_hashtable_cleanfree(VMState* vm, HashTable* table)
 {
     int i;
     HashEntry* entry;
@@ -2566,13 +2706,13 @@ void clean_free_table(VMState* vm, HashTable* table)
         if(entry != NULL)
         {
 #if 0
-            if(IS_OBJ(entry->key))
+            if(bl_value_isobject(entry->key))
             {
                 bl_mem_freeobject(vm, &AS_OBJ(entry->key));
             }
 #endif
 #if 0
-            if(IS_OBJ(entry->value))
+            if(bl_value_isobject(entry->value))
             {
                 bl_mem_freeobject(vm, &AS_OBJ(entry->value));
             }
@@ -2580,19 +2720,19 @@ void clean_free_table(VMState* vm, HashTable* table)
         }
     }
     FREE_ARRAY(HashEntry, table->entries, table->capacity);
-    reset_table(table);
+    bl_hashtable_reset(table);
 }
 
-static HashEntry* find_entry(HashEntry* entries, int capacity, Value key)
+static HashEntry* bl_hashtable_findentry(HashEntry* entries, int capacity, Value key)
 {
     uint32_t hash;
     uint32_t index;
     HashEntry* entry;
     HashEntry* tombstone;
-    hash = hash_value(key);
+    hash = bl_value_hashvalue(key);
 #if defined(DEBUG_TABLE) && DEBUG_TABLE
     printf("looking for key ");
-    print_value(key);
+    bl_value_printvalue(key);
     printf(" with hash %u in table...\n", hash);
 #endif
     index = hash & (capacity - 1);
@@ -2600,9 +2740,9 @@ static HashEntry* find_entry(HashEntry* entries, int capacity, Value key)
     for(;;)
     {
         entry = &entries[index];
-        if(IS_EMPTY(entry->key))
+        if(bl_value_isempty(entry->key))
         {
-            if(IS_NIL(entry->value))
+            if(bl_value_isnil(entry->value))
             {
                 // empty entry
                 return tombstone != NULL ? tombstone : entry;
@@ -2616,13 +2756,13 @@ static HashEntry* find_entry(HashEntry* entries, int capacity, Value key)
                 }
             }
         }
-        else if(values_equal(key, entry->key))
+        else if(bl_value_valuesequal(key, entry->key))
         {
 #if defined(DEBUG_TABLE) && DEBUG_TABLE
             printf("found entry for key ");
-            print_value(key);
+            bl_value_printvalue(key);
             printf(" with hash %u in table as ", hash);
-            print_value(entry->value);
+            bl_value_printvalue(entry->value);
             printf("...\n");
 #endif
             return entry;
@@ -2632,7 +2772,7 @@ static HashEntry* find_entry(HashEntry* entries, int capacity, Value key)
     return NULL;
 }
 
-bool table_get(HashTable* table, Value key, Value* value)
+bool bl_hashtable_get(HashTable* table, Value key, Value* value)
 {
     HashEntry* entry;
     if(table->count == 0 || table->entries == NULL)
@@ -2640,23 +2780,23 @@ bool table_get(HashTable* table, Value key, Value* value)
         return false;
     }
 #if defined(DEBUG_TABLE) && DEBUG_TABLE
-    printf("getting entry with hash %u...\n", hash_value(key));
+    printf("getting entry with hash %u...\n", bl_value_hashvalue(key));
 #endif
-    entry = find_entry(table->entries, table->capacity, key);
-    if(IS_EMPTY(entry->key) || IS_NIL(entry->key))
+    entry = bl_hashtable_findentry(table->entries, table->capacity, key);
+    if(bl_value_isempty(entry->key) || bl_value_isnil(entry->key))
     {
         return false;
     }
 #if defined(DEBUG_TABLE) && DEBUG_TABLE
-    printf("found entry for hash %u == ", hash_value(entry->key));
-    print_value(entry->value);
+    printf("found entry for hash %u == ", bl_value_hashvalue(entry->key));
+    bl_value_printvalue(entry->value);
     printf("\n");
 #endif
     *value = entry->value;
     return true;
 }
 
-static void adjust_capacity(VMState* vm, HashTable* table, int capacity)
+static void bl_hashtable_adjustcap(VMState* vm, HashTable* table, int capacity)
 {
     int i;
     HashEntry* dest;
@@ -2673,11 +2813,11 @@ static void adjust_capacity(VMState* vm, HashTable* table, int capacity)
     for(i = 0; i < table->capacity; i++)
     {
         entry = &table->entries[i];
-        if(IS_EMPTY(entry->key))
+        if(bl_value_isempty(entry->key))
         {
             continue;
         }
-        dest = find_entry(entries, capacity, entry->key);
+        dest = bl_hashtable_findentry(entries, capacity, entry->key);
         dest->key = entry->key;
         dest->value = entry->value;
         table->count++;
@@ -2688,7 +2828,7 @@ static void adjust_capacity(VMState* vm, HashTable* table, int capacity)
     table->capacity = capacity;
 }
 
-bool table_set(VMState* vm, HashTable* table, Value key, Value value)
+bool bl_hashtable_set(VMState* vm, HashTable* table, Value key, Value value)
 {
     bool isnew;
     int capacity;
@@ -2696,11 +2836,11 @@ bool table_set(VMState* vm, HashTable* table, Value key, Value value)
     if(table->count + 1 > table->capacity * TABLE_MAX_LOAD)
     {
         capacity = GROW_CAPACITY(table->capacity);
-        adjust_capacity(vm, table, capacity);
+        bl_hashtable_adjustcap(vm, table, capacity);
     }
-    entry = find_entry(table->entries, table->capacity, key);
-    isnew = IS_EMPTY(entry->key);
-    if(isnew && IS_NIL(entry->value))
+    entry = bl_hashtable_findentry(table->entries, table->capacity, key);
+    isnew = bl_value_isempty(entry->key);
+    if(isnew && bl_value_isnil(entry->value))
     {
         table->count++;
     }
@@ -2710,7 +2850,7 @@ bool table_set(VMState* vm, HashTable* table, Value key, Value value)
     return isnew;
 }
 
-bool table_delete(HashTable* table, Value key)
+bool bl_hashtable_delete(HashTable* table, Value key)
 {
     HashEntry* entry;
     if(table->count == 0)
@@ -2718,8 +2858,8 @@ bool table_delete(HashTable* table, Value key)
         return false;
     }
     // find the entry
-    entry = find_entry(table->entries, table->capacity, key);
-    if(IS_EMPTY(entry->key))
+    entry = bl_hashtable_findentry(table->entries, table->capacity, key);
+    if(bl_value_isempty(entry->key))
     {
         return false;
     }
@@ -2729,35 +2869,35 @@ bool table_delete(HashTable* table, Value key)
     return true;
 }
 
-void table_add_all(VMState* vm, HashTable* from, HashTable* to)
+void bl_hashtable_addall(VMState* vm, HashTable* from, HashTable* to)
 {
     int i;
     HashEntry* entry;
     for(i = 0; i < from->capacity; i++)
     {
         entry = &from->entries[i];
-        if(!IS_EMPTY(entry->key))
+        if(!bl_value_isempty(entry->key))
         {
-            table_set(vm, to, entry->key, entry->value);
+            bl_hashtable_set(vm, to, entry->key, entry->value);
         }
     }
 }
 
-void table_copy(VMState* vm, HashTable* from, HashTable* to)
+void bl_hashtable_copy(VMState* vm, HashTable* from, HashTable* to)
 {
     int i;
     HashEntry* entry;
     for(i = 0; i < from->capacity; i++)
     {
         entry = &from->entries[i];
-        if(!IS_EMPTY(entry->key))
+        if(!bl_value_isempty(entry->key))
         {
-            table_set(vm, to, entry->key, copy_value(vm, entry->value));
+            bl_hashtable_set(vm, to, entry->key, bl_value_copyvalue(vm, entry->value));
         }
     }
 }
 
-ObjString* table_find_string(HashTable* table, const char* chars, int length, uint32_t hash)
+ObjString* bl_hashtable_findstring(HashTable* table, const char* chars, int length, uint32_t hash)
 {
     uint32_t index;
     HashEntry* entry;
@@ -2770,13 +2910,13 @@ ObjString* table_find_string(HashTable* table, const char* chars, int length, ui
     for(;;)
     {
         entry = &table->entries[index];
-        if(IS_EMPTY(entry->key))
+        if(bl_value_isempty(entry->key))
         {
             // stop if we find an empty non-tombstone entry
-            //if (IS_NIL(entry->value))
+            //if (bl_value_isnil(entry->value))
             return NULL;
         }
-        // if (IS_STRING(entry->key)) {
+        // if (bl_value_isstring(entry->key)) {
         string = AS_STRING(entry->key);
         if(string->length == length && string->hash == hash && memcmp(string->chars, chars, length) == 0)
         {
@@ -2789,16 +2929,16 @@ ObjString* table_find_string(HashTable* table, const char* chars, int length, ui
     return NULL;
 }
 
-Value table_find_key(HashTable* table, Value value)
+Value bl_hashtable_findkey(HashTable* table, Value value)
 {
     int i;
     HashEntry* entry;
     for(i = 0; i < table->capacity; i++)
     {
         entry = &table->entries[i];
-        if(!IS_NIL(entry->key) && !IS_EMPTY(entry->key))
+        if(!bl_value_isnil(entry->key) && !bl_value_isempty(entry->key))
         {
-            if(values_equal(entry->value, value))
+            if(bl_value_valuesequal(entry->value, value))
             {
                 return entry->key;
             }
@@ -2807,17 +2947,17 @@ Value table_find_key(HashTable* table, Value value)
     return NIL_VAL;
 }
 
-void table_print(HashTable* table)
+void bl_hashtable_print(HashTable* table)
 {
     printf("<HashTable: {");
     for(int i = 0; i < table->capacity; i++)
     {
         HashEntry* entry = &table->entries[i];
-        if(!IS_EMPTY(entry->key))
+        if(!bl_value_isempty(entry->key))
         {
-            print_value(entry->key);
+            bl_value_printvalue(entry->key);
             printf(": ");
-            print_value(entry->value);
+            bl_value_printvalue(entry->value);
             if(i != table->capacity - 1)
             {
                 printf(",");
@@ -2828,7 +2968,7 @@ void table_print(HashTable* table)
 }
 
 
-void table_remove_whites(VMState* vm, HashTable* table)
+void bl_hashtable_removewhites(VMState* vm, HashTable* table)
 {
     int i;
     HashEntry* entry;
@@ -2836,23 +2976,23 @@ void table_remove_whites(VMState* vm, HashTable* table)
     for(i = 0; i < table->capacity; i++)
     {
         entry = &table->entries[i];
-        if(IS_OBJ(entry->key) && !AS_OBJ(entry->key)->mark)
+        if(bl_value_isobject(entry->key) && !AS_OBJ(entry->key)->mark)
         {
-            table_delete(table, entry->key);
+            bl_hashtable_delete(table, entry->key);
         }
     }
 }
 
-void init_blob(BinaryBlob* blob)
+void bl_blob_init(BinaryBlob* blob)
 {
     blob->count = 0;
     blob->capacity = 0;
     blob->code = NULL;
     blob->lines = NULL;
-    init_value_arr(&blob->constants);
+    bl_valarray_init(&blob->constants);
 }
 
-void write_blob(VMState* vm, BinaryBlob* blob, uint8_t byte, int line)
+void bl_blob_write(VMState* vm, BinaryBlob* blob, uint8_t byte, int line)
 {
     if(blob->capacity < blob->count + 1)
     {
@@ -2866,7 +3006,7 @@ void write_blob(VMState* vm, BinaryBlob* blob, uint8_t byte, int line)
     blob->count++;
 }
 
-void free_blob(VMState* vm, BinaryBlob* blob)
+void bl_blob_free(VMState* vm, BinaryBlob* blob)
 {
     if(blob->code != NULL)
     {
@@ -2876,15 +3016,15 @@ void free_blob(VMState* vm, BinaryBlob* blob)
     {
         FREE_ARRAY(int, blob->lines, blob->capacity);
     }
-    free_value_arr(vm, &blob->constants);
-    init_blob(blob);
+    bl_valarray_free(vm, &blob->constants);
+    bl_blob_init(blob);
 }
 
-int add_constant(VMState* vm, BinaryBlob* blob, Value value)
+int bl_blob_addconst(VMState* vm, BinaryBlob* blob, Value value)
 {
-    push(vm, value);// fixing gc corruption
-    write_value_arr(vm, &blob->constants, value);
-    pop(vm);// fixing gc corruption
+    bl_vm_pushvalue(vm, value);// fixing gc corruption
+    bl_valarray_push(vm, &blob->constants, value);
+    bl_vm_popvalue(vm);// fixing gc corruption
     return blob->constants.count - 1;
 }
 
@@ -2908,7 +3048,7 @@ int add_constant(VMState* vm, BinaryBlob* blob, Value value)
  * negative value -> invalid delimiter where abs(value) is the character
  * positive value > 0 ? for compiled delimiters
  */
-uint32_t is_regex(ObjString* string)
+uint32_t bl_helper_objstringisregex(ObjString* string)
 {
     char start = string->chars[0];
     bool matchfound = false;
@@ -2975,7 +3115,7 @@ uint32_t is_regex(ObjString* string)
         return coptions;
 }
 
-char* remove_regex_delimiter(VMState* vm, ObjString* string)
+char* bl_helper_objstringremregexdelim(VMState* vm, ObjString* string)
 {
     if(string->length == 0)
         return string->chars;
@@ -2994,18 +3134,116 @@ char* remove_regex_delimiter(VMState* vm, ObjString* string)
 
 
 
-#define ENFORCE_VALID_DICT_KEY(name, index) \
-    EXCLUDE_ARG_TYPE(name, IS_LIST, index); \
-    EXCLUDE_ARG_TYPE(name, IS_DICT, index); \
-    EXCLUDE_ARG_TYPE(name, IS_FILE, index);
-
-void dict_add_entry(VMState* vm, ObjDict* dict, Value key, Value value)
+void bl_valarray_init(ValArray* array)
 {
-    write_value_arr(vm, &dict->names, key);
-    table_set(vm, &dict->items, key, value);
+    array->capacity = 0;
+    array->count = 0;
+    array->values = NULL;
 }
 
-bool dict_get_entry(ObjDict* dict, Value key, Value* value)
+void bl_bytearray_init(VMState* vm, ByteArray* array, int length)
+{
+    array->count = length;
+    array->bytes = (unsigned char*)calloc(length, sizeof(unsigned char));
+    vm->bytesallocated += sizeof(unsigned char) * length;
+}
+
+void bl_valarray_push(VMState* vm, ValArray* array, Value value)
+{
+    if(array->capacity < array->count + 1)
+    {
+        int oldcapacity = array->capacity;
+        array->capacity = GROW_CAPACITY(oldcapacity);
+        array->values = GROW_ARRAY(Value, array->values, oldcapacity, array->capacity);
+    }
+    array->values[array->count] = value;
+    array->count++;
+}
+
+void bl_valarray_insert(VMState* vm, ValArray* array, Value value, int index)
+{
+    if(array->capacity <= index)
+    {
+        array->capacity = GROW_CAPACITY(index);
+        array->values = GROW_ARRAY(Value, array->values, array->count, array->capacity);
+    }
+    else if(array->capacity < array->count + 2)
+    {
+        int capacity = array->capacity;
+        array->capacity = GROW_CAPACITY(capacity);
+        array->values = GROW_ARRAY(Value, array->values, capacity, array->capacity);
+    }
+    if(index <= array->count)
+    {
+        for(int i = array->count - 1; i >= index; i--)
+        {
+            array->values[i + 1] = array->values[i];
+        }
+    }
+    else
+    {
+        for(int i = array->count; i < index; i++)
+        {
+            array->values[i] = NIL_VAL;// nil out overflow indices
+            array->count++;
+        }
+    }
+    array->values[index] = value;
+    array->count++;
+}
+
+void bl_valarray_free(VMState* vm, ValArray* array)
+{
+    FREE_ARRAY(Value, array->values, array->capacity);
+    bl_valarray_init(array);
+}
+
+
+void bl_bytearray_free(VMState* vm, ByteArray* array)
+{
+    if(array && array->count > 0)
+    {
+        FREE_ARRAY(unsigned char, array->bytes, array->count);
+        array->count = 0;
+        array->bytes = NULL;
+    }
+}
+
+
+
+void bl_array_push(VMState* vm, ObjArray* list, Value value)
+{
+    bl_valarray_push(vm, &list->items, value);
+}
+
+ObjArray* bl_array_copy(VMState* vm, ObjArray* list, int start, int length)
+{
+    int i;
+    ObjArray* nl;
+    (void)start;
+    (void)length;
+    nl = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    for(i = 0; i < list->items.count; i++)
+    {
+        bl_array_push(vm, nl, list->items.values[i]);
+    }
+    return nl;
+}
+
+
+#define ENFORCE_VALID_DICT_KEY(name, index) \
+    EXCLUDE_ARG_TYPE(name, bl_value_isarray, index); \
+    EXCLUDE_ARG_TYPE(name, bl_value_isdict, index); \
+    EXCLUDE_ARG_TYPE(name, bl_value_isfile, index);
+
+
+void bl_dict_addentry(VMState* vm, ObjDict* dict, Value key, Value value)
+{
+    bl_valarray_push(vm, &dict->names, key);
+    bl_hashtable_set(vm, &dict->items, key, value);
+}
+
+bool bl_dict_getentry(ObjDict* dict, Value key, Value* value)
 {
     /* // this will be easier to search than the entire tables
   // if the key doesn't exist.
@@ -3013,7 +3251,7 @@ bool dict_get_entry(ObjDict* dict, Value key, Value* value)
     int i;
     bool found = false;
     for (i = 0; i < dict->names.count; i++) {
-      if (values_equal(dict->names.values[i], key)) {
+      if (bl_value_valuesequal(dict->names.values[i], key)) {
         found = true;
         break;
       }
@@ -3021,20 +3259,20 @@ bool dict_get_entry(ObjDict* dict, Value key, Value* value)
     if (!found)
       return false;
   } */
-    return table_get(&dict->items, key, value);
+    return bl_hashtable_get(&dict->items, key, value);
 }
 
-bool dict_set_entry(VMState* vm, ObjDict* dict, Value key, Value value)
+bool bl_dict_setentry(VMState* vm, ObjDict* dict, Value key, Value value)
 {
     Value tempvalue;
-    if(!table_get(&dict->items, key, &tempvalue))
+    if(!bl_hashtable_get(&dict->items, key, &tempvalue))
     {
-        write_value_arr(vm, &dict->names, key);// add key if it doesn't exist.
+        bl_valarray_push(vm, &dict->names, key);// add key if it doesn't exist.
     }
-    return table_set(vm, &dict->items, key, value);
+    return bl_hashtable_set(vm, &dict->items, key, value);
 }
 
-Object* allocate_object(VMState* vm, size_t size, ObjType type)
+Object* bl_object_allocobject(VMState* vm, size_t size, ObjType type)
 {
     Object* object;
     object = (Object*)bl_mem_realloc(vm, NULL, 0, size);
@@ -3045,24 +3283,41 @@ Object* allocate_object(VMState* vm, size_t size, ObjType type)
     vm->objectlinks = object;
     vm->objectcount++;
     //#if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
-    //    fprintf(stderr, "allocate_object: size %ld type %d\n", size, type);
+    //    fprintf(stderr, "bl_object_allocobject: size %ld type %d\n", size, type);
     //#endif
     return object;
 }
 
-ObjPointer* new_ptr(VMState* vm, void* pointer)
+
+ObjPointer* bl_dict_makeptr(VMState* vm, void* pointer)
 {
-    ObjPointer* ptr = (ObjPointer*)allocate_object(vm, sizeof(ObjPointer), OBJ_PTR);
+    ObjPointer* ptr = (ObjPointer*)bl_object_allocobject(vm, sizeof(ObjPointer), OBJ_PTR);
     ptr->pointer = pointer;
     ptr->name = "<void *>";
     ptr->fnptrfree = NULL;
     return ptr;
 }
 
-ObjModule* new_module(VMState* vm, char* name, char* file)
+ObjDict* bl_object_makedict(VMState* vm)
 {
-    ObjModule* module = (ObjModule*)allocate_object(vm, sizeof(ObjModule), OBJ_MODULE);
-    init_table(&module->values);
+    ObjDict* dict = (ObjDict*)bl_object_allocobject(vm, sizeof(ObjDict), OBJ_DICT);
+    bl_valarray_init(&dict->names);
+    bl_hashtable_init(&dict->items);
+    return dict;
+}
+
+
+ObjArray* bl_object_makelist(VMState* vm)
+{
+    ObjArray* list = (ObjArray*)bl_object_allocobject(vm, sizeof(ObjArray), OBJ_ARRAY);
+    bl_valarray_init(&list->items);
+    return list;
+}
+
+ObjModule* bl_object_makemodule(VMState* vm, char* name, char* file)
+{
+    ObjModule* module = (ObjModule*)bl_object_allocobject(vm, sizeof(ObjModule), OBJ_MODULE);
+    bl_hashtable_init(&module->values);
     module->name = name;
     module->file = file;
     module->unloader = NULL;
@@ -3072,32 +3327,25 @@ ObjModule* new_module(VMState* vm, char* name, char* file)
     return module;
 }
 
-ObjSwitch* new_switch(VMState* vm)
+ObjSwitch* bl_object_makeswitch(VMState* vm)
 {
-    ObjSwitch* sw = (ObjSwitch*)allocate_object(vm, sizeof(ObjSwitch), OBJ_SWITCH);
-    init_table(&sw->table);
+    ObjSwitch* sw = (ObjSwitch*)bl_object_allocobject(vm, sizeof(ObjSwitch), OBJ_SWITCH);
+    bl_hashtable_init(&sw->table);
     sw->defaultjump = -1;
     sw->exitjump = -1;
     return sw;
 }
 
-ObjBytes* new_bytes(VMState* vm, int length)
+ObjBytes* bl_object_makebytes(VMState* vm, int length)
 {
-    ObjBytes* bytes = (ObjBytes*)allocate_object(vm, sizeof(ObjBytes), OBJ_BYTES);
-    init_byte_arr(vm, &bytes->bytes, length);
+    ObjBytes* bytes = (ObjBytes*)bl_object_allocobject(vm, sizeof(ObjBytes), OBJ_BYTES);
+    bl_bytearray_init(vm, &bytes->bytes, length);
     return bytes;
 }
 
-ObjList* new_list(VMState* vm)
+ObjRange* bl_object_makerange(VMState* vm, int lower, int upper)
 {
-    ObjList* list = (ObjList*)allocate_object(vm, sizeof(ObjList), OBJ_LIST);
-    init_value_arr(&list->items);
-    return list;
-}
-
-ObjRange* new_range(VMState* vm, int lower, int upper)
-{
-    ObjRange* range = (ObjRange*)allocate_object(vm, sizeof(ObjRange), OBJ_RANGE);
+    ObjRange* range = (ObjRange*)bl_object_allocobject(vm, sizeof(ObjRange), OBJ_RANGE);
     range->lower = lower;
     range->upper = upper;
     if(upper > lower)
@@ -3111,17 +3359,10 @@ ObjRange* new_range(VMState* vm, int lower, int upper)
     return range;
 }
 
-ObjDict* new_dict(VMState* vm)
-{
-    ObjDict* dict = (ObjDict*)allocate_object(vm, sizeof(ObjDict), OBJ_DICT);
-    init_value_arr(&dict->names);
-    init_table(&dict->items);
-    return dict;
-}
 
-ObjFile* new_file(VMState* vm, ObjString* path, ObjString* mode)
+ObjFile* bl_object_makefile(VMState* vm, ObjString* path, ObjString* mode)
 {
-    ObjFile* file = (ObjFile*)allocate_object(vm, sizeof(ObjFile), OBJ_FILE);
+    ObjFile* file = (ObjFile*)bl_object_allocobject(vm, sizeof(ObjFile), OBJ_FILE);
     file->isopen = true;
     file->mode = mode;
     file->path = path;
@@ -3129,95 +3370,106 @@ ObjFile* new_file(VMState* vm, ObjString* path, ObjString* mode)
     return file;
 }
 
-ObjBoundMethod* new_bound_method(VMState* vm, Value receiver, ObjClosure* method)
+ObjBoundMethod* bl_object_makeboundmethod(VMState* vm, Value receiver, ObjClosure* method)
 {
-    ObjBoundMethod* bound = (ObjBoundMethod*)allocate_object(vm, sizeof(ObjBoundMethod), OBJ_BOUND_METHOD);
+    ObjBoundMethod* bound = (ObjBoundMethod*)bl_object_allocobject(vm, sizeof(ObjBoundMethod), OBJ_BOUNDFUNCTION);
     bound->receiver = receiver;
     bound->method = method;
     return bound;
 }
 
-ObjClass* new_class(VMState* vm, ObjString* name)
+ObjClass* bl_object_makeclass(VMState* vm, ObjString* name)
 {
-    ObjClass* klass = (ObjClass*)allocate_object(vm, sizeof(ObjClass), OBJ_CLASS);
+    ObjClass* klass = (ObjClass*)bl_object_allocobject(vm, sizeof(ObjClass), OBJ_CLASS);
     klass->name = name;
-    init_table(&klass->properties);
-    init_table(&klass->staticproperties);
-    init_table(&klass->methods);
+    bl_hashtable_init(&klass->properties);
+    bl_hashtable_init(&klass->staticproperties);
+    bl_hashtable_init(&klass->methods);
     klass->initializer = EMPTY_VAL;
     klass->superclass = NULL;
     return klass;
 }
 
-ObjFunction* new_function(VMState* vm, ObjModule* module, FuncType type)
+ObjFunction* bl_object_makescriptfunction(VMState* vm, ObjModule* module, FuncType type)
 {
-    ObjFunction* function = (ObjFunction*)allocate_object(vm, sizeof(ObjFunction), OBJ_FUNCTION);
+    ObjFunction* function = (ObjFunction*)bl_object_allocobject(vm, sizeof(ObjFunction), OBJ_SCRIPTFUNCTION);
     function->arity = 0;
     function->upvaluecount = 0;
     function->isvariadic = false;
     function->name = NULL;
     function->type = type;
     function->module = module;
-    init_blob(&function->blob);
+    bl_blob_init(&function->blob);
     return function;
 }
 
-ObjInstance* new_instance(VMState* vm, ObjClass* klass)
+ObjInstance* bl_object_makeinstance(VMState* vm, ObjClass* klass)
 {
-    ObjInstance* instance = (ObjInstance*)allocate_object(vm, sizeof(ObjInstance), OBJ_INSTANCE);
-    push(vm, OBJ_VAL(instance));// gc fix
+    ObjInstance* instance = (ObjInstance*)bl_object_allocobject(vm, sizeof(ObjInstance), OBJ_INSTANCE);
+    bl_vm_pushvalue(vm, OBJ_VAL(instance));// gc fix
     instance->klass = klass;
-    init_table(&instance->properties);
+    bl_hashtable_init(&instance->properties);
     if(klass->properties.count > 0)
     {
-        table_copy(vm, &klass->properties, &instance->properties);
+        bl_hashtable_copy(vm, &klass->properties, &instance->properties);
     }
-    pop(vm);// gc fix
+    bl_vm_popvalue(vm);// gc fix
     return instance;
 }
 
-ObjNativeFunction* new_native(VMState* vm, NativeCallbackFunc function, const char* name)
+ObjNativeFunction* bl_object_makenativefunction(VMState* vm, NativeCallbackFunc function, const char* name)
 {
-    ObjNativeFunction* native = (ObjNativeFunction*)allocate_object(vm, sizeof(ObjNativeFunction), OBJ_NATIVE);
+    ObjNativeFunction* native = (ObjNativeFunction*)bl_object_allocobject(vm, sizeof(ObjNativeFunction), OBJ_NATIVEFUNCTION);
     native->natfn = function;
     native->name = name;
     native->type = TYPE_FUNCTION;
     return native;
 }
 
-ObjClosure* new_closure(VMState* vm, ObjFunction* function)
+ObjClosure* bl_object_makeclosure(VMState* vm, ObjFunction* function)
 {
     ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvaluecount);
     for(int i = 0; i < function->upvaluecount; i++)
     {
         upvalues[i] = NULL;
     }
-    ObjClosure* closure = (ObjClosure*)allocate_object(vm, sizeof(ObjClosure), OBJ_CLOSURE);
+    ObjClosure* closure = (ObjClosure*)bl_object_allocobject(vm, sizeof(ObjClosure), OBJ_CLOSURE);
     closure->fnptr = function;
     closure->upvalues = upvalues;
     closure->upvaluecount = function->upvaluecount;
     return closure;
 }
 
+
+ObjInstance* bl_object_makeexception(VMState* vm, ObjString* message)
+{
+    ObjInstance* instance = bl_object_makeinstance(vm, vm->exceptionclass);
+    bl_vm_pushvalue(vm, OBJ_VAL(instance));
+    bl_hashtable_set(vm, &instance->properties, STRING_L_VAL("message", 7), OBJ_VAL(message));
+    bl_vm_popvalue(vm);
+    return instance;
+}
+
+
 ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_t hash)
 {
     //fprintf(stderr, "call to bl_string_fromallocated! chars=\"%.*s\"\n", length, chars);
-    ObjString* string = (ObjString*)allocate_object(vm, sizeof(ObjString), OBJ_STRING);
+    ObjString* string = (ObjString*)bl_object_allocobject(vm, sizeof(ObjString), OBJ_STRING);
     string->chars = chars;
     string->length = length;
     string->utf8length = bl_util_utf8length(chars);
     string->isascii = false;
     string->hash = hash;
-    push(vm, OBJ_VAL(string));// fixing gc corruption
-    table_set(vm, &vm->strings, OBJ_VAL(string), NIL_VAL);
-    pop(vm);// fixing gc corruption
+    bl_vm_pushvalue(vm, OBJ_VAL(string));// fixing gc corruption
+    bl_hashtable_set(vm, &vm->strings, OBJ_VAL(string), NIL_VAL);
+    bl_vm_popvalue(vm);// fixing gc corruption
     return string;
 }
 
 ObjString* take_string(VMState* vm, char* chars, int length)
 {
     uint32_t hash = bl_util_hashstring(chars, length);
-    ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
+    ObjString* interned = bl_hashtable_findstring(&vm->strings, chars, length, hash);
     if(interned != NULL)
     {
         FREE_ARRAY(char, chars, (size_t)length + 1);
@@ -3229,7 +3481,7 @@ ObjString* take_string(VMState* vm, char* chars, int length)
 ObjString* copy_string(VMState* vm, const char* chars, int length)
 {
     uint32_t hash = bl_util_hashstring(chars, length);
-    ObjString* interned = table_find_string(&vm->strings, chars, length, hash);
+    ObjString* interned = bl_hashtable_findstring(&vm->strings, chars, length, hash);
     if(interned != NULL)
         return interned;
     char* heapchars = ALLOCATE(char, (size_t)length + 1);
@@ -3240,7 +3492,7 @@ ObjString* copy_string(VMState* vm, const char* chars, int length)
 
 ObjUpvalue* new_up_value(VMState* vm, Value* slot)
 {
-    ObjUpvalue* upvalue = (ObjUpvalue*)allocate_object(vm, sizeof(ObjUpvalue), OBJ_UP_VALUE);
+    ObjUpvalue* upvalue = (ObjUpvalue*)bl_object_allocobject(vm, sizeof(ObjUpvalue), OBJ_UP_VALUE);
     upvalue->closed = NIL_VAL;
     upvalue->location = slot;
     upvalue->next = NULL;
@@ -3259,12 +3511,12 @@ static void print_function(ObjFunction* func)
     }
 }
 
-static void print_list(ObjList* list)
+static void print_list(ObjArray* list)
 {
     printf("[");
     for(int i = 0; i < list->items.count; i++)
     {
-        print_value(list->items.values[i]);
+        bl_value_printvalue(list->items.values[i]);
         if(i != list->items.count - 1)
         {
             printf(", ");
@@ -3297,12 +3549,12 @@ static void print_dict(ObjDict* dict)
     printf("{");
     for(int i = 0; i < dict->names.count; i++)
     {
-        print_value(dict->names.values[i]);
+        bl_value_printvalue(dict->names.values[i]);
         printf(": ");
         Value value;
-        if(table_get(&dict->items, dict->names.values[i], &value))
+        if(bl_hashtable_get(&dict->items, dict->names.values[i], &value))
         {
-            print_value(value);
+            bl_value_printvalue(value);
         }
         if(i != dict->names.count - 1)
         {
@@ -3346,7 +3598,7 @@ void print_object(Value value, bool fixstring)
             print_dict(AS_DICT(value));
             break;
         }
-        case OBJ_LIST:
+        case OBJ_ARRAY:
         {
             print_list(AS_LIST(value));
             break;
@@ -3356,7 +3608,7 @@ void print_object(Value value, bool fixstring)
             print_bytes(AS_BYTES(value));
             break;
         }
-        case OBJ_BOUND_METHOD:
+        case OBJ_BOUNDFUNCTION:
         {
             print_function(AS_BOUND(value)->method->fnptr);
             break;
@@ -3376,7 +3628,7 @@ void print_object(Value value, bool fixstring)
             print_function(AS_CLOSURE(value)->fnptr);
             break;
         }
-        case OBJ_FUNCTION:
+        case OBJ_SCRIPTFUNCTION:
         {
             print_function(AS_FUNCTION(value));
             break;
@@ -3388,7 +3640,7 @@ void print_object(Value value, bool fixstring)
             printf("<class %s instance at %p>", instance->klass->name->chars, (void*)instance);
             break;
         }
-        case OBJ_NATIVE:
+        case OBJ_NATIVEFUNCTION:
         {
             ObjNativeFunction* native = AS_NATIVE(value);
             printf("<function %s(native) at %p>", native->name, (void*)native);
@@ -3417,14 +3669,14 @@ void print_object(Value value, bool fixstring)
 
 ObjBytes* copy_bytes(VMState* vm, unsigned char* b, int length)
 {
-    ObjBytes* bytes = new_bytes(vm, length);
+    ObjBytes* bytes = bl_object_makebytes(vm, length);
     memcpy(bytes->bytes.bytes, b, length);
     return bytes;
 }
 
 ObjBytes* take_bytes(VMState* vm, unsigned char* b, int length)
 {
-    ObjBytes* bytes = (ObjBytes*)allocate_object(vm, sizeof(ObjBytes), OBJ_BYTES);
+    ObjBytes* bytes = (ObjBytes*)bl_object_allocobject(vm, sizeof(ObjBytes), OBJ_BYTES);
     bytes->bytes.count = length;
     bytes->bytes.bytes = b;
     return bytes;
@@ -3451,7 +3703,7 @@ static char* list_to_string(VMState* vm, ValArray* array)
     char* str = strdup("[");
     for(int i = 0; i < array->count; i++)
     {
-        char* val = value_to_string(vm, array->values[i]);
+        char* val = bl_value_tostring(vm, array->values[i]);
         if(val != NULL)
         {
             str = bl_util_appendstring(str, val);
@@ -3491,17 +3743,17 @@ static char* dict_to_string(VMState* vm, ObjDict* dict)
     char* str = strdup("{");
     for(int i = 0; i < dict->names.count; i++)
     {
-        // print_value(dict->names.values[i]);
+        // bl_value_printvalue(dict->names.values[i]);
         Value key = dict->names.values[i];
-        char* _key = value_to_string(vm, key);
+        char* _key = bl_value_tostring(vm, key);
         if(_key != NULL)
         {
             str = bl_util_appendstring(str, _key);
         }
         str = bl_util_appendstring(str, ": ");
         Value value;
-        table_get(&dict->items, key, &value);
-        char* val = value_to_string(vm, value);
+        bl_hashtable_get(&dict->items, key, &value);
+        char* val = bl_value_tostring(vm, value);
         if(val != NULL)
         {
             str = bl_util_appendstring(str, val);
@@ -3551,13 +3803,13 @@ char* object_to_string(VMState* vm, Value value)
         }
         case OBJ_CLOSURE:
             return function_to_string(AS_CLOSURE(value)->fnptr);
-        case OBJ_BOUND_METHOD:
+        case OBJ_BOUNDFUNCTION:
         {
             return function_to_string(AS_BOUND(value)->method->fnptr);
         }
-        case OBJ_FUNCTION:
+        case OBJ_SCRIPTFUNCTION:
             return function_to_string(AS_FUNCTION(value));
-        case OBJ_NATIVE:
+        case OBJ_NATIVEFUNCTION:
         {
             const char* format = "<function %s(native)>";
             const char* data = AS_NATIVE(value)->name;
@@ -3596,7 +3848,7 @@ char* object_to_string(VMState* vm, Value value)
             return strdup("<up-value>");
         case OBJ_BYTES:
             return bytes_to_string(vm, &AS_BYTES(value)->bytes);
-        case OBJ_LIST:
+        case OBJ_ARRAY:
             return list_to_string(vm, &AS_LIST(value)->items);
         case OBJ_DICT:
             return dict_to_string(vm, AS_DICT(value));
@@ -3629,14 +3881,14 @@ const char* object_type(Object* object)
             return "file";
         case OBJ_DICT:
             return "dictionary";
-        case OBJ_LIST:
+        case OBJ_ARRAY:
             return "list";
         case OBJ_CLASS:
             return "class";
-        case OBJ_FUNCTION:
-        case OBJ_NATIVE:
+        case OBJ_SCRIPTFUNCTION:
+        case OBJ_NATIVEFUNCTION:
         case OBJ_CLOSURE:
-        case OBJ_BOUND_METHOD:
+        case OBJ_BOUNDFUNCTION:
             return "function";
         case OBJ_INSTANCE:
             return ((ObjInstance*)object)->klass->name->chars;
@@ -3655,28 +3907,28 @@ const char* object_type(Object* object)
 
 bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool willassign)
 {
-    Value index = peek(vm, 0);
+    Value index = bl_vm_peekvalue(vm, 0);
     Value result;
-    if(dict_get_entry(dict, index, &result))
+    if(bl_dict_getentry(dict, index, &result))
     {
         if(!willassign)
         {
-            pop_n(vm, 2);// we can safely get rid of the index from the stack
+            bl_vm_popvaluen(vm, 2);// we can safely get rid of the index from the stack
         }
-        push(vm, result);
+        bl_vm_pushvalue(vm, result);
         return true;
     }
-    pop_n(vm, 1);
-    return bl_vm_throwexception(vm, false, "invalid index %s", value_to_string(vm, index));
+    bl_vm_popvaluen(vm, 1);
+    return bl_vm_throwexception(vm, false, "invalid index %s", bl_value_tostring(vm, index));
 }
 
 void bl_vmdo_dictsetindex(VMState* vm, ObjDict* dict, Value index, Value value)
 {
-    dict_set_entry(vm, dict, index, value);
-    pop_n(vm, 3);// pop the value, index and dict out
+    bl_dict_setentry(vm, dict, index, value);
+    bl_vm_popvaluen(vm, 3);// pop the value, index and dict out
     // leave the value on the stack for consumption
     // e.g. variable = dict[index] = 10
-    push(vm, value);
+    bl_vm_pushvalue(vm, value);
 }
 
 bool objfn_list_length(VMState* vm, int argcount, Value* args)
@@ -3688,32 +3940,32 @@ bool objfn_list_length(VMState* vm, int argcount, Value* args)
 bool objfn_list_append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 1);
-    write_list(vm, AS_LIST(METHOD_OBJECT), args[0]);
+    bl_array_push(vm, AS_LIST(METHOD_OBJECT), args[0]);
     return bl_value_returnempty(vm, args);
 }
 
 bool objfn_list_clear(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clear, 0);
-    free_value_arr(vm, &AS_LIST(METHOD_OBJECT)->items);
+    bl_valarray_free(vm, &AS_LIST(METHOD_OBJECT)->items);
     return bl_value_returnempty(vm, args);
 }
 
 bool objfn_list_clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    RETURN_OBJ(copy_list(vm, list, 0, list->items.count));
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    RETURN_OBJ(bl_array_copy(vm, list, 0, list->items.count));
 }
 
 bool objfn_list_count(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(count, 1);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     int count = 0;
     for(int i = 0; i < list->items.count; i++)
     {
-        if(values_equal(list->items.values[i], args[0]))
+        if(bl_value_valuesequal(list->items.values[i], args[0]))
             count++;
     }
     RETURN_NUMBER(count);
@@ -3722,12 +3974,12 @@ bool objfn_list_count(VMState* vm, int argcount, Value* args)
 bool objfn_list_extend(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 1);
-    ENFORCE_ARG_TYPE(extend, 0, IS_LIST);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* list2 = AS_LIST(args[0]);
+    ENFORCE_ARG_TYPE(extend, 0, bl_value_isarray);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list2 = AS_LIST(args[0]);
     for(int i = 0; i < list2->items.count; i++)
     {
-        write_list(vm, list, list2->items.values[i]);
+        bl_array_push(vm, list, list2->items.values[i]);
     }
     return bl_value_returnempty(vm, args);;
 }
@@ -3735,10 +3987,10 @@ bool objfn_list_extend(VMState* vm, int argcount, Value* args)
 bool objfn_list_indexof(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(indexof, 1);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     for(int i = 0; i < list->items.count; i++)
     {
-        if(values_equal(list->items.values[i], args[0]))
+        if(bl_value_valuesequal(list->items.values[i], args[0]))
         {
             RETURN_NUMBER(i);
         }
@@ -3749,17 +4001,17 @@ bool objfn_list_indexof(VMState* vm, int argcount, Value* args)
 bool objfn_list_insert(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(insert, 2);
-    ENFORCE_ARG_TYPE(insert, 1, IS_NUMBER);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ENFORCE_ARG_TYPE(insert, 1, bl_value_isnumber);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     int index = (int)AS_NUMBER(args[1]);
-    insert_value_arr(vm, &list->items, args[0], index);
+    bl_valarray_insert(vm, &list->items, args[0], index);
     return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_list_pop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     if(list->items.count > 0)
     {
         Value value = list->items.values[list->items.count - 1];// value to pop
@@ -3775,10 +4027,10 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
     int count = 1;
     if(argcount == 1)
     {
-        ENFORCE_ARG_TYPE(shift, 0, IS_NUMBER);
+        ENFORCE_ARG_TYPE(shift, 0, bl_value_isnumber);
         count = AS_NUMBER(args[0]);
     }
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     if(count >= list->items.count || list->items.count == 1)
     {
         list->items.count = 0;
@@ -3786,10 +4038,10 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
     }
     else if(count > 0)
     {
-        ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
         for(int i = 0; i < count; i++)
         {
-            write_list(vm, nlist, list->items.values[0]);
+            bl_array_push(vm, nlist, list->items.values[0]);
             for(int j = 0; j < list->items.count; j++)
             {
                 list->items.values[j] = list->items.values[j + 1];
@@ -3811,8 +4063,8 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
 bool objfn_list_removeat(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove_at, 1);
-    ENFORCE_ARG_TYPE(remove_at, 0, IS_NUMBER);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ENFORCE_ARG_TYPE(remove_at, 0, bl_value_isnumber);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     int index = AS_NUMBER(args[0]);
     if(index < 0 || index >= list->items.count)
     {
@@ -3830,11 +4082,11 @@ bool objfn_list_removeat(VMState* vm, int argcount, Value* args)
 bool objfn_list_remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 1);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     int index = -1;
     for(int i = 0; i < list->items.count; i++)
     {
-        if(values_equal(list->items.values[i], args[0]))
+        if(bl_value_valuesequal(list->items.values[i], args[0]))
         {
             index = i;
             break;
@@ -3854,8 +4106,8 @@ bool objfn_list_remove(VMState* vm, int argcount, Value* args)
 bool objfn_list_reverse(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     /*// in-place reversal
   int start = 0, end = list->items.count - 1;
   while (start < end) {
@@ -3867,7 +4119,7 @@ bool objfn_list_reverse(VMState* vm, int argcount, Value* args)
   }*/
     for(int i = list->items.count - 1; i >= 0; i--)
     {
-        write_list(vm, nlist, list->items.values[i]);
+        bl_array_push(vm, nlist, list->items.values[i]);
     }
     RETURN_OBJ(nlist);
 }
@@ -3875,18 +4127,18 @@ bool objfn_list_reverse(VMState* vm, int argcount, Value* args)
 bool objfn_list_sort(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sort, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    sort_values(list->items.values, list->items.count);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    bl_value_sortbubblesort(list->items.values, list->items.count);
     return bl_value_returnempty(vm, args);;
 }
 
 bool objfn_list_contains(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(contains, 1);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     for(int i = 0; i < list->items.count; i++)
     {
-        if(values_equal(args[0], list->items.values[i]))
+        if(bl_value_valuesequal(args[0], list->items.values[i]))
         {
             RETURN_TRUE;
         }
@@ -3897,15 +4149,15 @@ bool objfn_list_contains(VMState* vm, int argcount, Value* args)
 bool objfn_list_delete(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_RANGE(delete, 1, 2);
-    ENFORCE_ARG_TYPE(delete, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(delete, 0, bl_value_isnumber);
     int lowerindex = AS_NUMBER(args[0]);
     int upperindex = lowerindex;
     if(argcount == 2)
     {
-        ENFORCE_ARG_TYPE(delete, 1, IS_NUMBER);
+        ENFORCE_ARG_TYPE(delete, 1, bl_value_isnumber);
         upperindex = AS_NUMBER(args[1]);
     }
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     if(lowerindex < 0 || lowerindex >= list->items.count)
     {
         RETURN_ERROR("list index %d out of range at delete()", lowerindex);
@@ -3925,7 +4177,7 @@ bool objfn_list_delete(VMState* vm, int argcount, Value* args)
 bool objfn_list_first(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     if(list->items.count > 0)
     {
         RETURN_VALUE(list->items.values[0]);
@@ -3936,7 +4188,7 @@ bool objfn_list_first(VMState* vm, int argcount, Value* args)
 bool objfn_list_last(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(last, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     if(list->items.count > 0)
     {
         RETURN_VALUE(list->items.values[list->items.count - 1]);
@@ -3953,23 +4205,23 @@ bool objfn_list_isempty(VMState* vm, int argcount, Value* args)
 bool objfn_list_take(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(take, 1);
-    ENFORCE_ARG_TYPE(take, 0, IS_NUMBER);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ENFORCE_ARG_TYPE(take, 0, bl_value_isnumber);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     int count = AS_NUMBER(args[0]);
     if(count < 0)
         count = list->items.count + count;
     if(list->items.count < count)
     {
-        RETURN_OBJ(copy_list(vm, list, 0, list->items.count));
+        RETURN_OBJ(bl_array_copy(vm, list, 0, list->items.count));
     }
-    RETURN_OBJ(copy_list(vm, list, 0, count));
+    RETURN_OBJ(bl_array_copy(vm, list, 0, count));
 }
 
 bool objfn_list_get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 1);
-    ENFORCE_ARG_TYPE(get, 0, IS_NUMBER);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_isnumber);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     int index = AS_NUMBER(args[0]);
     if(index < 0 || index >= list->items.count)
     {
@@ -3981,13 +4233,13 @@ bool objfn_list_get(VMState* vm, int argcount, Value* args)
 bool objfn_list_compact(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(compact, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < list->items.count; i++)
     {
-        if(!values_equal(list->items.values[i], NIL_VAL))
+        if(!bl_value_valuesequal(list->items.values[i], NIL_VAL))
         {
-            write_list(vm, nlist, list->items.values[i]);
+            bl_array_push(vm, nlist, list->items.values[i]);
         }
     }
     RETURN_OBJ(nlist);
@@ -3996,14 +4248,14 @@ bool objfn_list_compact(VMState* vm, int argcount, Value* args)
 bool objfn_list_unique(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(unique, 0);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < list->items.count; i++)
     {
         bool found = false;
         for(int j = 0; j < nlist->items.count; j++)
         {
-            if(values_equal(nlist->items.values[j], list->items.values[i]))
+            if(bl_value_valuesequal(nlist->items.values[j], list->items.values[i]))
             {
                 found = true;
                 continue;
@@ -4011,7 +4263,7 @@ bool objfn_list_unique(VMState* vm, int argcount, Value* args)
         }
         if(!found)
         {
-            write_list(vm, nlist, list->items.values[i]);
+            bl_array_push(vm, nlist, list->items.values[i]);
         }
     }
     RETURN_OBJ(nlist);
@@ -4019,30 +4271,30 @@ bool objfn_list_unique(VMState* vm, int argcount, Value* args)
 
 bool objfn_list_zip(VMState* vm, int argcount, Value* args)
 {
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    ObjList** arglist = ALLOCATE(ObjList*, argcount);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray** arglist = ALLOCATE(ObjArray*, argcount);
     for(int i = 0; i < argcount; i++)
     {
-        ENFORCE_ARG_TYPE(zip, i, IS_LIST);
+        ENFORCE_ARG_TYPE(zip, i, bl_value_isarray);
         arglist[i] = AS_LIST(args[i]);
     }
     for(int i = 0; i < list->items.count; i++)
     {
-        ObjList* alist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-        write_list(vm, alist, list->items.values[i]);// item of main list
+        ObjArray* alist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+        bl_array_push(vm, alist, list->items.values[i]);// item of main list
         for(int j = 0; j < argcount; j++)
         {// item of argument lists
             if(i < arglist[j]->items.count)
             {
-                write_list(vm, alist, arglist[j]->items.values[i]);
+                bl_array_push(vm, alist, arglist[j]->items.values[i]);
             }
             else
             {
-                write_list(vm, alist, NIL_VAL);
+                bl_array_push(vm, alist, NIL_VAL);
             }
         }
-        write_list(vm, nlist, OBJ_VAL(alist));
+        bl_array_push(vm, nlist, OBJ_VAL(alist));
     }
     RETURN_OBJ(nlist);
 }
@@ -4050,11 +4302,11 @@ bool objfn_list_zip(VMState* vm, int argcount, Value* args)
 bool objfn_list_todict(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_dict, 0);
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     for(int i = 0; i < list->items.count; i++)
     {
-        dict_set_entry(vm, dict, NUMBER_VAL(i), list->items.values[i]);
+        bl_dict_setentry(vm, dict, NUMBER_VAL(i), list->items.values[i]);
     }
     RETURN_OBJ(dict);
 }
@@ -4062,8 +4314,8 @@ bool objfn_list_todict(VMState* vm, int argcount, Value* args)
 bool objfn_list_iter(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
-    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
+    ENFORCE_ARG_TYPE(__iter__, 0, bl_value_isnumber);
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
     int index = AS_NUMBER(args[0]);
     if(index > -1 && index < list->items.count)
     {
@@ -4075,8 +4327,8 @@ bool objfn_list_iter(VMState* vm, int argcount, Value* args)
 bool objfn_list_itern(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
-    ObjList* list = AS_LIST(METHOD_OBJECT);
-    if(IS_NIL(args[0]))
+    ObjArray* list = AS_LIST(METHOD_OBJECT);
+    if(bl_value_isnil(args[0]))
     {
         if(list->items.count == 0)
         {
@@ -4084,7 +4336,7 @@ bool objfn_list_itern(VMState* vm, int argcount, Value* args)
         }
         RETURN_NUMBER(0);
     }
-    if(!IS_NUMBER(args[0]))
+    if(!bl_value_isnumber(args[0]))
     {
         RETURN_ERROR("lists are numerically indexed");
     }
@@ -4327,10 +4579,10 @@ bool objfn_string_rtrim(VMState* vm, int argcount, Value* args)
 bool objfn_string_join(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(join, 1);
-    ENFORCE_ARG_TYPE(join, 0, IS_OBJ);
+    ENFORCE_ARG_TYPE(join, 0, bl_value_isobject);
     ObjString* methodobj = AS_STRING(METHOD_OBJECT);
     Value argument = args[0];
-    if(IS_STRING(argument))
+    if(bl_value_isstring(argument))
     {
         // empty argument
         if(methodobj->length == 0)
@@ -4359,11 +4611,11 @@ bool objfn_string_join(VMState* vm, int argcount, Value* args)
         }
         RETURN_TT_STRING(result);
     }
-    else if(IS_LIST(argument) || IS_DICT(argument))
+    else if(bl_value_isarray(argument) || bl_value_isdict(argument))
     {
         Value* list;
         int count = 0;
-        if(IS_DICT(argument))
+        if(bl_value_isdict(argument))
         {
             list = AS_DICT(argument)->names.values;
             count = AS_DICT(argument)->names.count;
@@ -4377,31 +4629,31 @@ bool objfn_string_join(VMState* vm, int argcount, Value* args)
         {
             RETURN_L_STRING("", 0);
         }
-        char* result = value_to_string(vm, list[0]);
+        char* result = bl_value_tostring(vm, list[0]);
         for(int i = 1; i < count; i++)
         {
             if(methodobj->length > 0)
             {
                 result = bl_util_appendstring(result, methodobj->chars);
             }
-            char* str = value_to_string(vm, list[i]);
+            char* str = bl_value_tostring(vm, list[i]);
             result = bl_util_appendstring(result, str);
             free(str);
         }
         RETURN_TT_STRING(result);
     }
-    RETURN_ERROR("join() does not support object of type %s", value_type(argument));
+    RETURN_ERROR("join() does not support object of type %s", bl_value_typename(argument));
 }
 
 bool objfn_string_split(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(split, 1);
-    ENFORCE_ARG_TYPE(split, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(split, 0, bl_value_isstring);
     ObjString* object = AS_STRING(METHOD_OBJECT);
     ObjString* delimeter = AS_STRING(args[0]);
     if(object->length == 0 || delimeter->length > object->length)
-        RETURN_OBJ(new_list(vm));
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        RETURN_OBJ(bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     // main work here...
     if(delimeter->length > 0)
     {
@@ -4411,7 +4663,7 @@ bool objfn_string_split(VMState* vm, int argcount, Value* args)
             // match found.
             if(memcmp(object->chars + i, delimeter->chars, delimeter->length) == 0 || i == object->length)
             {
-                write_list(vm, list, GC_L_STRING(object->chars + start, i - start));
+                bl_array_push(vm, list, GC_L_STRING(object->chars + start, i - start));
                 i += delimeter->length - 1;
                 start = i + 1;
             }
@@ -4427,7 +4679,7 @@ bool objfn_string_split(VMState* vm, int argcount, Value* args)
             {
                 bl_util_utf8slice(object->chars, &start, &end);
             }
-            write_list(vm, list, GC_L_STRING(object->chars + start, (int)(end - start)));
+            bl_array_push(vm, list, GC_L_STRING(object->chars + start, (int)(end - start)));
         }
     }
     RETURN_OBJ(list);
@@ -4436,7 +4688,7 @@ bool objfn_string_split(VMState* vm, int argcount, Value* args)
 bool objfn_string_indexof(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(indexof, 1);
-    ENFORCE_ARG_TYPE(indexof, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(indexof, 0, bl_value_isstring);
     char* str = AS_C_STRING(METHOD_OBJECT);
     char* result = strstr(str, AS_C_STRING(args[0]));
     if(result != NULL)
@@ -4447,7 +4699,7 @@ bool objfn_string_indexof(VMState* vm, int argcount, Value* args)
 bool objfn_string_startswith(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(startswith, 1);
-    ENFORCE_ARG_TYPE(startswith, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(startswith, 0, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
     if(string->length == 0 || substr->length == 0 || substr->length > string->length)
@@ -4458,7 +4710,7 @@ bool objfn_string_startswith(VMState* vm, int argcount, Value* args)
 bool objfn_string_endswith(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(endswith, 1);
-    ENFORCE_ARG_TYPE(endswith, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(endswith, 0, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
     if(string->length == 0 || substr->length == 0 || substr->length > string->length)
@@ -4470,7 +4722,7 @@ bool objfn_string_endswith(VMState* vm, int argcount, Value* args)
 bool objfn_string_count(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(count, 1);
-    ENFORCE_ARG_TYPE(count, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(count, 0, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
     if(substr->length == 0 || string->length == 0)
@@ -4503,7 +4755,7 @@ bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     int length = string->isascii ? string->length : string->utf8length;
     if(length > 0)
     {
@@ -4514,7 +4766,7 @@ bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
             {
                 bl_util_utf8slice(string->chars, &start, &end);
             }
-            write_list(vm, list, GC_L_STRING(string->chars + start, (int)(end - start)));
+            bl_array_push(vm, list, GC_L_STRING(string->chars + start, (int)(end - start)));
         }
     }
     RETURN_OBJ(list);
@@ -4523,7 +4775,7 @@ bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
 bool objfn_string_lpad(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_RANGE(lpad, 1, 2);
-    ENFORCE_ARG_TYPE(lpad, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(lpad, 0, bl_value_isnumber);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     int width = AS_NUMBER(args[0]);
     char fillchar = ' ';
@@ -4553,7 +4805,7 @@ bool objfn_string_lpad(VMState* vm, int argcount, Value* args)
 bool objfn_string_rpad(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_RANGE(rpad, 1, 2);
-    ENFORCE_ARG_TYPE(rpad, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(rpad, 0, bl_value_isnumber);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     int width = AS_NUMBER(args[0]);
     char fillchar = ' ';
@@ -4583,7 +4835,7 @@ bool objfn_string_rpad(VMState* vm, int argcount, Value* args)
 bool objfn_string_match(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(match, 1);
-    ENFORCE_ARG_TYPE(match, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(match, 0, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
     if(string->length == 0 && substr->length == 0)
@@ -4599,7 +4851,7 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
     {
         RETURN_BOOL(strstr(string->chars, substr->chars) - string->chars > -1);
     }
-    char* realregex = remove_regex_delimiter(vm, substr);
+    char* realregex = bl_helper_objstringremregexdelim(vm, substr);
     int errornumber;
     PCRE2_SIZE erroroffset;
     PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
@@ -4623,13 +4875,13 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
     }
     PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
     uint32_t namecount;
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
     (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
     for(int i = 0; i < rc; i++)
     {
         PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
         PCRE2_SPTR substringstart = subject + ovector[2 * i];
-        dict_set_entry(vm, result, NUMBER_VAL(i), GC_L_STRING((char*)substringstart, (int)substringlength));
+        bl_dict_setentry(vm, result, NUMBER_VAL(i), GC_L_STRING((char*)substringstart, (int)substringlength));
     }
     if(namecount > 0)
     {
@@ -4650,7 +4902,7 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
             sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
             while(isspace((unsigned char)*_key))
                 _key++;
-            dict_set_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))),
+            bl_dict_setentry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))),
                            OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
             tabptr += nameentrysize;
         }
@@ -4663,19 +4915,19 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
 bool objfn_string_matches(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(matches, 1);
-    ENFORCE_ARG_TYPE(matches, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(matches, 0, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
     if(string->length == 0 && substr->length == 0)
     {
-        RETURN_OBJ(new_list(vm));// empty string matches empty string to empty list
+        RETURN_OBJ(bl_object_makelist(vm));// empty string matches empty string to empty list
     }
     else if(string->length == 0 || substr->length == 0)
     {
         RETURN_FALSE;// if either string or str is empty, return false
     }
     GET_REGEX_COMPILE_OPTIONS(substr, true);
-    char* realregex = remove_regex_delimiter(vm, substr);
+    char* realregex = bl_helper_objstringremregexdelim(vm, substr);
     int errornumber;
     PCRE2_SIZE erroroffset;
     uint32_t optionbits;
@@ -4708,19 +4960,19 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
     REGEX_ASSERTION_ERROR(re, matchdata, ovector);
     (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
     (void)pcre2_pattern_info(re, PCRE2_INFO_CAPTURECOUNT, &groupcount);
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
     for(int i = 0; i < rc; i++)
     {
-        dict_set_entry(vm, result, NUMBER_VAL(0), NIL_VAL);
+        bl_dict_setentry(vm, result, NUMBER_VAL(0), NIL_VAL);
     }
     // add first set of matches to response
     for(int i = 0; i < rc; i++)
     {
-        ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
         PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
         PCRE2_SPTR substringstart = subject + ovector[2 * i];
-        write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
-        dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
+        bl_array_push(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
+        bl_dict_setentry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
     }
     if(namecount > 0)
     {
@@ -4739,9 +4991,9 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
             sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
             while(isspace((unsigned char)*_key))
                 _key++;
-            ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-            write_list(vm, list, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
-            dict_add_entry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))), OBJ_VAL(list));
+            ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+            bl_array_push(vm, list, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
+            bl_dict_addentry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))), OBJ_VAL(list));
             tabptr += nameentrysize;
         }
     }
@@ -4815,15 +5067,15 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
             PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
             PCRE2_SPTR substringstart = subject + ovector[2 * i];
             Value vlist;
-            if(dict_get_entry(result, NUMBER_VAL(i), &vlist))
+            if(bl_dict_getentry(result, NUMBER_VAL(i), &vlist))
             {
-                write_list(vm, AS_LIST(vlist), GC_L_STRING((char*)substringstart, (int)substringlength));
+                bl_array_push(vm, AS_LIST(vlist), GC_L_STRING((char*)substringstart, (int)substringlength));
             }
             else
             {
-                ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-                write_list(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
-                dict_set_entry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
+                ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+                bl_array_push(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
+                bl_dict_setentry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
             }
         }
         if(namecount > 0)
@@ -4846,15 +5098,15 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
                 ObjString* name = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _key, keylength));
                 ObjString* value = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _val, valuelength));
                 Value nlist;
-                if(dict_get_entry(result, OBJ_VAL(name), &nlist))
+                if(bl_dict_getentry(result, OBJ_VAL(name), &nlist))
                 {
-                    write_list(vm, AS_LIST(nlist), OBJ_VAL(value));
+                    bl_array_push(vm, AS_LIST(nlist), OBJ_VAL(value));
                 }
                 else
                 {
-                    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-                    write_list(vm, list, OBJ_VAL(value));
-                    dict_set_entry(vm, result, OBJ_VAL(name), OBJ_VAL(list));
+                    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+                    bl_array_push(vm, list, OBJ_VAL(value));
+                    bl_dict_setentry(vm, result, OBJ_VAL(name), OBJ_VAL(list));
                 }
                 tabptr += nameentrysize;
             }
@@ -4868,8 +5120,8 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
 bool objfn_string_replace(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(replace, 2);
-    ENFORCE_ARG_TYPE(replace, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(replace, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(replace, 0, bl_value_isstring);
+    ENFORCE_ARG_TYPE(replace, 1, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     ObjString* substr = AS_STRING(args[0]);
     ObjString* repsubstr = AS_STRING(args[1]);
@@ -4882,7 +5134,7 @@ bool objfn_string_replace(VMState* vm, int argcount, Value* args)
         RETURN_FALSE;
     }
     GET_REGEX_COMPILE_OPTIONS(substr, false);
-    char* realregex = remove_regex_delimiter(vm, substr);
+    char* realregex = bl_helper_objstringremregexdelim(vm, substr);
     PCRE2_SPTR input = (PCRE2_SPTR)string->chars;
     PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
     PCRE2_SPTR replacement = (PCRE2_SPTR)repsubstr->chars;
@@ -4922,7 +5174,7 @@ bool objfn_string_tobytes(VMState* vm, int argcount, Value* args)
 bool objfn_string_iter(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
-    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(__iter__, 0, bl_value_isnumber);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     int length = string->isascii ? string->length : string->utf8length;
     int index = AS_NUMBER(args[0]);
@@ -4943,7 +5195,7 @@ bool objfn_string_itern(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     int length = string->isascii ? string->length : string->utf8length;
-    if(IS_NIL(args[0]))
+    if(bl_value_isnil(args[0]))
     {
         if(length == 0)
         {
@@ -4951,7 +5203,7 @@ bool objfn_string_itern(VMState* vm, int argcount, Value* args)
         }
         RETURN_NUMBER(0);
     }
-    if(!IS_NUMBER(args[0]))
+    if(!bl_value_isnumber(args[0]))
     {
         RETURN_ERROR("bytes are numerically indexed");
     }
@@ -4967,17 +5219,17 @@ bool objfn_string_itern(VMState* vm, int argcount, Value* args)
 bool cfn_bytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(bytes, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
-        RETURN_OBJ(new_bytes(vm, (int)AS_NUMBER(args[0])));
+        RETURN_OBJ(bl_object_makebytes(vm, (int)AS_NUMBER(args[0])));
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
-        ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, list->items.count));
+        ObjArray* list = AS_LIST(args[0]);
+        ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, list->items.count));
         for(int i = 0; i < list->items.count; i++)
         {
-            if(IS_NUMBER(list->items.values[i]))
+            if(bl_value_isnumber(list->items.values[i]))
             {
                 bytes->bytes.bytes[i] = (unsigned char)AS_NUMBER(list->items.values[i]);
             }
@@ -5000,7 +5252,7 @@ bool objfn_bytes_length(VMState* vm, int argcount, Value* args)
 bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
         int byte = (int)AS_NUMBER(args[0]);
         if(byte < 0 || byte > 255)
@@ -5015,9 +5267,9 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
         bytes->bytes.bytes[bytes->bytes.count - 1] = (unsigned char)byte;
         return bl_value_returnempty(vm, args);;
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
+        ObjArray* list = AS_LIST(args[0]);
         if(list->items.count > 0)
         {
             // append here...
@@ -5029,7 +5281,7 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
             }
             for(int i = 0; i < list->items.count; i++)
             {
-                if(!IS_NUMBER(list->items.values[i]))
+                if(!bl_value_isnumber(list->items.values[i]))
                 {
                     RETURN_ERROR("bytes lists can only contain numbers");
                 }
@@ -5051,7 +5303,7 @@ bool objfn_bytes_clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
+    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, bytes->bytes.count));
     memcpy(nbytes->bytes.bytes, bytes->bytes.bytes, bytes->bytes.count);
     RETURN_OBJ(nbytes);
 }
@@ -5059,7 +5311,7 @@ bool objfn_bytes_clone(VMState* vm, int argcount, Value* args)
 bool objfn_bytes_extend(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 1);
-    ENFORCE_ARG_TYPE(extend, 0, IS_BYTES);
+    ENFORCE_ARG_TYPE(extend, 0, bl_value_isbytes);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     ObjBytes* nbytes = AS_BYTES(args[0]);
     bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, bytes->bytes.count + nbytes->bytes.count);
@@ -5084,7 +5336,7 @@ bool objfn_bytes_pop(VMState* vm, int argcount, Value* args)
 bool objfn_bytes_remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 1);
-    ENFORCE_ARG_TYPE(remove, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(remove, 0, bl_value_isnumber);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     int index = AS_NUMBER(args[0]);
     if(index < 0 || index >= bytes->bytes.count)
@@ -5104,7 +5356,7 @@ bool objfn_bytes_reverse(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, bytes->bytes.count));
+    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, bytes->bytes.count));
     for(int i = 0; i < bytes->bytes.count; i++)
     {
         nbytes->bytes.bytes[i] = bytes->bytes.bytes[bytes->bytes.count - i - 1];
@@ -5115,12 +5367,12 @@ bool objfn_bytes_reverse(VMState* vm, int argcount, Value* args)
 bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(split, 1);
-    ENFORCE_ARG_TYPE(split, 0, IS_BYTES);
+    ENFORCE_ARG_TYPE(split, 0, bl_value_isbytes);
     ByteArray object = AS_BYTES(METHOD_OBJECT)->bytes;
     ByteArray delimeter = AS_BYTES(args[0])->bytes;
     if(object.count == 0 || delimeter.count > object.count)
-        RETURN_OBJ(new_list(vm));
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        RETURN_OBJ(bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     // main work here...
     if(delimeter.count > 0)
     {
@@ -5130,9 +5382,9 @@ bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
             // match found.
             if(memcmp(object.bytes + i, delimeter.bytes, delimeter.count) == 0 || i == object.count)
             {
-                ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, i - start));
+                ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, i - start));
                 memcpy(bytes->bytes.bytes, object.bytes + start, i - start);
-                write_list(vm, list, OBJ_VAL(bytes));
+                bl_array_push(vm, list, OBJ_VAL(bytes));
                 i += delimeter.count - 1;
                 start = i + 1;
             }
@@ -5143,9 +5395,9 @@ bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
         int length = object.count;
         for(int i = 0; i < length; i++)
         {
-            ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, 1));
+            ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, 1));
             memcpy(bytes->bytes.bytes, object.bytes + i, 1);
-            write_list(vm, list, OBJ_VAL(bytes));
+            bl_array_push(vm, list, OBJ_VAL(bytes));
         }
     }
     RETURN_OBJ(list);
@@ -5167,7 +5419,7 @@ bool objfn_bytes_last(VMState* vm, int argcount, Value* args)
 bool objfn_bytes_get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 1);
-    ENFORCE_ARG_TYPE(get, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_isnumber);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     int index = AS_NUMBER(args[0]);
     if(index < 0 || index >= bytes->bytes.count)
@@ -5265,7 +5517,7 @@ bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(dispose, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    free_byte_arr(vm, &bytes->bytes);
+    bl_bytearray_free(vm, &bytes->bytes);
     return bl_value_returnempty(vm, args);;
 }
 
@@ -5273,10 +5525,10 @@ bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < bytes->bytes.count; i++)
     {
-        write_list(vm, list, NUMBER_VAL((double)((int)bytes->bytes.bytes[i])));
+        bl_array_push(vm, list, NUMBER_VAL((double)((int)bytes->bytes.bytes[i])));
     }
     RETURN_OBJ(list);
 }
@@ -5292,7 +5544,7 @@ bool objfn_bytes_tostring(VMState* vm, int argcount, Value* args)
 bool objfn_bytes_iter(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
-    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(__iter__, 0, bl_value_isnumber);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     int index = AS_NUMBER(args[0]);
     if(index > -1 && index < bytes->bytes.count)
@@ -5306,13 +5558,13 @@ bool objfn_bytes_itern(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    if(IS_NIL(args[0]))
+    if(bl_value_isnil(args[0]))
     {
         if(bytes->bytes.count == 0)
             RETURN_FALSE;
         RETURN_NUMBER(0);
     }
-    if(!IS_NUMBER(args[0]))
+    if(!bl_value_isnumber(args[0]))
     {
         RETURN_ERROR("bytes are numerically indexed");
     }
@@ -5336,11 +5588,11 @@ bool objfn_dict_add(VMState* vm, int argcount, Value* args)
     ENFORCE_VALID_DICT_KEY(add, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     Value tempvalue;
-    if(table_get(&dict->items, args[0], &tempvalue))
+    if(bl_hashtable_get(&dict->items, args[0], &tempvalue))
     {
-        RETURN_ERROR("duplicate key %s at add()", value_to_string(vm, args[0]));
+        RETURN_ERROR("duplicate key %s at add()", bl_value_tostring(vm, args[0]));
     }
-    dict_add_entry(vm, dict, args[0], args[1]);
+    bl_dict_addentry(vm, dict, args[0], args[1]);
     return bl_value_returnempty(vm, args);;
 }
 
@@ -5350,13 +5602,13 @@ bool objfn_dict_set(VMState* vm, int argcount, Value* args)
     ENFORCE_VALID_DICT_KEY(set, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     Value value;
-    if(!table_get(&dict->items, args[0], &value))
+    if(!bl_hashtable_get(&dict->items, args[0], &value))
     {
-        dict_add_entry(vm, dict, args[0], args[1]);
+        bl_dict_addentry(vm, dict, args[0], args[1]);
     }
     else
     {
-        dict_set_entry(vm, dict, args[0], args[1]);
+        bl_dict_setentry(vm, dict, args[0], args[1]);
     }
     return bl_value_returnempty(vm, args);;
 }
@@ -5365,8 +5617,8 @@ bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(dict, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    free_value_arr(vm, &dict->names);
-    free_table(vm, &dict->items);
+    bl_valarray_free(vm, &dict->names);
+    bl_hashtable_free(vm, &dict->items);
     return bl_value_returnempty(vm, args);;
 }
 
@@ -5374,11 +5626,11 @@ bool objfn_dict_clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    table_add_all(vm, &dict->items, &ndict->items);
+    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    bl_hashtable_addall(vm, &dict->items, &ndict->items);
     for(int i = 0; i < dict->names.count; i++)
     {
-        write_value_arr(vm, &ndict->names, dict->names.values[i]);
+        bl_valarray_push(vm, &ndict->names, dict->names.values[i]);
     }
     RETURN_OBJ(ndict);
 }
@@ -5387,14 +5639,14 @@ bool objfn_dict_compact(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(compact, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
         Value tmpvalue;
-        table_get(&dict->items, dict->names.values[i], &tmpvalue);
-        if(!values_equal(tmpvalue, NIL_VAL))
+        bl_hashtable_get(&dict->items, dict->names.values[i], &tmpvalue);
+        if(!bl_value_valuesequal(tmpvalue, NIL_VAL))
         {
-            dict_add_entry(vm, ndict, dict->names.values[i], tmpvalue);
+            bl_dict_addentry(vm, ndict, dict->names.values[i], tmpvalue);
         }
     }
     RETURN_OBJ(ndict);
@@ -5406,20 +5658,20 @@ bool objfn_dict_contains(VMState* vm, int argcount, Value* args)
     ENFORCE_VALID_DICT_KEY(contains, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     Value value;
-    RETURN_BOOL(table_get(&dict->items, args[0], &value));
+    RETURN_BOOL(bl_hashtable_get(&dict->items, args[0], &value));
 }
 
 bool objfn_dict_extend(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 1);
-    ENFORCE_ARG_TYPE(extend, 0, IS_DICT);
+    ENFORCE_ARG_TYPE(extend, 0, bl_value_isdict);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     ObjDict* dictcpy = AS_DICT(args[0]);
     for(int i = 0; i < dictcpy->names.count; i++)
     {
-        write_value_arr(vm, &dict->names, dictcpy->names.values[i]);
+        bl_valarray_push(vm, &dict->names, dictcpy->names.values[i]);
     }
-    table_add_all(vm, &dictcpy->items, &dict->items);
+    bl_hashtable_addall(vm, &dictcpy->items, &dict->items);
     return bl_value_returnempty(vm, args);;
 }
 
@@ -5429,7 +5681,7 @@ bool objfn_dict_get(VMState* vm, int argcount, Value* args)
     ENFORCE_VALID_DICT_KEY(get, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     Value value;
-    if(!dict_get_entry(dict, args[0], &value))
+    if(!bl_dict_getentry(dict, args[0], &value))
     {
         if(argcount == 1)
         {
@@ -5447,10 +5699,10 @@ bool objfn_dict_keys(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(keys, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
-        write_list(vm, list, dict->names.values[i]);
+        bl_array_push(vm, list, dict->names.values[i]);
     }
     RETURN_OBJ(list);
 }
@@ -5459,12 +5711,12 @@ bool objfn_dict_values(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(values, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
         Value tmpvalue;
-        dict_get_entry(dict, dict->names.values[i], &tmpvalue);
-        write_list(vm, list, tmpvalue);
+        bl_dict_getentry(dict, dict->names.values[i], &tmpvalue);
+        bl_array_push(vm, list, tmpvalue);
     }
     RETURN_OBJ(list);
 }
@@ -5475,13 +5727,13 @@ bool objfn_dict_remove(VMState* vm, int argcount, Value* args)
     ENFORCE_VALID_DICT_KEY(remove, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     Value value;
-    if(table_get(&dict->items, args[0], &value))
+    if(bl_hashtable_get(&dict->items, args[0], &value))
     {
-        table_delete(&dict->items, args[0]);
+        bl_hashtable_delete(&dict->items, args[0]);
         int index = -1;
         for(int i = 0; i < dict->names.count; i++)
         {
-            if(values_equal(dict->names.values[i], args[0]))
+            if(bl_value_valuesequal(dict->names.values[i], args[0]))
             {
                 index = i;
                 break;
@@ -5506,31 +5758,31 @@ bool objfn_dict_isempty(VMState* vm, int argcount, Value* args)
 bool objfn_dict_findkey(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(findkey, 1);
-    RETURN_VALUE(table_find_key(&AS_DICT(METHOD_OBJECT)->items, args[0]));
+    RETURN_VALUE(bl_hashtable_findkey(&AS_DICT(METHOD_OBJECT)->items, args[0]));
 }
 
 bool objfn_dict_tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjList* namelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    ObjList* valuelist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* namelist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* valuelist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
-        write_list(vm, namelist, dict->names.values[i]);
+        bl_array_push(vm, namelist, dict->names.values[i]);
         Value value;
-        if(table_get(&dict->items, dict->names.values[i], &value))
+        if(bl_hashtable_get(&dict->items, dict->names.values[i], &value))
         {
-            write_list(vm, valuelist, value);
+            bl_array_push(vm, valuelist, value);
         }
         else
         {// theoretically impossible
-            write_list(vm, valuelist, NIL_VAL);
+            bl_array_push(vm, valuelist, NIL_VAL);
         }
     }
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    write_list(vm, list, OBJ_VAL(namelist));
-    write_list(vm, list, OBJ_VAL(valuelist));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    bl_array_push(vm, list, OBJ_VAL(namelist));
+    bl_array_push(vm, list, OBJ_VAL(valuelist));
     RETURN_OBJ(list);
 }
 
@@ -5539,7 +5791,7 @@ bool objfn_dict_iter(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(__iter__, 1);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     Value result;
-    if(table_get(&dict->items, args[0], &result))
+    if(bl_hashtable_get(&dict->items, args[0], &result))
     {
         RETURN_VALUE(result);
     }
@@ -5550,7 +5802,7 @@ bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    if(IS_NIL(args[0]))
+    if(bl_value_isnil(args[0]))
     {
         if(dict->names.count == 0)
             RETURN_FALSE;
@@ -5558,7 +5810,7 @@ bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
     }
     for(int i = 0; i < dict->names.count; i++)
     {
-        if(values_equal(args[0], dict->names.values[i]) && (i + 1) < dict->names.count)
+        if(bl_value_valuesequal(args[0], dict->names.values[i]) && (i + 1) < dict->names.count)
         {
             RETURN_VALUE(dict->names.values[i + 1]);
         }
@@ -5568,24 +5820,6 @@ bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
 
 #undef ENFORCE_VALID_DICT_KEY
 
-void write_list(VMState* vm, ObjList* list, Value value)
-{
-    write_value_arr(vm, &list->items, value);
-}
-
-ObjList* copy_list(VMState* vm, ObjList* list, int start, int length)
-{
-    int i;
-    ObjList* _list;
-    (void)start;
-    (void)length;
-    _list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    for(i = 0; i < list->items.count; i++)
-    {
-        write_list(vm, _list, list->items.values[i]);
-    }
-    return _list;
-}
 
 
 
@@ -6058,7 +6292,6 @@ AstToken bl_scanner_scantoken(AstScanner* s)
     return error_token(s, "unexpected character %c", c);
 }
 
-static bool is_obj_type(Value v, ObjType t);
 static bool is_std_file(ObjFile* file);
 static void add_module(VMState* vm, ObjModule* module);
 static Object* gc_protect(VMState* vm, Object* object);
@@ -6387,33 +6620,33 @@ static int bl_parser_getcodeargscount(const uint8_t* bytecode, const Value* cons
 
 static void bl_parser_emitbyte(AstParser* p, uint8_t byte)
 {
-    write_blob(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
 }
 
 static void bl_parser_emitshort(AstParser* p, uint16_t byte)
 {
-    write_blob(p->vm, bl_parser_currentblob(p), (byte >> 8) & 0xff, p->previous.line);
-    write_blob(p->vm, bl_parser_currentblob(p), byte & 0xff, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), (byte >> 8) & 0xff, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), byte & 0xff, p->previous.line);
 }
 
 static void bl_parser_emitbytes(AstParser* p, uint8_t byte, uint8_t byte2)
 {
-    write_blob(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
-    write_blob(p->vm, bl_parser_currentblob(p), byte2, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), byte2, p->previous.line);
 }
 
 static void bl_parser_emitbyte_and_short(AstParser* p, uint8_t byte, uint16_t byte2)
 {
-    write_blob(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
-    write_blob(p->vm, bl_parser_currentblob(p), (byte2 >> 8) & 0xff, p->previous.line);
-    write_blob(p->vm, bl_parser_currentblob(p), byte2 & 0xff, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), (byte2 >> 8) & 0xff, p->previous.line);
+    bl_blob_write(p->vm, bl_parser_currentblob(p), byte2 & 0xff, p->previous.line);
 }
 
 /* static void bl_parser_emitbyte_and_long(AstParser *p, uint8_t byte, uint16_t byte2) {
-  write_blob(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
-  write_blob(p->vm, bl_parser_currentblob(p), (byte2 >> 16) & 0xff, p->previous.line);
-  write_blob(p->vm, bl_parser_currentblob(p), (byte2 >> 8) & 0xff, p->previous.line);
-  write_blob(p->vm, bl_parser_currentblob(p), byte2 & 0xff, p->previous.line);
+  bl_blob_write(p->vm, bl_parser_currentblob(p), byte, p->previous.line);
+  bl_blob_write(p->vm, bl_parser_currentblob(p), (byte2 >> 16) & 0xff, p->previous.line);
+  bl_blob_write(p->vm, bl_parser_currentblob(p), (byte2 >> 8) & 0xff, p->previous.line);
+  bl_blob_write(p->vm, bl_parser_currentblob(p), byte2 & 0xff, p->previous.line);
 } */
 static void bl_parser_emitloop(AstParser* p, int loopstart)
 {
@@ -6444,7 +6677,7 @@ static void bl_parser_emitreturn(AstParser* p)
 
 static int bl_parser_makeconstant(AstParser* p, Value value)
 {
-    int constant = add_constant(p->vm, bl_parser_currentblob(p), value);
+    int constant = bl_blob_addconst(p->vm, bl_parser_currentblob(p), value);
     if(constant >= UINT16_MAX)
     {
         bl_parser_raiseerror(p, "too many constants in current scope");
@@ -6531,13 +6764,13 @@ static void bl_compiler_init(AstParser* p, AstCompiler* compiler, FuncType type)
     compiler->localcount = 0;
     compiler->scopedepth = 0;
     compiler->handlercount = 0;
-    compiler->currfunc = new_function(p->vm, p->module, type);
+    compiler->currfunc = bl_object_makescriptfunction(p->vm, p->module, type);
     p->vm->compiler = compiler;
     if(type != TYPE_SCRIPT)
     {
-        push(p->vm, OBJ_VAL(compiler->currfunc));
+        bl_vm_pushvalue(p->vm, OBJ_VAL(compiler->currfunc));
         p->vm->compiler->currfunc->name = copy_string(p->vm, p->previous.start, p->previous.length);
-        pop(p->vm);
+        bl_vm_popvalue(p->vm);
     }
     // claiming slot zero for use in class methods
     AstLocal* local = &p->vm->compiler->locals[p->vm->compiler->localcount++];
@@ -8189,8 +8422,8 @@ static void using_statement(AstParser* p)
     int state = 0;// 0: before all cases, 1: before default, 2: after default
     int caseends[MAX_USING_CASES];
     int casecount = 0;
-    ObjSwitch* sw = new_switch(p->vm);
-    push(p->vm, OBJ_VAL(sw));
+    ObjSwitch* sw = bl_object_makeswitch(p->vm);
+    bl_vm_pushvalue(p->vm, OBJ_VAL(sw));
     int switchcode = bl_parser_emitswitch(p);
     // bl_parser_emitbyte_and_short(p, OP_SWITCH, bl_parser_makeconstant(p, OBJ_VAL(sw)));
     int startoffset = bl_parser_currentblob(p)->count;
@@ -8217,28 +8450,28 @@ static void using_statement(AstParser* p)
                     Value jump = NUMBER_VAL((double)bl_parser_currentblob(p)->count - (double)startoffset);
                     if(p->previous.type == TOK_TRUE)
                     {
-                        table_set(p->vm, &sw->table, TRUE_VAL, jump);
+                        bl_hashtable_set(p->vm, &sw->table, TRUE_VAL, jump);
                     }
                     else if(p->previous.type == TOK_FALSE)
                     {
-                        table_set(p->vm, &sw->table, FALSE_VAL, jump);
+                        bl_hashtable_set(p->vm, &sw->table, FALSE_VAL, jump);
                     }
                     else if(p->previous.type == TOK_LITERAL)
                     {
                         int length;
                         char* str = compile_string(p, &length);
                         ObjString* string = copy_string(p->vm, str, length);
-                        push(p->vm, OBJ_VAL(string));// gc fix
-                        table_set(p->vm, &sw->table, OBJ_VAL(string), jump);
-                        pop(p->vm);// gc fix
+                        bl_vm_pushvalue(p->vm, OBJ_VAL(string));// gc fix
+                        bl_hashtable_set(p->vm, &sw->table, OBJ_VAL(string), jump);
+                        bl_vm_popvalue(p->vm);// gc fix
                     }
                     else if(bl_parser_checknumber(p))
                     {
-                        table_set(p->vm, &sw->table, bl_parser_compilenumber(p), jump);
+                        bl_hashtable_set(p->vm, &sw->table, bl_parser_compilenumber(p), jump);
                     }
                     else
                     {
-                        pop(p->vm);// pop the switch
+                        bl_vm_popvalue(p->vm);// pop the switch
                         bl_parser_raiseerror(p, "only constants can be used in when expressions");
                         return;
                     }
@@ -8272,7 +8505,7 @@ static void using_statement(AstParser* p)
     }
     sw->exitjump = bl_parser_currentblob(p)->count - startoffset;
     bl_parser_patchswitch(p, switchcode, bl_parser_makeconstant(p, OBJ_VAL(sw)));
-    pop(p->vm);// pop the switch
+    bl_vm_popvalue(p->vm);// pop the switch
 }
 
 static void if_statement(AstParser* p)
@@ -8433,7 +8666,7 @@ static void import_statement(AstParser* p)
         // handle native modules
         Value md;
         ObjString* finalmodulename = copy_string(p->vm, modulename, (int)strlen(modulename));
-        if(table_get(&p->vm->modules, OBJ_VAL(finalmodulename), &md))
+        if(bl_hashtable_get(&p->vm->modules, OBJ_VAL(finalmodulename), &md))
         {
             int module = bl_parser_makeconstant(p, OBJ_VAL(finalmodulename));
             bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, module);
@@ -8456,11 +8689,11 @@ static void import_statement(AstParser* p)
         return;
     }
     BinaryBlob blob;
-    init_blob(&blob);
-    ObjModule* module = new_module(p->vm, modulename, modulepath);
-    push(p->vm, OBJ_VAL(module));
+    bl_blob_init(&blob);
+    ObjModule* module = bl_object_makemodule(p->vm, modulename, modulepath);
+    bl_vm_pushvalue(p->vm, OBJ_VAL(module));
     ObjFunction* function = bl_compiler_compilesource(p->vm, module, source, &blob);
-    pop(p->vm);
+    bl_vm_popvalue(p->vm);
     free(source);
     if(function == NULL)
     {
@@ -8468,9 +8701,9 @@ static void import_statement(AstParser* p)
         return;
     }
     function->name = NULL;
-    push(p->vm, OBJ_VAL(function));
-    ObjClosure* closure = new_closure(p->vm, function);
-    pop(p->vm);
+    bl_vm_pushvalue(p->vm, OBJ_VAL(function));
+    ObjClosure* closure = bl_object_makeclosure(p->vm, function);
+    bl_vm_popvalue(p->vm);
     int importconstant = bl_parser_makeconstant(p, OBJ_VAL(closure));
     bl_parser_emitbyte_and_short(p, OP_CALL_IMPORT, importconstant);
     parse_specific_import(p, modulename, importconstant, wasrenamed, false);
@@ -8858,7 +9091,7 @@ int constant_instruction(const char* name, BinaryBlob* blob, int offset)
 {
     uint16_t constant = (blob->code[offset + 1] << 8) | blob->code[offset + 2];
     printf("%-16s %8d '", name, constant);
-    print_value(blob->constants.values[constant]);
+    bl_value_printvalue(blob->constants.values[constant]);
     printf("'\n");
     return offset + 3;
 }
@@ -8903,7 +9136,7 @@ static int invoke_instruction(const char* name, BinaryBlob* blob, int offset)
     constant |= blob->code[offset + 2];
     uint8_t argcount = blob->code[offset + 3];
     printf("%-16s (%d args) %8d '", name, argcount, constant);
-    print_value(blob->constants.values[constant]);
+    bl_value_printvalue(blob->constants.values[constant]);
     printf("'\n");
     return offset + 4;
 }
@@ -9058,7 +9291,7 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
             uint16_t constant = blob->code[offset++] << 8;
             constant |= blob->code[offset++];
             printf("%-16s %8d ", "clsur", constant);
-            print_value(blob->constants.values[constant]);
+            bl_value_printvalue(blob->constants.values[constant]);
             printf("\n");
             ObjFunction* function = AS_FUNCTION(blob->constants.values[constant]);
             for(int j = 0; j < function->upvaluecount; j++)
@@ -9113,7 +9346,7 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
 #define DENY_STD() \
     if(file->mode->length == 0) \
         RETURN_ERROR("method not supported for std files");
-#define SET_DICT_STRING(d, n, l, v) dict_add_entry(vm, d, GC_L_STRING(n, l), v)
+#define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
 
 static int file_close(ObjFile* file)
 {
@@ -9145,7 +9378,7 @@ static void file_open(ObjFile* file)
 bool cfn_file(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_RANGE(file, 1, 2);
-    ENFORCE_ARG_TYPE(file, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(file, 0, bl_value_isstring);
     ObjString* path = AS_STRING(args[0]);
     if(path->length == 0)
     {
@@ -9154,14 +9387,14 @@ bool cfn_file(VMState* vm, int argcount, Value* args)
     ObjString* mode = NULL;
     if(argcount == 2)
     {
-        ENFORCE_ARG_TYPE(file, 1, IS_STRING);
+        ENFORCE_ARG_TYPE(file, 1, bl_value_isstring);
         mode = AS_STRING(args[1]);
     }
     else
     {
         mode = (ObjString*)gc_protect(vm, (Object*)copy_string(vm, "r", 1));
     }
-    ObjFile* file = (ObjFile*)gc_protect(vm, (Object*)new_file(vm, path, mode));
+    ObjFile* file = (ObjFile*)gc_protect(vm, (Object*)bl_object_makefile(vm, path, mode));
     file_open(file);
     RETURN_OBJ(file);
 }
@@ -9220,7 +9453,7 @@ bool objfn_file_read(VMState* vm, int argcount, Value* args)
     filesizereal = -1;
     if(argcount == 1)
     {
-        ENFORCE_ARG_TYPE(read, 0, IS_NUMBER);
+        ENFORCE_ARG_TYPE(read, 0, bl_value_isnumber);
         filesize = (size_t)AS_NUMBER(args[0]);
     }
     file = AS_FILE(METHOD_OBJECT);
@@ -9314,7 +9547,7 @@ bool objfn_file_gets(VMState* vm, int argcount, Value* args)
     length = -1;
     if(argcount == 1)
     {
-        ENFORCE_ARG_TYPE(read, 0, IS_NUMBER);
+        ENFORCE_ARG_TYPE(read, 0, bl_value_isnumber);
         length = (size_t)AS_NUMBER(args[0]);
     }
     file = AS_FILE(METHOD_OBJECT);
@@ -9394,14 +9627,14 @@ bool objfn_file_write(VMState* vm, int argcount, Value* args)
     int length;
     if(!inbinarymode)
     {
-        ENFORCE_ARG_TYPE(write, 0, IS_STRING);
+        ENFORCE_ARG_TYPE(write, 0, bl_value_isstring);
         string = AS_STRING(args[0]);
         data = (unsigned char*)string->chars;
         length = string->length;
     }
     else
     {
-        ENFORCE_ARG_TYPE(write, 0, IS_BYTES);
+        ENFORCE_ARG_TYPE(write, 0, bl_value_isbytes);
         bytes = AS_BYTES(args[0]);
         data = bytes->bytes.bytes;
         length = bytes->bytes.count;
@@ -9455,14 +9688,14 @@ bool objfn_file_puts(VMState* vm, int argcount, Value* args)
     int length;
     if(!inbinarymode)
     {
-        ENFORCE_ARG_TYPE(write, 0, IS_STRING);
+        ENFORCE_ARG_TYPE(write, 0, bl_value_isstring);
         string = AS_STRING(args[0]);
         data = (unsigned char*)string->chars;
         length = string->length;
     }
     else
     {
-        ENFORCE_ARG_TYPE(write, 0, IS_BYTES);
+        ENFORCE_ARG_TYPE(write, 0, bl_value_isbytes);
         bytes = AS_BYTES(args[0]);
         data = bytes->bytes.bytes;
         length = bytes->bytes.count;
@@ -9558,7 +9791,7 @@ bool objfn_file_stats(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(stats, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
     if(!is_std_file(file))
     {
         if(bl_util_fileexists(file->path->chars))
@@ -9617,7 +9850,7 @@ bool objfn_file_stats(VMState* vm, int argcount, Value* args)
 bool objfn_file_symlink(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(symlink, 1);
-    ENFORCE_ARG_TYPE(symlink, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(symlink, 0, bl_value_isstring);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
     if(bl_util_fileexists(file->path->chars))
@@ -9646,7 +9879,7 @@ bool objfn_file_delete(VMState* vm, int argcount, Value* args)
 bool objfn_file_rename(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(rename, 1);
-    ENFORCE_ARG_TYPE(rename, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(rename, 0, bl_value_isstring);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
     if(bl_util_fileexists(file->path->chars))
@@ -9704,7 +9937,7 @@ bool objfn_file_abspath(VMState* vm, int argcount, Value* args)
 bool objfn_file_copy(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(copy, 1);
-    ENFORCE_ARG_TYPE(copy, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(copy, 0, bl_value_isstring);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
     if(bl_util_fileexists(file->path->chars))
@@ -9760,7 +9993,7 @@ bool objfn_file_truncate(VMState* vm, int argcount, Value* args)
     off_t finalsize = 0;
     if(argcount == 1)
     {
-        ENFORCE_ARG_TYPE(truncate, 0, IS_NUMBER);
+        ENFORCE_ARG_TYPE(truncate, 0, bl_value_isnumber);
         finalsize = (off_t)AS_NUMBER(args[0]);
     }
     ObjFile* file = AS_FILE(METHOD_OBJECT);
@@ -9771,7 +10004,7 @@ bool objfn_file_truncate(VMState* vm, int argcount, Value* args)
 bool objfn_file_chmod(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(chmod, 1);
-    ENFORCE_ARG_TYPE(chmod, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(chmod, 0, bl_value_isnumber);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
     if(bl_util_fileexists(file->path->chars))
@@ -9788,8 +10021,8 @@ bool objfn_file_chmod(VMState* vm, int argcount, Value* args)
 bool objfn_file_settimes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(settimes, 2);
-    ENFORCE_ARG_TYPE(settimes, 0, IS_NUMBER);
-    ENFORCE_ARG_TYPE(settimes, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(settimes, 0, bl_value_isnumber);
+    ENFORCE_ARG_TYPE(settimes, 1, bl_value_isnumber);
 #ifdef HAVE_UTIME
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
@@ -9840,8 +10073,8 @@ bool objfn_file_settimes(VMState* vm, int argcount, Value* args)
 bool objfn_file_seek(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(seek, 2);
-    ENFORCE_ARG_TYPE(seek, 0, IS_NUMBER);
-    ENFORCE_ARG_TYPE(seek, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(seek, 0, bl_value_isnumber);
+    ENFORCE_ARG_TYPE(seek, 1, bl_value_isnumber);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
     long position = (long)AS_NUMBER(args[0]);
@@ -9883,7 +10116,7 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
     if(module != NULL)
     {
         sdup = strdup(module->name);
-        ObjModule* themodule = (ObjModule*)gc_protect(vm, (Object*)new_module(vm, sdup, source));
+        ObjModule* themodule = (ObjModule*)gc_protect(vm, (Object*)bl_object_makemodule(vm, sdup, source));
         themodule->preloader = module->preloader;
         themodule->unloader = module->unloader;
         if(module->fields != NULL)
@@ -9893,9 +10126,9 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
                 RegField field = module->fields[j];
                 Value fieldname = GC_STRING(field.name);
                 Value v = field.fieldfunc(vm);
-                push(vm, v);
-                table_set(vm, &themodule->values, fieldname, v);
-                pop(vm);
+                bl_vm_pushvalue(vm, v);
+                bl_hashtable_set(vm, &themodule->values, fieldname, v);
+                bl_vm_popvalue(vm);
             }
         }
         if(module->functions != NULL)
@@ -9904,10 +10137,10 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
             {
                 RegFunc func = module->functions[j];
                 Value funcname = GC_STRING(func.name);
-                Value funcrealvalue = OBJ_VAL(gc_protect(vm, (Object*)new_native(vm, func.natfn, func.name)));
-                push(vm, funcrealvalue);
-                table_set(vm, &themodule->values, funcname, funcrealvalue);
-                pop(vm);
+                Value funcrealvalue = OBJ_VAL(gc_protect(vm, (Object*)bl_object_makenativefunction(vm, func.natfn, func.name)));
+                bl_vm_pushvalue(vm, funcrealvalue);
+                bl_hashtable_set(vm, &themodule->values, funcname, funcrealvalue);
+                bl_vm_popvalue(vm);
             }
         }
         if(module->classes != NULL)
@@ -9916,14 +10149,14 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
             {
                 RegClass klassreg = module->classes[j];
                 ObjString* classname = (ObjString*)gc_protect(vm, (Object*)copy_string(vm, klassreg.name, (int)strlen(klassreg.name)));
-                ObjClass* klass = (ObjClass*)gc_protect(vm, (Object*)new_class(vm, classname));
+                ObjClass* klass = (ObjClass*)gc_protect(vm, (Object*)bl_object_makeclass(vm, classname));
                 if(klassreg.functions != NULL)
                 {
                     for(int k = 0; klassreg.functions[k].name != NULL; k++)
                     {
                         RegFunc func = klassreg.functions[k];
                         Value funcname = GC_STRING(func.name);
-                        ObjNativeFunction* native = (ObjNativeFunction*)gc_protect(vm, (Object*)new_native(vm, func.natfn, func.name));
+                        ObjNativeFunction* native = (ObjNativeFunction*)gc_protect(vm, (Object*)bl_object_makenativefunction(vm, func.natfn, func.name));
                         if(func.isstatic)
                         {
                             native->type = TYPE_STATIC;
@@ -9932,7 +10165,7 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
                         {
                             native->type = TYPE_PRIVATE;
                         }
-                        table_set(vm, &klass->methods, funcname, OBJ_VAL(native));
+                        bl_hashtable_set(vm, &klass->methods, funcname, OBJ_VAL(native));
                     }
                 }
                 if(klassreg.fields != NULL)
@@ -9942,12 +10175,12 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
                         RegField field = klassreg.fields[k];
                         Value fieldname = GC_STRING(field.name);
                         Value v = field.fieldfunc(vm);
-                        push(vm, v);
-                        table_set(vm, field.isstatic ? &klass->staticproperties : &klass->properties, fieldname, v);
-                        pop(vm);
+                        bl_vm_pushvalue(vm, v);
+                        bl_hashtable_set(vm, field.isstatic ? &klass->staticproperties : &klass->properties, fieldname, v);
+                        bl_vm_popvalue(vm);
                     }
                 }
-                table_set(vm, &themodule->values, OBJ_VAL(classname), OBJ_VAL(klass));
+                bl_hashtable_set(vm, &themodule->values, OBJ_VAL(classname), OBJ_VAL(klass));
             }
         }
         if(handle != NULL)
@@ -9974,10 +10207,10 @@ void add_native_module(VMState* vm, ObjModule* module, const char* as)
         module->name = strdup(as);
     }
     Value name = STRING_VAL(module->name);
-    push(vm, name);
-    push(vm, OBJ_VAL(module));
-    table_set(vm, &vm->modules, name, OBJ_VAL(module));
-    pop_n(vm, 2);
+    bl_vm_pushvalue(vm, name);
+    bl_vm_pushvalue(vm, OBJ_VAL(module));
+    bl_hashtable_set(vm, &vm->modules, name, OBJ_VAL(module));
+    bl_vm_popvaluen(vm, 2);
 }
 
 void bind_user_modules(VMState* vm, char* pkgroot)
@@ -10208,11 +10441,11 @@ bool cfn_id(VMState* vm, int argcount, Value* args)
 bool cfn_hasprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(hasprop, 2);
-    ENFORCE_ARG_TYPE(hasprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(hasprop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(hasprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(hasprop, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value dummy;
-    RETURN_BOOL(table_get(&instance->properties, args[1], &dummy));
+    RETURN_BOOL(bl_hashtable_get(&instance->properties, args[1], &dummy));
 }
 
 /**
@@ -10225,11 +10458,11 @@ bool cfn_hasprop(VMState* vm, int argcount, Value* args)
 bool cfn_getprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(getprop, 2);
-    ENFORCE_ARG_TYPE(getprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(getprop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(getprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(getprop, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value value;
-    if(table_get(&instance->properties, args[1], &value) || table_get(&instance->klass->methods, args[1], &value))
+    if(bl_hashtable_get(&instance->properties, args[1], &value) || bl_hashtable_get(&instance->klass->methods, args[1], &value))
     {
         RETURN_VALUE(value);
     }
@@ -10248,10 +10481,10 @@ bool cfn_getprop(VMState* vm, int argcount, Value* args)
 bool cfn_setprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(setprop, 3);
-    ENFORCE_ARG_TYPE(setprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(setprop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(setprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(setprop, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
-    RETURN_BOOL(table_set(vm, &instance->properties, args[1], args[2]));
+    RETURN_BOOL(bl_hashtable_set(vm, &instance->properties, args[1], args[2]));
 }
 
 /**
@@ -10263,10 +10496,10 @@ bool cfn_setprop(VMState* vm, int argcount, Value* args)
 bool cfn_delprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(delprop, 2);
-    ENFORCE_ARG_TYPE(delprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(delprop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(delprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(delprop, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
-    RETURN_BOOL(table_delete(&instance->properties, args[1]));
+    RETURN_BOOL(bl_hashtable_delete(&instance->properties, args[1]));
 }
 
 /**
@@ -10277,11 +10510,11 @@ bool cfn_delprop(VMState* vm, int argcount, Value* args)
 bool cfn_max(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_MIN_ARG(max, 2);
-    ENFORCE_ARG_TYPE(max, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(max, 0, bl_value_isnumber);
     double max = AS_NUMBER(args[0]);
     for(int i = 1; i < argcount; i++)
     {
-        ENFORCE_ARG_TYPE(max, i, IS_NUMBER);
+        ENFORCE_ARG_TYPE(max, i, bl_value_isnumber);
         double number = AS_NUMBER(args[i]);
         if(number > max)
             max = number;
@@ -10297,11 +10530,11 @@ bool cfn_max(VMState* vm, int argcount, Value* args)
 bool cfn_min(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_MIN_ARG(min, 2);
-    ENFORCE_ARG_TYPE(min, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(min, 0, bl_value_isnumber);
     double min = AS_NUMBER(args[0]);
     for(int i = 1; i < argcount; i++)
     {
-        ENFORCE_ARG_TYPE(min, i, IS_NUMBER);
+        ENFORCE_ARG_TYPE(min, i, bl_value_isnumber);
         double number = AS_NUMBER(args[i]);
         if(number < min)
             min = number;
@@ -10320,7 +10553,7 @@ bool cfn_sum(VMState* vm, int argcount, Value* args)
     double sum = 0;
     for(int i = 0; i < argcount; i++)
     {
-        ENFORCE_ARG_TYPE(sum, i, IS_NUMBER);
+        ENFORCE_ARG_TYPE(sum, i, bl_value_isnumber);
         sum += AS_NUMBER(args[i]);
     }
     RETURN_NUMBER(sum);
@@ -10339,7 +10572,7 @@ bool cfn_abs(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(abs, 1);
     // handle classes that define a to_abs() method.
     METHOD_OVERRIDE(to_abs, 6);
-    ENFORCE_ARG_TYPE(abs, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(abs, 0, bl_value_isnumber);
     double value = AS_NUMBER(args[0]);
     if(value > -1)
         RETURN_VALUE(args[0]);
@@ -10363,7 +10596,7 @@ bool cfn_int(VMState* vm, int argcount, Value* args)
     }
     // handle classes that define a to_number() method.
     METHOD_OVERRIDE(to_number, 9);
-    ENFORCE_ARG_TYPE(int, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(int, 0, bl_value_isnumber);
     RETURN_NUMBER((double)((int)AS_NUMBER(args[0])));
 }
 
@@ -10380,7 +10613,7 @@ bool cfn_bin(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(bin, 1);
     // handle classes that define a to_bin() method.
     METHOD_OVERRIDE(to_bin, 6);
-    ENFORCE_ARG_TYPE(bin, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(bin, 0, bl_value_isnumber);
     RETURN_OBJ(bin_to_string(vm, AS_NUMBER(args[0])));
 }
 
@@ -10397,7 +10630,7 @@ bool cfn_oct(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(oct, 1);
     // handle classes that define a to_oct() method.
     METHOD_OVERRIDE(to_oct, 6);
-    ENFORCE_ARG_TYPE(oct, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(oct, 0, bl_value_isnumber);
     RETURN_OBJ(number_to_oct(vm, AS_NUMBER(args[0]), false));
 }
 
@@ -10414,7 +10647,7 @@ bool cfn_hex(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(hex, 1);
     // handle classes that define a to_hex() method.
     METHOD_OVERRIDE(to_hex, 6);
-    ENFORCE_ARG_TYPE(hex, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(hex, 0, bl_value_isnumber);
     RETURN_OBJ(number_to_hex(vm, AS_NUMBER(args[0]), false));
 }
 
@@ -10430,7 +10663,7 @@ bool cfn_tobool(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_bool, 1);
     METHOD_OVERRIDE(to_bool, 7);
-    RETURN_BOOL(!is_false(args[0]));
+    RETURN_BOOL(!bl_value_isfalse(args[0]));
 }
 
 /**
@@ -10445,7 +10678,7 @@ bool cfn_tostring(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_string, 1);
     METHOD_OVERRIDE(to_string, 9);
-    char* result = value_to_string(vm, args[0]);
+    char* result = bl_value_tostring(vm, args[0]);
     RETURN_TT_STRING(result);
 }
 
@@ -10461,19 +10694,19 @@ bool cfn_tonumber(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_number, 1);
     METHOD_OVERRIDE(to_number, 9);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
         RETURN_VALUE(args[0]);
     }
-    else if(IS_BOOL(args[0]))
+    else if(bl_value_isbool(args[0]))
     {
         RETURN_NUMBER(AS_BOOL(args[0]) ? 1 : 0);
     }
-    else if(IS_NIL(args[0]))
+    else if(bl_value_isnil(args[0]))
     {
         RETURN_NUMBER(-1);
     }
-    const char* v = (const char*)value_to_string(vm, args[0]);
+    const char* v = (const char*)bl_value_tostring(vm, args[0]);
     int length = (int)strlen(v);
     int start = 0, end = 1, multiplier = 1;
     if(v[0] == '-')
@@ -10514,7 +10747,7 @@ bool cfn_toint(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_int, 1);
     METHOD_OVERRIDE(to_int, 6);
-    ENFORCE_ARG_TYPE(to_int, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(to_int, 0, bl_value_isnumber);
     RETURN_NUMBER((int)AS_NUMBER(args[0]));
 }
 
@@ -10530,55 +10763,55 @@ bool cfn_tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     METHOD_OVERRIDE(to_list, 0);
-    if(IS_LIST(args[0]))
+    if(bl_value_isarray(args[0]))
     {
         RETURN_VALUE(args[0]);
     }
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-    if(IS_DICT(args[0]))
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    if(bl_value_isdict(args[0]))
     {
         ObjDict* dict = AS_DICT(args[0]);
         for(int i = 0; i < dict->names.count; i++)
         {
-            ObjList* nlist = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-            write_value_arr(vm, &nlist->items, dict->names.values[i]);
+            ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+            bl_valarray_push(vm, &nlist->items, dict->names.values[i]);
             Value value;
-            table_get(&dict->items, dict->names.values[i], &value);
-            write_value_arr(vm, &nlist->items, value);
-            write_value_arr(vm, &list->items, OBJ_VAL(nlist));
+            bl_hashtable_get(&dict->items, dict->names.values[i], &value);
+            bl_valarray_push(vm, &nlist->items, value);
+            bl_valarray_push(vm, &list->items, OBJ_VAL(nlist));
         }
     }
-    else if(IS_STRING(args[0]))
+    else if(bl_value_isstring(args[0]))
     {
         ObjString* str = AS_STRING(args[0]);
         for(int i = 0; i < str->utf8length; i++)
         {
             int start = i, end = i + 1;
             bl_util_utf8slice(str->chars, &start, &end);
-            write_list(vm, list, STRING_L_VAL(str->chars + start, (int)(end - start)));
+            bl_array_push(vm, list, STRING_L_VAL(str->chars + start, (int)(end - start)));
         }
     }
-    else if(IS_RANGE(args[0]))
+    else if(bl_value_isrange(args[0]))
     {
         ObjRange* range = AS_RANGE(args[0]);
         if(range->upper > range->lower)
         {
             for(int i = range->lower; i < range->upper; i++)
             {
-                write_list(vm, list, NUMBER_VAL(i));
+                bl_array_push(vm, list, NUMBER_VAL(i));
             }
         }
         else
         {
             for(int i = range->lower; i > range->upper; i--)
             {
-                write_list(vm, list, NUMBER_VAL(i));
+                bl_array_push(vm, list, NUMBER_VAL(i));
             }
         }
     }
     else
     {
-        write_value_arr(vm, &list->items, args[0]);
+        bl_valarray_push(vm, &list->items, args[0]);
     }
     RETURN_OBJ(list);
 }
@@ -10595,12 +10828,12 @@ bool cfn_todict(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_dict, 1);
     METHOD_OVERRIDE(to_dict, 7);
-    if(IS_DICT(args[0]))
+    if(bl_value_isdict(args[0]))
     {
         RETURN_VALUE(args[0]);
     }
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    dict_set_entry(vm, dict, NUMBER_VAL(0), args[0]);
+    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    bl_dict_setentry(vm, dict, NUMBER_VAL(0), args[0]);
     RETURN_OBJ(dict);
 }
 
@@ -10614,7 +10847,7 @@ bool cfn_chr(VMState* vm, int argcount, Value* args)
 {
     char* string;
     ENFORCE_ARG_COUNT(chr, 1);
-    ENFORCE_ARG_TYPE(chr, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(chr, 0, bl_value_isnumber);
     string = bl_util_utf8encode((int)AS_NUMBER(args[0]));
     RETURN_T_STRING(string, strlen(string));
 }
@@ -10627,7 +10860,7 @@ bool cfn_chr(VMState* vm, int argcount, Value* args)
 bool cfn_ord(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(ord, 1);
-    ENFORCE_ARG_TYPE(ord, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(ord, 0, bl_value_isstring);
     ObjString* string = AS_STRING(args[0]);
     int maxlength = string->length > 1 && (int)string->chars[0] < 1 ? 3 : 1;
     if(string->length > maxlength)
@@ -10658,12 +10891,12 @@ bool cfn_rand(VMState* vm, int argcount, Value* args)
     int upperlimit = 1;
     if(argcount > 0)
     {
-        ENFORCE_ARG_TYPE(rand, 0, IS_NUMBER);
+        ENFORCE_ARG_TYPE(rand, 0, bl_value_isnumber);
         lowerlimit = AS_NUMBER(args[0]);
     }
     if(argcount == 2)
     {
-        ENFORCE_ARG_TYPE(rand, 1, IS_NUMBER);
+        ENFORCE_ARG_TYPE(rand, 1, bl_value_isnumber);
         upperlimit = AS_NUMBER(args[1]);
     }
     if(lowerlimit > upperlimit)
@@ -10700,7 +10933,7 @@ bool cfn_rand(VMState* vm, int argcount, Value* args)
 bool cfn_typeof(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(typeof, 1);
-    char* result = (char*)value_type(args[0]);
+    char* result = (char*)bl_value_typename(args[0]);
     RETURN_L_STRING(result, strlen(result));
 }
 
@@ -10712,7 +10945,7 @@ bool cfn_typeof(VMState* vm, int argcount, Value* args)
 bool cfn_iscallable(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_callable, 1);
-    RETURN_BOOL(IS_CLASS(args[0]) || IS_FUNCTION(args[0]) || IS_CLOSURE(args[0]) || IS_BOUND(args[0]) || IS_NATIVE(args[0]));
+    RETURN_BOOL(bl_value_isclass(args[0]) || bl_value_isscriptfunction(args[0]) || bl_value_isclosure(args[0]) || bl_value_isboundfunction(args[0]) || bl_value_isnativefunction(args[0]));
 }
 
 /**
@@ -10723,7 +10956,7 @@ bool cfn_iscallable(VMState* vm, int argcount, Value* args)
 bool cfn_isbool(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_bool, 1);
-    RETURN_BOOL(IS_BOOL(args[0]));
+    RETURN_BOOL(bl_value_isbool(args[0]));
 }
 
 /**
@@ -10734,7 +10967,7 @@ bool cfn_isbool(VMState* vm, int argcount, Value* args)
 bool cfn_isnumber(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_number, 1);
-    RETURN_BOOL(IS_NUMBER(args[0]));
+    RETURN_BOOL(bl_value_isnumber(args[0]));
 }
 
 /**
@@ -10745,7 +10978,7 @@ bool cfn_isnumber(VMState* vm, int argcount, Value* args)
 bool cfn_isint(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_int, 1);
-    RETURN_BOOL(IS_NUMBER(args[0]) && (((int)AS_NUMBER(args[0])) == AS_NUMBER(args[0])));
+    RETURN_BOOL(bl_value_isnumber(args[0]) && (((int)AS_NUMBER(args[0])) == AS_NUMBER(args[0])));
 }
 
 /**
@@ -10756,7 +10989,7 @@ bool cfn_isint(VMState* vm, int argcount, Value* args)
 bool cfn_isstring(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_string, 1);
-    RETURN_BOOL(IS_STRING(args[0]));
+    RETURN_BOOL(bl_value_isstring(args[0]));
 }
 
 /**
@@ -10767,7 +11000,7 @@ bool cfn_isstring(VMState* vm, int argcount, Value* args)
 bool cfn_isbytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_bytes, 1);
-    RETURN_BOOL(IS_BYTES(args[0]));
+    RETURN_BOOL(bl_value_isbytes(args[0]));
 }
 
 /**
@@ -10778,7 +11011,7 @@ bool cfn_isbytes(VMState* vm, int argcount, Value* args)
 bool cfn_islist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_list, 1);
-    RETURN_BOOL(IS_LIST(args[0]));
+    RETURN_BOOL(bl_value_isarray(args[0]));
 }
 
 /**
@@ -10789,7 +11022,7 @@ bool cfn_islist(VMState* vm, int argcount, Value* args)
 bool cfn_isdict(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_dict, 1);
-    RETURN_BOOL(IS_DICT(args[0]));
+    RETURN_BOOL(bl_value_isdict(args[0]));
 }
 
 /**
@@ -10800,7 +11033,7 @@ bool cfn_isdict(VMState* vm, int argcount, Value* args)
 bool cfn_isobject(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_object, 1);
-    RETURN_BOOL(IS_OBJ(args[0]));
+    RETURN_BOOL(bl_value_isobject(args[0]));
 }
 
 /**
@@ -10811,7 +11044,7 @@ bool cfn_isobject(VMState* vm, int argcount, Value* args)
 bool cfn_isfunction(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_function, 1);
-    RETURN_BOOL(IS_FUNCTION(args[0]) || IS_CLOSURE(args[0]) || IS_BOUND(args[0]) || IS_NATIVE(args[0]));
+    RETURN_BOOL(bl_value_isscriptfunction(args[0]) || bl_value_isclosure(args[0]) || bl_value_isboundfunction(args[0]) || bl_value_isnativefunction(args[0]));
 }
 
 /**
@@ -10822,12 +11055,12 @@ bool cfn_isfunction(VMState* vm, int argcount, Value* args)
 bool cfn_isiterable(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_iterable, 1);
-    bool is_iterable = IS_LIST(args[0]) || IS_DICT(args[0]) || IS_STRING(args[0]) || IS_BYTES(args[0]);
-    if(!is_iterable && IS_INSTANCE(args[0]))
+    bool is_iterable = bl_value_isarray(args[0]) || bl_value_isdict(args[0]) || bl_value_isstring(args[0]) || bl_value_isbytes(args[0]);
+    if(!is_iterable && bl_value_isinstance(args[0]))
     {
         ObjClass* klass = AS_INSTANCE(args[0])->klass;
         Value dummy;
-        is_iterable = table_get(&klass->methods, STRING_VAL("@iter"), &dummy) && table_get(&klass->methods, STRING_VAL("@itern"), &dummy);
+        is_iterable = bl_hashtable_get(&klass->methods, STRING_VAL("@iter"), &dummy) && bl_hashtable_get(&klass->methods, STRING_VAL("@itern"), &dummy);
     }
     RETURN_BOOL(is_iterable);
 }
@@ -10840,7 +11073,7 @@ bool cfn_isiterable(VMState* vm, int argcount, Value* args)
 bool cfn_isclass(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_class, 1);
-    RETURN_BOOL(IS_CLASS(args[0]));
+    RETURN_BOOL(bl_value_isclass(args[0]));
 }
 
 /**
@@ -10851,7 +11084,7 @@ bool cfn_isclass(VMState* vm, int argcount, Value* args)
 bool cfn_isfile(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_file, 1);
-    RETURN_BOOL(IS_FILE(args[0]));
+    RETURN_BOOL(bl_value_isfile(args[0]));
 }
 
 /**
@@ -10862,7 +11095,7 @@ bool cfn_isfile(VMState* vm, int argcount, Value* args)
 bool cfn_isinstance(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_instance, 1);
-    RETURN_BOOL(IS_INSTANCE(args[0]));
+    RETURN_BOOL(bl_value_isinstance(args[0]));
 }
 
 /**
@@ -10874,8 +11107,8 @@ bool cfn_isinstance(VMState* vm, int argcount, Value* args)
 bool cfn_instanceof(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(instance_of, 2);
-    ENFORCE_ARG_TYPE(instance_of, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(instance_of, 1, IS_CLASS);
+    ENFORCE_ARG_TYPE(instance_of, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(instance_of, 1, bl_value_isclass);
     RETURN_BOOL(bl_class_isinstanceof(AS_INSTANCE(args[0])->klass, AS_CLASS(args[1])->name->chars));
 }
 
@@ -10889,7 +11122,7 @@ bool cfn_print(VMState* vm, int argcount, Value* args)
 {
     for(int i = 0; i < argcount; i++)
     {
-        print_value(args[i]);
+        bl_value_printvalue(args[i]);
         if(i != argcount - 1)
         {
             printf(" ");
@@ -10917,7 +11150,7 @@ bool objfn_range_upper(VMState* vm, int argcount, Value* args)
 bool objfn_range_iter(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__iter__, 1);
-    ENFORCE_ARG_TYPE(__iter__, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(__iter__, 0, bl_value_isnumber);
     ObjRange* range = AS_RANGE(METHOD_OBJECT);
     int index = AS_NUMBER(args[0]);
     if(index >= 0 && index < range->range)
@@ -10933,7 +11166,7 @@ bool objfn_range_itern(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(__itern__, 1);
     ObjRange* range = AS_RANGE(METHOD_OBJECT);
-    if(IS_NIL(args[0]))
+    if(bl_value_isnil(args[0]))
     {
         if(range->range == 0)
         {
@@ -10941,7 +11174,7 @@ bool objfn_range_itern(VMState* vm, int argcount, Value* args)
         }
         RETURN_NUMBER(0);
     }
-    if(!IS_NUMBER(args[0]))
+    if(!bl_value_isnumber(args[0]))
     {
         RETURN_ERROR("ranges are numerically indexed");
     }
@@ -10963,15 +11196,15 @@ void array_free(void* data)
 
 ObjPointer* new_array(VMState* vm, DynArray* array)
 {
-    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)new_ptr(vm, array));
+    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)bl_dict_makeptr(vm, array));
     ptr->fnptrfree = &array_free;
     return ptr;
 }
 
 //--------- INT 16 STARTS -------------------------
-DynArray* new_int16_array(VMState* vm, int length)
+DynArray* bl_object_makedynarrayint16(VMState* vm, int length)
 {
-    DynArray* array = (DynArray*)allocate_object(vm, sizeof(DynArray), OBJ_BYTES);
+    DynArray* array = (DynArray*)bl_object_allocobject(vm, sizeof(DynArray), OBJ_BYTES);
     array->length = length;
     array->buffer = ALLOCATE(int16_t, length);
     return array;
@@ -10980,18 +11213,18 @@ DynArray* new_int16_array(VMState* vm, int length)
 bool modfn_array_int16array(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(int16array, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
-        RETURN_OBJ(new_array(vm, new_int16_array(vm, (int)AS_NUMBER(args[0]))));
+        RETURN_OBJ(new_array(vm, bl_object_makedynarrayint16(vm, (int)AS_NUMBER(args[0]))));
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
-        DynArray* array = new_int16_array(vm, list->items.count);
+        ObjArray* list = AS_LIST(args[0]);
+        DynArray* array = bl_object_makedynarrayint16(vm, list->items.count);
         int16_t* values = (int16_t*)array->buffer;
         for(int i = 0; i < list->items.count; i++)
         {
-            if(!IS_NUMBER(list->items.values[i]))
+            if(!bl_value_isnumber(list->items.values[i]))
             {
                 RETURN_ERROR("Int16Array() expects a list of valid int16");
             }
@@ -11005,25 +11238,25 @@ bool modfn_array_int16array(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
-    ENFORCE_ARG_TYPE(append, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(append, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    if(IS_NUMBER(args[1]))
+    if(bl_value_isnumber(args[1]))
     {
         array->length++;
         array->buffer = GROW_ARRAY(int16_t, array->buffer, array->length - 1, array->length);
         int16_t* values = (int16_t*)array->buffer;
         values[array->length - 1] = (int16_t)AS_NUMBER(args[1]);
     }
-    else if(IS_LIST(args[1]))
+    else if(bl_value_isarray(args[1]))
     {
-        ObjList* list = AS_LIST(args[1]);
+        ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
             array->buffer = GROW_ARRAY(int16_t, array->buffer, array->length, array->length + list->items.count);
             int16_t* values = (int16_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
-                if(!IS_NUMBER(list->items.values[i]))
+                if(!bl_value_isnumber(list->items.values[i]))
                 {
                     RETURN_ERROR("Int16Array lists can only contain numbers");
                 }
@@ -11042,8 +11275,8 @@ bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
-    ENFORCE_ARG_TYPE(get, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(get, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(get, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t* data = (int16_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11059,7 +11292,7 @@ bool modfn_array_int16reverse(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(reverse, 1);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t* data = (int16_t*)array->buffer;
-    DynArray* narray = new_int16_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayint16(vm, array->length);
     int16_t* ndata = (int16_t*)narray->buffer;
     for(int i = array->length - 1; i >= 0; i--)
     {
@@ -11071,9 +11304,9 @@ bool modfn_array_int16reverse(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
-    ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(clone, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    DynArray* narray = new_int16_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayint16(vm, array->length);
     memcpy(narray->buffer, array->buffer, array->length);
     RETURN_OBJ(new_array(vm, narray));
 }
@@ -11081,7 +11314,7 @@ bool modfn_array_int16clone(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16pop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
-    ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(pop, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t last = ((int16_t*)array->buffer)[array->length - 1];
     array->length--;
@@ -11091,8 +11324,8 @@ bool modfn_array_int16pop(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(remove, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t* values = (int16_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11112,13 +11345,13 @@ bool modfn_array_int16remove(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t* values = (int16_t*)array->buffer;
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
-        write_list(vm, list, NUMBER_VAL((double)values[i]));
+        bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
     }
     RETURN_OBJ(list);
 }
@@ -11126,9 +11359,9 @@ bool modfn_array_int16tolist(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16tobytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, array->length * 2));
+    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 2));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 2);
     RETURN_OBJ(bytes);
 }
@@ -11136,8 +11369,8 @@ bool modfn_array_int16tobytes(VMState* vm, int argcount, Value* args)
 bool modfn_array_int16iter_(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
-    ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(@iter, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(@iter, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(@iter, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t* values = (int16_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11149,9 +11382,9 @@ bool modfn_array_int16iter_(VMState* vm, int argcount, Value* args)
 }
 
 //--------- INT 32 STARTS -------------------------
-DynArray* new_int32_array(VMState* vm, int length)
+DynArray* bl_object_makedynarrayint32(VMState* vm, int length)
 {
-    DynArray* array = (DynArray*)allocate_object(vm, sizeof(DynArray), OBJ_BYTES);
+    DynArray* array = (DynArray*)bl_object_allocobject(vm, sizeof(DynArray), OBJ_BYTES);
     array->length = length;
     array->buffer = ALLOCATE(int32_t, length);
     return array;
@@ -11160,18 +11393,18 @@ DynArray* new_int32_array(VMState* vm, int length)
 bool modfn_array_int32array(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(int32array, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
-        RETURN_OBJ(new_array(vm, new_int32_array(vm, (int)AS_NUMBER(args[0]))));
+        RETURN_OBJ(new_array(vm, bl_object_makedynarrayint32(vm, (int)AS_NUMBER(args[0]))));
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
-        DynArray* array = new_int32_array(vm, list->items.count);
+        ObjArray* list = AS_LIST(args[0]);
+        DynArray* array = bl_object_makedynarrayint32(vm, list->items.count);
         int32_t* values = (int32_t*)array->buffer;
         for(int i = 0; i < list->items.count; i++)
         {
-            if(!IS_NUMBER(list->items.values[i]))
+            if(!bl_value_isnumber(list->items.values[i]))
             {
                 RETURN_ERROR("Int32Array() expects a list of valid int32");
             }
@@ -11185,25 +11418,25 @@ bool modfn_array_int32array(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
-    ENFORCE_ARG_TYPE(append, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(append, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    if(IS_NUMBER(args[1]))
+    if(bl_value_isnumber(args[1]))
     {
         array->length++;
         array->buffer = GROW_ARRAY(int32_t, array->buffer, array->length - 1, array->length);
         int32_t* values = (int32_t*)array->buffer;
         values[array->length - 1] = (int32_t)AS_NUMBER(args[1]);
     }
-    else if(IS_LIST(args[1]))
+    else if(bl_value_isarray(args[1]))
     {
-        ObjList* list = AS_LIST(args[1]);
+        ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
             array->buffer = GROW_ARRAY(int32_t, array->buffer, array->length, array->length + list->items.count);
             int32_t* values = (int32_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
-                if(!IS_NUMBER(list->items.values[i]))
+                if(!bl_value_isnumber(list->items.values[i]))
                 {
                     RETURN_ERROR("Int32Array lists can only contain numbers");
                 }
@@ -11222,8 +11455,8 @@ bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
-    ENFORCE_ARG_TYPE(get, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(get, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(get, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t* data = (int32_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11239,7 +11472,7 @@ bool modfn_array_int32reverse(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(reverse, 1);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t* data = (int32_t*)array->buffer;
-    DynArray* narray = new_int32_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayint32(vm, array->length);
     int32_t* ndata = (int32_t*)narray->buffer;
     for(int i = array->length - 1; i >= 0; i--)
     {
@@ -11251,9 +11484,9 @@ bool modfn_array_int32reverse(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
-    ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(clone, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    DynArray* narray = new_int32_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayint32(vm, array->length);
     memcpy(narray->buffer, array->buffer, array->length);
     RETURN_OBJ(new_array(vm, narray));
 }
@@ -11261,7 +11494,7 @@ bool modfn_array_int32clone(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32pop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
-    ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(pop, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t last = ((int32_t*)array->buffer)[array->length - 1];
     array->length--;
@@ -11271,8 +11504,8 @@ bool modfn_array_int32pop(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(remove, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t* values = (int32_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11292,13 +11525,13 @@ bool modfn_array_int32remove(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t* values = (int32_t*)array->buffer;
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
-        write_list(vm, list, NUMBER_VAL((double)values[i]));
+        bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
     }
     RETURN_OBJ(list);
 }
@@ -11306,9 +11539,9 @@ bool modfn_array_int32tolist(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32tobytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, array->length * 4));
+    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 4));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 4);
     RETURN_OBJ(bytes);
 }
@@ -11316,8 +11549,8 @@ bool modfn_array_int32tobytes(VMState* vm, int argcount, Value* args)
 bool modfn_array_int32iter_(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
-    ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(@iter, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(@iter, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(@iter, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t* values = (int32_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11329,9 +11562,9 @@ bool modfn_array_int32iter_(VMState* vm, int argcount, Value* args)
 }
 
 //--------- INT 64 STARTS -------------------------
-DynArray* new_int64_array(VMState* vm, int length)
+DynArray* bl_object_makedynarrayint64(VMState* vm, int length)
 {
-    DynArray* array = (DynArray*)allocate_object(vm, sizeof(DynArray), OBJ_BYTES);
+    DynArray* array = (DynArray*)bl_object_allocobject(vm, sizeof(DynArray), OBJ_BYTES);
     array->length = length;
     array->buffer = ALLOCATE(int64_t, length);
     return array;
@@ -11340,18 +11573,18 @@ DynArray* new_int64_array(VMState* vm, int length)
 bool modfn_array_int64array(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(int64array, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
-        RETURN_OBJ(new_array(vm, new_int64_array(vm, (int)AS_NUMBER(args[0]))));
+        RETURN_OBJ(new_array(vm, bl_object_makedynarrayint64(vm, (int)AS_NUMBER(args[0]))));
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
-        DynArray* array = new_int64_array(vm, list->items.count);
+        ObjArray* list = AS_LIST(args[0]);
+        DynArray* array = bl_object_makedynarrayint64(vm, list->items.count);
         int64_t* values = (int64_t*)array->buffer;
         for(int i = 0; i < list->items.count; i++)
         {
-            if(!IS_NUMBER(list->items.values[i]))
+            if(!bl_value_isnumber(list->items.values[i]))
             {
                 RETURN_ERROR("Int64Array() expects a list of valid int64");
             }
@@ -11365,25 +11598,25 @@ bool modfn_array_int64array(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
-    ENFORCE_ARG_TYPE(append, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(append, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    if(IS_NUMBER(args[1]))
+    if(bl_value_isnumber(args[1]))
     {
         array->length++;
         array->buffer = GROW_ARRAY(int64_t, array->buffer, array->length - 1, array->length);
         int64_t* values = (int64_t*)array->buffer;
         values[array->length - 1] = (int64_t)AS_NUMBER(args[1]);
     }
-    else if(IS_LIST(args[1]))
+    else if(bl_value_isarray(args[1]))
     {
-        ObjList* list = AS_LIST(args[1]);
+        ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
             array->buffer = GROW_ARRAY(int64_t, array->buffer, array->length, array->length + list->items.count);
             int64_t* values = (int64_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
-                if(!IS_NUMBER(list->items.values[i]))
+                if(!bl_value_isnumber(list->items.values[i]))
                 {
                     RETURN_ERROR("Int64Array lists can only contain numbers");
                 }
@@ -11402,8 +11635,8 @@ bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
-    ENFORCE_ARG_TYPE(get, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(get, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(get, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t* data = (int64_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11419,7 +11652,7 @@ bool modfn_array_int64reverse(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(reverse, 1);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t* data = (int64_t*)array->buffer;
-    DynArray* narray = new_int64_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayint64(vm, array->length);
     int64_t* ndata = (int64_t*)narray->buffer;
     for(int i = array->length - 1; i >= 0; i--)
     {
@@ -11431,9 +11664,9 @@ bool modfn_array_int64reverse(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
-    ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(clone, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    DynArray* narray = new_int64_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayint64(vm, array->length);
     memcpy(narray->buffer, array->buffer, array->length);
     RETURN_OBJ(new_array(vm, narray));
 }
@@ -11441,7 +11674,7 @@ bool modfn_array_int64clone(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64pop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
-    ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(pop, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t last = ((int64_t*)array->buffer)[array->length - 1];
     array->length--;
@@ -11451,8 +11684,8 @@ bool modfn_array_int64pop(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(remove, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t* values = (int64_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11472,13 +11705,13 @@ bool modfn_array_int64remove(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t* values = (int64_t*)array->buffer;
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
-        write_list(vm, list, NUMBER_VAL((double)values[i]));
+        bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
     }
     RETURN_OBJ(list);
 }
@@ -11486,9 +11719,9 @@ bool modfn_array_int64tolist(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64tobytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, array->length * 8));
+    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 8));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 8);
     RETURN_OBJ(bytes);
 }
@@ -11496,8 +11729,8 @@ bool modfn_array_int64tobytes(VMState* vm, int argcount, Value* args)
 bool modfn_array_int64iter_(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
-    ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(@iter, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(@iter, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(@iter, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t* values = (int64_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11509,9 +11742,9 @@ bool modfn_array_int64iter_(VMState* vm, int argcount, Value* args)
 }
 
 //--------- Unsigned INT 16 STARTS ----------------
-DynArray* new_uint16_array(VMState* vm, int length)
+DynArray* bl_object_makedynarrayuint16(VMState* vm, int length)
 {
-    DynArray* array = (DynArray*)allocate_object(vm, sizeof(DynArray), OBJ_BYTES);
+    DynArray* array = (DynArray*)bl_object_allocobject(vm, sizeof(DynArray), OBJ_BYTES);
     array->length = length;
     array->buffer = ALLOCATE(uint16_t, length);
     return array;
@@ -11520,18 +11753,18 @@ DynArray* new_uint16_array(VMState* vm, int length)
 bool modfn_array_uint16array(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(uint16array, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
-        RETURN_OBJ(new_array(vm, new_uint16_array(vm, (int)AS_NUMBER(args[0]))));
+        RETURN_OBJ(new_array(vm, bl_object_makedynarrayuint16(vm, (int)AS_NUMBER(args[0]))));
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
-        DynArray* array = new_uint16_array(vm, list->items.count);
+        ObjArray* list = AS_LIST(args[0]);
+        DynArray* array = bl_object_makedynarrayuint16(vm, list->items.count);
         uint16_t* values = (uint16_t*)array->buffer;
         for(int i = 0; i < list->items.count; i++)
         {
-            if(!IS_NUMBER(list->items.values[i]))
+            if(!bl_value_isnumber(list->items.values[i]))
             {
                 RETURN_ERROR("UInt16Array() expects a list of valid uint16");
             }
@@ -11545,25 +11778,25 @@ bool modfn_array_uint16array(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
-    ENFORCE_ARG_TYPE(append, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(append, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    if(IS_NUMBER(args[1]))
+    if(bl_value_isnumber(args[1]))
     {
         array->length++;
         array->buffer = GROW_ARRAY(uint16_t, array->buffer, array->length - 1, array->length);
         uint16_t* values = (uint16_t*)array->buffer;
         values[array->length - 1] = (uint16_t)AS_NUMBER(args[1]);
     }
-    else if(IS_LIST(args[1]))
+    else if(bl_value_isarray(args[1]))
     {
-        ObjList* list = AS_LIST(args[1]);
+        ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
             array->buffer = GROW_ARRAY(uint16_t, array->buffer, array->length, array->length + list->items.count);
             uint16_t* values = (uint16_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
-                if(!IS_NUMBER(list->items.values[i]))
+                if(!bl_value_isnumber(list->items.values[i]))
                 {
                     RETURN_ERROR("UInt16Array lists can only contain numbers");
                 }
@@ -11582,8 +11815,8 @@ bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
-    ENFORCE_ARG_TYPE(get, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(get, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(get, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t* data = (uint16_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11599,7 +11832,7 @@ bool modfn_array_uint16reverse(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(reverse, 1);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t* data = (uint16_t*)array->buffer;
-    DynArray* narray = new_uint16_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayuint16(vm, array->length);
     uint16_t* ndata = (uint16_t*)narray->buffer;
     for(int i = array->length - 1; i >= 0; i--)
     {
@@ -11611,9 +11844,9 @@ bool modfn_array_uint16reverse(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
-    ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(clone, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    DynArray* narray = new_uint16_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayuint16(vm, array->length);
     memcpy(narray->buffer, array->buffer, array->length);
     RETURN_OBJ(new_array(vm, narray));
 }
@@ -11621,7 +11854,7 @@ bool modfn_array_uint16clone(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16pop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
-    ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(pop, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t last = ((uint16_t*)array->buffer)[array->length - 1];
     array->length--;
@@ -11631,8 +11864,8 @@ bool modfn_array_uint16pop(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(remove, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t* values = (uint16_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11652,13 +11885,13 @@ bool modfn_array_uint16remove(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t* values = (uint16_t*)array->buffer;
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
-        write_list(vm, list, NUMBER_VAL((double)values[i]));
+        bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
     }
     RETURN_OBJ(list);
 }
@@ -11666,9 +11899,9 @@ bool modfn_array_uint16tolist(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16tobytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, array->length * 2));
+    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 2));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 2);
     RETURN_OBJ(bytes);
 }
@@ -11676,8 +11909,8 @@ bool modfn_array_uint16tobytes(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint16iter_(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
-    ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(@iter, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(@iter, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(@iter, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t* values = (uint16_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11689,9 +11922,9 @@ bool modfn_array_uint16iter_(VMState* vm, int argcount, Value* args)
 }
 
 //--------- Unsigned INT 32 STARTS ----------------
-DynArray* new_uint32_array(VMState* vm, int length)
+DynArray* bl_object_makedynarrayuint32(VMState* vm, int length)
 {
-    DynArray* array = (DynArray*)allocate_object(vm, sizeof(DynArray), OBJ_BYTES);
+    DynArray* array = (DynArray*)bl_object_allocobject(vm, sizeof(DynArray), OBJ_BYTES);
     array->length = length;
     array->buffer = ALLOCATE(uint32_t, length);
     return array;
@@ -11700,18 +11933,18 @@ DynArray* new_uint32_array(VMState* vm, int length)
 bool modfn_array_uint32array(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(uint32array, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
-        RETURN_OBJ(new_array(vm, new_uint32_array(vm, (int)AS_NUMBER(args[0]))));
+        RETURN_OBJ(new_array(vm, bl_object_makedynarrayuint32(vm, (int)AS_NUMBER(args[0]))));
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
-        DynArray* array = new_uint32_array(vm, list->items.count);
+        ObjArray* list = AS_LIST(args[0]);
+        DynArray* array = bl_object_makedynarrayuint32(vm, list->items.count);
         uint32_t* values = (uint32_t*)array->buffer;
         for(int i = 0; i < list->items.count; i++)
         {
-            if(!IS_NUMBER(list->items.values[i]))
+            if(!bl_value_isnumber(list->items.values[i]))
             {
                 RETURN_ERROR("UInt32Array() expects a list of valid uint32");
             }
@@ -11725,25 +11958,25 @@ bool modfn_array_uint32array(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
-    ENFORCE_ARG_TYPE(append, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(append, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    if(IS_NUMBER(args[1]))
+    if(bl_value_isnumber(args[1]))
     {
         array->length++;
         array->buffer = GROW_ARRAY(uint32_t, array->buffer, array->length - 1, array->length);
         uint32_t* values = (uint32_t*)array->buffer;
         values[array->length - 1] = (uint32_t)AS_NUMBER(args[1]);
     }
-    else if(IS_LIST(args[1]))
+    else if(bl_value_isarray(args[1]))
     {
-        ObjList* list = AS_LIST(args[1]);
+        ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
             array->buffer = GROW_ARRAY(uint32_t, array->buffer, array->length, array->length + list->items.count);
             uint32_t* values = (uint32_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
-                if(!IS_NUMBER(list->items.values[i]))
+                if(!bl_value_isnumber(list->items.values[i]))
                 {
                     RETURN_ERROR("UInt32Array lists can only contain numbers");
                 }
@@ -11762,8 +11995,8 @@ bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
-    ENFORCE_ARG_TYPE(get, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(get, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(get, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t* data = (uint32_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11779,7 +12012,7 @@ bool modfn_array_uint32reverse(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(reverse, 1);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t* data = (uint32_t*)array->buffer;
-    DynArray* narray = new_uint32_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayuint32(vm, array->length);
     uint32_t* ndata = (uint32_t*)narray->buffer;
     for(int i = array->length - 1; i >= 0; i--)
     {
@@ -11791,9 +12024,9 @@ bool modfn_array_uint32reverse(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
-    ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(clone, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    DynArray* narray = new_uint32_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayuint32(vm, array->length);
     memcpy(narray->buffer, array->buffer, array->length);
     RETURN_OBJ(new_array(vm, narray));
 }
@@ -11801,7 +12034,7 @@ bool modfn_array_uint32clone(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32pop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
-    ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(pop, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t last = ((uint32_t*)array->buffer)[array->length - 1];
     array->length--;
@@ -11811,8 +12044,8 @@ bool modfn_array_uint32pop(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(remove, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t* values = (uint32_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11832,13 +12065,13 @@ bool modfn_array_uint32remove(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t* values = (uint32_t*)array->buffer;
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
-        write_list(vm, list, NUMBER_VAL((double)values[i]));
+        bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
     }
     RETURN_OBJ(list);
 }
@@ -11846,9 +12079,9 @@ bool modfn_array_uint32tolist(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32tobytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, array->length * 4));
+    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 4));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 4);
     RETURN_OBJ(bytes);
 }
@@ -11856,8 +12089,8 @@ bool modfn_array_uint32tobytes(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint32iter_(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
-    ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(@iter, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(@iter, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(@iter, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t* values = (uint32_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11869,9 +12102,9 @@ bool modfn_array_uint32iter_(VMState* vm, int argcount, Value* args)
 }
 
 //--------- Unsigned INT 64 STARTS ----------------
-DynArray* new_uint64_array(VMState* vm, int length)
+DynArray* bl_object_makedynarrayuint64(VMState* vm, int length)
 {
-    DynArray* array = (DynArray*)allocate_object(vm, sizeof(DynArray), OBJ_BYTES);
+    DynArray* array = (DynArray*)bl_object_allocobject(vm, sizeof(DynArray), OBJ_BYTES);
     array->length = length;
     array->buffer = ALLOCATE(int64_t, length);
     return array;
@@ -11880,18 +12113,18 @@ DynArray* new_uint64_array(VMState* vm, int length)
 bool modfn_array_uint64array(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(uint32array, 1);
-    if(IS_NUMBER(args[0]))
+    if(bl_value_isnumber(args[0]))
     {
-        RETURN_OBJ(new_array(vm, new_uint64_array(vm, (int)AS_NUMBER(args[0]))));
+        RETURN_OBJ(new_array(vm, bl_object_makedynarrayuint64(vm, (int)AS_NUMBER(args[0]))));
     }
-    else if(IS_LIST(args[0]))
+    else if(bl_value_isarray(args[0]))
     {
-        ObjList* list = AS_LIST(args[0]);
-        DynArray* array = new_uint64_array(vm, list->items.count);
+        ObjArray* list = AS_LIST(args[0]);
+        DynArray* array = bl_object_makedynarrayuint64(vm, list->items.count);
         uint64_t* values = (uint64_t*)array->buffer;
         for(int i = 0; i < list->items.count; i++)
         {
-            if(!IS_NUMBER(list->items.values[i]))
+            if(!bl_value_isnumber(list->items.values[i]))
             {
                 RETURN_ERROR("UInt32Array() expects a list of valid uint64");
             }
@@ -11905,25 +12138,25 @@ bool modfn_array_uint64array(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(append, 2);
-    ENFORCE_ARG_TYPE(append, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(append, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    if(IS_NUMBER(args[1]))
+    if(bl_value_isnumber(args[1]))
     {
         array->length++;
         array->buffer = GROW_ARRAY(uint64_t, array->buffer, array->length - 1, array->length);
         uint64_t* values = (uint64_t*)array->buffer;
         values[array->length - 1] = (uint64_t)AS_NUMBER(args[1]);
     }
-    else if(IS_LIST(args[1]))
+    else if(bl_value_isarray(args[1]))
     {
-        ObjList* list = AS_LIST(args[1]);
+        ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
             array->buffer = GROW_ARRAY(uint64_t, array->buffer, array->length, array->length + list->items.count);
             uint64_t* values = (uint64_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
-                if(!IS_NUMBER(list->items.values[i]))
+                if(!bl_value_isnumber(list->items.values[i]))
                 {
                     RETURN_ERROR("UInt64Array lists can only contain numbers");
                 }
@@ -11942,8 +12175,8 @@ bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64get(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(get, 2);
-    ENFORCE_ARG_TYPE(get, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(get, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(get, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(get, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t* data = (uint64_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -11959,7 +12192,7 @@ bool modfn_array_uint64reverse(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(reverse, 1);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t* data = (uint64_t*)array->buffer;
-    DynArray* narray = new_uint64_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayuint64(vm, array->length);
     uint64_t* ndata = (uint64_t*)narray->buffer;
     for(int i = array->length - 1; i >= 0; i--)
     {
@@ -11971,9 +12204,9 @@ bool modfn_array_uint64reverse(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 1);
-    ENFORCE_ARG_TYPE(clone, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(clone, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    DynArray* narray = new_uint64_array(vm, array->length);
+    DynArray* narray = bl_object_makedynarrayuint64(vm, array->length);
     memcpy(narray->buffer, array->buffer, array->length);
     RETURN_OBJ(new_array(vm, narray));
 }
@@ -11981,7 +12214,7 @@ bool modfn_array_uint64clone(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64pop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pop, 1);
-    ENFORCE_ARG_TYPE(pop, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(pop, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t last = ((uint64_t*)array->buffer)[array->length - 1];
     array->length--;
@@ -11991,8 +12224,8 @@ bool modfn_array_uint64pop(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64remove(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(remove, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t* values = (uint64_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -12012,13 +12245,13 @@ bool modfn_array_uint64remove(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t* values = (uint64_t*)array->buffer;
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
-        write_list(vm, list, NUMBER_VAL((double)values[i]));
+        bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
     }
     RETURN_OBJ(list);
 }
@@ -12026,9 +12259,9 @@ bool modfn_array_uint64tolist(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64tobytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
-    ENFORCE_ARG_TYPE(to_list, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)new_bytes(vm, array->length * 8));
+    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 8));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 8);
     RETURN_OBJ(bytes);
 }
@@ -12036,8 +12269,8 @@ bool modfn_array_uint64tobytes(VMState* vm, int argcount, Value* args)
 bool modfn_array_uint64iter_(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(@iter, 2);
-    ENFORCE_ARG_TYPE(@iter, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(@iter, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(@iter, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(@iter, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t* values = (uint64_t*)array->buffer;
     int index = AS_NUMBER(args[1]);
@@ -12052,7 +12285,7 @@ bool modfn_array_uint64iter_(VMState* vm, int argcount, Value* args)
 bool modfn_array_length(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(length, 1);
-    ENFORCE_ARG_TYPE(length, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(length, 0, bl_value_ispointer);
     ObjPointer* ptr = AS_PTR(args[0]);
     RETURN_NUMBER(((DynArray*)ptr->pointer)->length);
 }
@@ -12060,14 +12293,14 @@ bool modfn_array_length(VMState* vm, int argcount, Value* args)
 bool modfn_array_first(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 1);
-    ENFORCE_ARG_TYPE(first, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(first, 0, bl_value_ispointer);
     RETURN_NUMBER(((double*)((DynArray*)AS_PTR(args[0])->pointer)->buffer)[0]);
 }
 
 bool modfn_array_last(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(first, 1);
-    ENFORCE_ARG_TYPE(first, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(first, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     RETURN_NUMBER(((double*)array->buffer)[array->length - 1]);
 }
@@ -12075,8 +12308,8 @@ bool modfn_array_last(VMState* vm, int argcount, Value* args)
 bool modfn_array_extend(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(extend, 2);
-    ENFORCE_ARG_TYPE(extend, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(extend, 1, IS_PTR);
+    ENFORCE_ARG_TYPE(extend, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(extend, 1, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     DynArray* array2 = (DynArray*)AS_PTR(args[1])->pointer;
     array->buffer = GROW_ARRAY(void, array->buffer, array->length, array->length + array2->length);
@@ -12088,7 +12321,7 @@ bool modfn_array_extend(VMState* vm, int argcount, Value* args)
 bool modfn_array_tostring(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_string, 1);
-    ENFORCE_ARG_TYPE(to_string, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(to_string, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     RETURN_L_STRING(array->buffer, array->length);
 }
@@ -12096,16 +12329,16 @@ bool modfn_array_tostring(VMState* vm, int argcount, Value* args)
 bool modfn_array_itern_(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(@itern, 2);
-    ENFORCE_ARG_TYPE(@itern, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(@itern, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(@itern, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(@itern, 1, bl_value_isnumber);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    if(IS_NIL(args[1]))
+    if(bl_value_isnil(args[1]))
     {
         if(array->length == 0)
             RETURN_FALSE;
         RETURN_NUMBER(0);
     }
-    if(!IS_NUMBER(args[1]))
+    if(!bl_value_isnumber(args[1]))
     {
         RETURN_ERROR("Arrays are numerically indexed");
     }
@@ -12194,11 +12427,11 @@ RegModule* bl_modload_array(VMState* vm)
     return &module;
 }
 
-#define ADD_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), NUMBER_VAL(v))
-#define ADD_B_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), BOOL_VAL(v))
-#define ADD_G_TIME(n, l, v) dict_add_entry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, (int)strlen(v)))
+#define ADD_TIME(n, l, v) bl_dict_addentry(vm, dict, STRING_L_VAL(n, l), NUMBER_VAL(v))
+#define ADD_B_TIME(n, l, v) bl_dict_addentry(vm, dict, STRING_L_VAL(n, l), BOOL_VAL(v))
+#define ADD_G_TIME(n, l, v) bl_dict_addentry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, (int)strlen(v)))
 #if defined(_WIN32)
-    #define ADD_S_TIME(n, l, v, g) dict_add_entry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, g))
+    #define ADD_S_TIME(n, l, v, g) bl_dict_addentry(vm, dict, STRING_L_VAL(n, l), STRING_L_VAL(v, g))
 #endif
 bool modfn_io_mktime(VMState* vm, int argcount, Value* args)
 {
@@ -12207,16 +12440,16 @@ bool modfn_io_mktime(VMState* vm, int argcount, Value* args)
     {
         for(int i = 0; i < argcount; i++)
         {
-            ENFORCE_ARG_TYPE(mktime, i, IS_NUMBER);
+            ENFORCE_ARG_TYPE(mktime, i, bl_value_isnumber);
         }
     }
     else
     {
         for(int i = 0; i < 6; i++)
         {
-            ENFORCE_ARG_TYPE(mktime, i, IS_NUMBER);
+            ENFORCE_ARG_TYPE(mktime, i, bl_value_isnumber);
         }
-        ENFORCE_ARG_TYPE(mktime, 6, IS_BOOL);
+        ENFORCE_ARG_TYPE(mktime, 6, bl_value_isbool);
     }
     int year = -1900, month = 1, day = 1, hour = 0, minute = 0, seconds = 0, isdst = 0;
     year += AS_NUMBER(args[0]);
@@ -12251,7 +12484,7 @@ bool modfn_io_localtime(VMState* vm, int argcount, Value* args)
     (void)argcount;
     gettimeofday(&rawtime, NULL);
     localtime_r(&rawtime.tv_sec, &now);
-    dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
     ADD_TIME("year", 4, (double)now.tm_year + 1900);
     ADD_TIME("month", 5, (double)now.tm_mon + 1);
     ADD_TIME("day", 3, now.tm_mday);
@@ -12291,7 +12524,7 @@ bool modfn_io_gmtime(VMState* vm, int argcount, Value* args)
     (void)argcount;
     gettimeofday(&rawtime, NULL);
     gmtime_r(&rawtime.tv_sec, &now);
-    dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
     ADD_TIME("year", 4, (double)now.tm_year + 1900);
     ADD_TIME("month", 5, (double)now.tm_mon + 1);
     ADD_TIME("day", 3, now.tm_mday);
@@ -12349,7 +12582,7 @@ void disable_raw_mode(void)
 static struct termios nterm;
 static struct termios oterm;
 
-static int cbreak(int fd)
+static int bl_util_cbreak(int fd)
 {
     if((tcgetattr(fd, &oterm)) == -1)
         return -1;
@@ -12362,10 +12595,10 @@ static int cbreak(int fd)
     return 1;
 }
 
-int getch()
+int bl_util_getch()
 {
     int cinput;
-    if(cbreak(STDIN_FILENO) == -1)
+    if(bl_util_cbreak(STDIN_FILENO) == -1)
     {
         fprintf(stderr, "cbreak failure, exiting \n");
         exit(EXIT_FAILURE);
@@ -12406,7 +12639,7 @@ static int read_line(char line[], int max)
 bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(_tcgetattr, 1);
-    ENFORCE_ARG_TYPE(_tcsetattr, 0, IS_FILE);
+    ENFORCE_ARG_TYPE(_tcsetattr, 0, bl_value_isfile);
 #ifdef HAVE_TERMIOS_H
     ObjFile* file = AS_FILE(args[0]);
     if(!is_std_file(file))
@@ -12419,13 +12652,13 @@ bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
         RETURN_ERROR(strerror(errno));
     }
     // we have our attributes already
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    dict_add_entry(vm, dict, NUMBER_VAL(0), NUMBER_VAL(rawattr.c_iflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(1), NUMBER_VAL(rawattr.c_oflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(2), NUMBER_VAL(rawattr.c_cflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(3), NUMBER_VAL(rawattr.c_lflag));
-    dict_add_entry(vm, dict, NUMBER_VAL(4), NUMBER_VAL(rawattr.c_ispeed));
-    dict_add_entry(vm, dict, NUMBER_VAL(5), NUMBER_VAL(rawattr.c_ospeed));
+    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    bl_dict_addentry(vm, dict, NUMBER_VAL(0), NUMBER_VAL(rawattr.c_iflag));
+    bl_dict_addentry(vm, dict, NUMBER_VAL(1), NUMBER_VAL(rawattr.c_oflag));
+    bl_dict_addentry(vm, dict, NUMBER_VAL(2), NUMBER_VAL(rawattr.c_cflag));
+    bl_dict_addentry(vm, dict, NUMBER_VAL(3), NUMBER_VAL(rawattr.c_lflag));
+    bl_dict_addentry(vm, dict, NUMBER_VAL(4), NUMBER_VAL(rawattr.c_ispeed));
+    bl_dict_addentry(vm, dict, NUMBER_VAL(5), NUMBER_VAL(rawattr.c_ospeed));
     RETURN_OBJ(dict);
 #else
     RETURN_ERROR("tcgetattr() is not supported on this platform");
@@ -12442,9 +12675,9 @@ bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
 bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(_tcsetattr, 3);
-    ENFORCE_ARG_TYPE(_tcsetattr, 0, IS_FILE);
-    ENFORCE_ARG_TYPE(_tcsetattr, 1, IS_NUMBER);
-    ENFORCE_ARG_TYPE(_tcsetattr, 2, IS_DICT);
+    ENFORCE_ARG_TYPE(_tcsetattr, 0, bl_value_isfile);
+    ENFORCE_ARG_TYPE(_tcsetattr, 1, bl_value_isnumber);
+    ENFORCE_ARG_TYPE(_tcsetattr, 2, bl_value_isdict);
 #ifdef HAVE_TERMIOS_H
     ObjFile* file = AS_FILE(args[0]);
     int type = AS_NUMBER(args[1]);
@@ -12460,17 +12693,17 @@ bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
     // make sure we have good values so that we don't freeze the tty
     for(int i = 0; i < dict->names.count; i++)
     {
-        if(!IS_NUMBER(dict->names.values[i]) || AS_NUMBER(dict->names.values[i]) < 0 ||// c_iflag
+        if(!bl_value_isnumber(dict->names.values[i]) || AS_NUMBER(dict->names.values[i]) < 0 ||// c_iflag
            AS_NUMBER(dict->names.values[i]) > 5)
         {// ospeed
             RETURN_ERROR("attributes must be one of io TTY flags");
         }
         Value dummyvalue;
-        if(dict_get_entry(dict, dict->names.values[i], &dummyvalue))
+        if(bl_dict_getentry(dict, dict->names.values[i], &dummyvalue))
         {
-            if(!IS_NUMBER(dummyvalue))
+            if(!bl_value_isnumber(dummyvalue))
             {
-                RETURN_ERROR("TTY attribute cannot be %s", value_type(dummyvalue));
+                RETURN_ERROR("TTY attribute cannot be %s", bl_value_typename(dummyvalue));
             }
         }
     }
@@ -12478,27 +12711,27 @@ bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
     tcgetattr(STDIN_FILENO, &origtermios);
     atexit(disable_raw_mode);
     struct termios raw = origtermios;
-    if(dict_get_entry(dict, NUMBER_VAL(0), &iflag))
+    if(bl_dict_getentry(dict, NUMBER_VAL(0), &iflag))
     {
         raw.c_iflag = (long)AS_NUMBER(iflag);
     }
-    if(dict_get_entry(dict, NUMBER_VAL(1), &iflag))
+    if(bl_dict_getentry(dict, NUMBER_VAL(1), &iflag))
     {
         raw.c_oflag = (long)AS_NUMBER(oflag);
     }
-    if(dict_get_entry(dict, NUMBER_VAL(2), &iflag))
+    if(bl_dict_getentry(dict, NUMBER_VAL(2), &iflag))
     {
         raw.c_cflag = (long)AS_NUMBER(cflag);
     }
-    if(dict_get_entry(dict, NUMBER_VAL(3), &iflag))
+    if(bl_dict_getentry(dict, NUMBER_VAL(3), &iflag))
     {
         raw.c_lflag = (long)AS_NUMBER(lflag);
     }
-    if(dict_get_entry(dict, NUMBER_VAL(4), &iflag))
+    if(bl_dict_getentry(dict, NUMBER_VAL(4), &iflag))
     {
         raw.c_ispeed = (long)AS_NUMBER(ispeed);
     }
-    if(dict_get_entry(dict, NUMBER_VAL(5), &iflag))
+    if(bl_dict_getentry(dict, NUMBER_VAL(5), &iflag))
     {
         raw.c_ospeed = (long)AS_NUMBER(ospeed);
     }
@@ -12547,7 +12780,7 @@ bool modfn_io_ttyflush(VMState* vm, int argcount, Value* args)
 bool modfn_io_flush(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(flush, 1);
-    ENFORCE_ARG_TYPE(flush, 0, IS_FILE);
+    ENFORCE_ARG_TYPE(flush, 0, bl_value_isfile);
     ObjFile* file = AS_FILE(args[0]);
     if(file->isopen)
     {
@@ -12571,7 +12804,7 @@ bool modfn_io_getc(VMState* vm, int argcount, Value* args)
     int length = 1;
     if(argcount == 1)
     {
-        ENFORCE_ARG_TYPE(getc, 0, IS_NUMBER);
+        ENFORCE_ARG_TYPE(getc, 0, bl_value_isnumber);
         length = AS_NUMBER(args[0]);
     }
     char* result = ALLOCATE(char, (size_t)length + 2);
@@ -12580,7 +12813,7 @@ bool modfn_io_getc(VMState* vm, int argcount, Value* args)
 }
 
 /**
- * getch()
+ * bl_util_getch()
  *
  * reads character(s) from standard input without printing to standard output
  *
@@ -12590,9 +12823,9 @@ bool modfn_io_getc(VMState* vm, int argcount, Value* args)
  */
 bool modfn_io_getch(VMState* vm, int argcount, Value* args)
 {
-    ENFORCE_ARG_COUNT(getch, 0);
+    ENFORCE_ARG_COUNT(bl_util_getch, 0);
     char* result = ALLOCATE(char, 2);
-    result[0] = (char)getch();
+    result[0] = (char)bl_util_getch();
     result[1] = '\0';
     RETURN_L_STRING(result, 1);
 }
@@ -12605,7 +12838,7 @@ bool modfn_io_getch(VMState* vm, int argcount, Value* args)
 bool modfn_io_putc(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(putc, 1);
-    ENFORCE_ARG_TYPE(putc, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(putc, 0, bl_value_isstring);
     ObjString* string = AS_STRING(args[0]);
     int count = string->length;
 #ifdef _WIN32
@@ -12637,7 +12870,7 @@ Value io_module_stdin(VMState* vm)
     ObjString* name;
     name = copy_string(vm, "<stdin>", 7);
     mode = copy_string(vm, "rb", 2);
-    file = new_file(vm, name, mode);
+    file = bl_object_makefile(vm, name, mode);
     file->file = stdin;
     file->isopen = true;
     //file->mode = mode;
@@ -12656,7 +12889,7 @@ Value io_module_stdout(VMState* vm)
     ObjString* name;
     name = copy_string(vm, "<stdout>", 8);
     mode = copy_string(vm, "wb", 2);
-    file = new_file(vm, name, mode);
+    file = bl_object_makefile(vm, name, mode);
     file->file = stdout;
     file->isopen = true;
     return OBJ_VAL(file);
@@ -12674,7 +12907,7 @@ Value io_module_stderr(VMState* vm)
     ObjString* name;
     name = copy_string(vm, "<stderr>", 8);
     mode = copy_string(vm, "wb", 2);
-    file = new_file(vm, name, mode);
+    file = bl_object_makefile(vm, name, mode);
     file->file = stderr;
     file->isopen = true;
     return OBJ_VAL(file);
@@ -12725,159 +12958,159 @@ RegModule* bl_modload_io(VMState* vm)
 bool modfn_math_sin(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sin, 1);
-    ENFORCE_ARG_TYPE(sin, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(sin, 0, bl_value_isnumber);
     RETURN_NUMBER(sin(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_cos(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(cos, 1);
-    ENFORCE_ARG_TYPE(cos, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(cos, 0, bl_value_isnumber);
     RETURN_NUMBER(cos(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_tan(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(tan, 1);
-    ENFORCE_ARG_TYPE(tan, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(tan, 0, bl_value_isnumber);
     RETURN_NUMBER(tan(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_sinh(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sinh, 1);
-    ENFORCE_ARG_TYPE(sinh, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(sinh, 0, bl_value_isnumber);
     RETURN_NUMBER(sinh(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_cosh(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(cosh, 1);
-    ENFORCE_ARG_TYPE(cosh, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(cosh, 0, bl_value_isnumber);
     RETURN_NUMBER(cosh(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_tanh(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(tanh, 1);
-    ENFORCE_ARG_TYPE(tanh, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(tanh, 0, bl_value_isnumber);
     RETURN_NUMBER(tanh(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_asin(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(asin, 1);
-    ENFORCE_ARG_TYPE(asin, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(asin, 0, bl_value_isnumber);
     RETURN_NUMBER(asin(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_acos(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(acos, 1);
-    ENFORCE_ARG_TYPE(acos, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(acos, 0, bl_value_isnumber);
     RETURN_NUMBER(acos(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_atan(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(atan, 1);
-    ENFORCE_ARG_TYPE(atan, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(atan, 0, bl_value_isnumber);
     RETURN_NUMBER(atan(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_atan2(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(atan2, 2);
-    ENFORCE_ARG_TYPE(atan2, 0, IS_NUMBER);
-    ENFORCE_ARG_TYPE(atan2, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(atan2, 0, bl_value_isnumber);
+    ENFORCE_ARG_TYPE(atan2, 1, bl_value_isnumber);
     RETURN_NUMBER(atan2(AS_NUMBER(args[0]), AS_NUMBER(args[1])));
 }
 
 bool modfn_math_asinh(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(asinh, 1);
-    ENFORCE_ARG_TYPE(asinh, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(asinh, 0, bl_value_isnumber);
     RETURN_NUMBER(asinh(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_acosh(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(acosh, 1);
-    ENFORCE_ARG_TYPE(acosh, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(acosh, 0, bl_value_isnumber);
     RETURN_NUMBER(acosh(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_atanh(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(atanh, 1);
-    ENFORCE_ARG_TYPE(atanh, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(atanh, 0, bl_value_isnumber);
     RETURN_NUMBER(atanh(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_exp(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(exp, 1);
-    ENFORCE_ARG_TYPE(exp, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(exp, 0, bl_value_isnumber);
     RETURN_NUMBER(exp(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_expm1(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(expm1, 1);
-    ENFORCE_ARG_TYPE(expm1, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(expm1, 0, bl_value_isnumber);
     RETURN_NUMBER(expm1(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_ceil(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(ceil, 1);
-    ENFORCE_ARG_TYPE(ceil, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(ceil, 0, bl_value_isnumber);
     RETURN_NUMBER(ceil(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_round(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(round, 1);
-    ENFORCE_ARG_TYPE(round, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(round, 0, bl_value_isnumber);
     RETURN_NUMBER(round(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_log(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(log, 1);
-    ENFORCE_ARG_TYPE(log, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(log, 0, bl_value_isnumber);
     RETURN_NUMBER(log(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_log10(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(log10, 1);
-    ENFORCE_ARG_TYPE(log10, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(log10, 0, bl_value_isnumber);
     RETURN_NUMBER(log10(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_log2(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(log2, 1);
-    ENFORCE_ARG_TYPE(log2, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(log2, 0, bl_value_isnumber);
     RETURN_NUMBER(log2(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_log1p(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(log1p, 1);
-    ENFORCE_ARG_TYPE(log1p, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(log1p, 0, bl_value_isnumber);
     RETURN_NUMBER(log1p(AS_NUMBER(args[0])));
 }
 
 bool modfn_math_floor(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(floor, 1);
-    if(IS_NIL(args[0]))
+    if(bl_value_isnil(args[0]))
     {
         RETURN_NUMBER(0);
     }
-    ENFORCE_ARG_TYPE(floor, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(floor, 0, bl_value_isnumber);
     RETURN_NUMBER(floor(AS_NUMBER(args[0])));
 }
 
@@ -12916,7 +13149,7 @@ RegModule* bl_modload_math(VMState* vm)
 bool modfn_os_exec(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(exec, 1);
-    ENFORCE_ARG_TYPE(exec, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(exec, 0, bl_value_isstring);
     ObjString* string = AS_STRING(args[0]);
     if(string->length == 0)
     {
@@ -12978,12 +13211,12 @@ bool modfn_os_info(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("could not access os information");
     }
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    dict_add_entry(vm, dict, GC_L_STRING("sysname", 7), GC_STRING(os.sysname));
-    dict_add_entry(vm, dict, GC_L_STRING("nodename", 8), GC_STRING(os.nodename));
-    dict_add_entry(vm, dict, GC_L_STRING("version", 7), GC_STRING(os.version));
-    dict_add_entry(vm, dict, GC_L_STRING("release", 7), GC_STRING(os.release));
-    dict_add_entry(vm, dict, GC_L_STRING("machine", 7), GC_STRING(os.machine));
+    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    bl_dict_addentry(vm, dict, GC_L_STRING("sysname", 7), GC_STRING(os.sysname));
+    bl_dict_addentry(vm, dict, GC_L_STRING("nodename", 8), GC_STRING(os.nodename));
+    bl_dict_addentry(vm, dict, GC_L_STRING("version", 7), GC_STRING(os.version));
+    bl_dict_addentry(vm, dict, GC_L_STRING("release", 7), GC_STRING(os.release));
+    bl_dict_addentry(vm, dict, GC_L_STRING("machine", 7), GC_STRING(os.machine));
     RETURN_OBJ(dict);
 #else
     RETURN_ERROR("not available: OS does not have uname()")
@@ -12993,7 +13226,7 @@ bool modfn_os_info(VMState* vm, int argcount, Value* args)
 bool modfn_os_sleep(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sleep, 1);
-    ENFORCE_ARG_TYPE(sleep, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(sleep, 0, bl_value_isnumber);
     sleep((int)AS_NUMBER(args[0]));
     return bl_value_returnempty(vm, args);;
 }
@@ -13041,12 +13274,12 @@ Value get_os_platform(VMState* vm)
 
 Value get_blade_os_args(VMState* vm)
 {
-    ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
     if(vm->stdargs != NULL)
     {
         for(int i = 0; i < vm->stdargscount; i++)
         {
-            write_list(vm, list, GC_STRING(vm->stdargs[i]));
+            bl_array_push(vm, list, GC_STRING(vm->stdargs[i]));
         }
     }
     gc_clear_protection(vm);
@@ -13061,7 +13294,7 @@ Value get_blade_os_path_separator(VMState* vm)
 bool modfn_os_getenv(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(getenv, 1);
-    ENFORCE_ARG_TYPE(getenv, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(getenv, 0, bl_value_isstring);
     char* env = getenv(AS_C_STRING(args[0]));
     if(env != NULL)
     {
@@ -13076,12 +13309,12 @@ bool modfn_os_getenv(VMState* vm, int argcount, Value* args)
 bool modfn_os_setenv(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_RANGE(setenv, 2, 3);
-    ENFORCE_ARG_TYPE(setenv, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(setenv, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(setenv, 0, bl_value_isstring);
+    ENFORCE_ARG_TYPE(setenv, 1, bl_value_isstring);
     int overwrite = 1;
     if(argcount == 3)
     {
-        ENFORCE_ARG_TYPE(setenv, 2, IS_BOOL);
+        ENFORCE_ARG_TYPE(setenv, 2, bl_value_isbool);
         overwrite = AS_BOOL(args[2]) ? 1 : 0;
     }
 #ifdef _WIN32
@@ -13097,9 +13330,9 @@ bool modfn_os_setenv(VMState* vm, int argcount, Value* args)
 bool modfn_os_createdir(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(createdir, 3);
-    ENFORCE_ARG_TYPE(createdir, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(createdir, 1, IS_NUMBER);
-    ENFORCE_ARG_TYPE(createdir, 2, IS_BOOL);
+    ENFORCE_ARG_TYPE(createdir, 0, bl_value_isstring);
+    ENFORCE_ARG_TYPE(createdir, 1, bl_value_isnumber);
+    ENFORCE_ARG_TYPE(createdir, 2, bl_value_isbool);
     ObjString* path = AS_STRING(args[0]);
     int mode = AS_NUMBER(args[1]);
     bool isrecursive = AS_BOOL(args[2]);
@@ -13151,16 +13384,16 @@ bool modfn_os_createdir(VMState* vm, int argcount, Value* args)
 bool modfn_os_readdir(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(readdir, 1);
-    ENFORCE_ARG_TYPE(readdir, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(readdir, 0, bl_value_isstring);
     ObjString* path = AS_STRING(args[0]);
     DIR* dir;
     if((dir = opendir(path->chars)) != NULL)
     {
-        ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
+        ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
         struct dirent* ent;
         while((ent = readdir(dir)) != NULL)
         {
-            write_list(vm, list, GC_STRING(ent->d_name));
+            bl_array_push(vm, list, GC_STRING(ent->d_name));
         }
         closedir(dir);
         RETURN_OBJ(list);
@@ -13222,8 +13455,8 @@ static int remove_directory(char* path, int pathlength, bool recursive)
 bool modfn_os_removedir(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(removedir, 2);
-    ENFORCE_ARG_TYPE(removedir, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(removedir, 1, IS_BOOL);
+    ENFORCE_ARG_TYPE(removedir, 0, bl_value_isstring);
+    ENFORCE_ARG_TYPE(removedir, 1, bl_value_isbool);
     ObjString* path = AS_STRING(args[0]);
     bool recursive = AS_BOOL(args[1]);
     if(remove_directory(path->chars, path->length, recursive) >= 0)
@@ -13236,8 +13469,8 @@ bool modfn_os_removedir(VMState* vm, int argcount, Value* args)
 bool modfn_os_chmod(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(chmod, 2);
-    ENFORCE_ARG_TYPE(chmod, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(chmod, 1, IS_NUMBER);
+    ENFORCE_ARG_TYPE(chmod, 0, bl_value_isstring);
+    ENFORCE_ARG_TYPE(chmod, 1, bl_value_isnumber);
     ObjString* path = AS_STRING(args[0]);
     int mode = AS_NUMBER(args[1]);
     if(chmod(path->chars, mode) != 0)
@@ -13250,7 +13483,7 @@ bool modfn_os_chmod(VMState* vm, int argcount, Value* args)
 bool modfn_os_isdir(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(isdir, 1);
-    ENFORCE_ARG_TYPE(isdir, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(isdir, 0, bl_value_isstring);
     ObjString* path = AS_STRING(args[0]);
     struct stat sb;
     if(stat(path->chars, &sb) == 0)
@@ -13263,7 +13496,7 @@ bool modfn_os_isdir(VMState* vm, int argcount, Value* args)
 bool modfn_os_exit(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(exit, 1);
-    ENFORCE_ARG_TYPE(exit, 0, IS_NUMBER);
+    ENFORCE_ARG_TYPE(exit, 0, bl_value_isnumber);
     exit((int)AS_NUMBER(args[0]));
     return bl_value_returnempty(vm, args);;
 }
@@ -13282,7 +13515,7 @@ bool modfn_os_cwd(VMState* vm, int argcount, Value* args)
 bool modfn_os_realpath(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(_realpath, 1);
-    ENFORCE_ARG_TYPE(_realpath, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(_realpath, 0, bl_value_isstring);
     char* path = realpath(AS_C_STRING(args[0]), NULL);
     if(path != NULL)
     {
@@ -13294,14 +13527,14 @@ bool modfn_os_realpath(VMState* vm, int argcount, Value* args)
 bool modfn_os_chdir(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(chdir, 1);
-    ENFORCE_ARG_TYPE(chdir, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(chdir, 0, bl_value_isstring);
     RETURN_BOOL(chdir(AS_STRING(args[0])->chars) == 0);
 }
 
 bool modfn_os_exists(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(exists, 1);
-    ENFORCE_ARG_TYPE(exists, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(exists, 0, bl_value_isstring);
     struct stat sb;
     if(stat(AS_STRING(args[0])->chars, &sb) == 0 && sb.st_mode & S_IFDIR)
     {
@@ -13313,7 +13546,7 @@ bool modfn_os_exists(VMState* vm, int argcount, Value* args)
 bool modfn_os_dirname(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(dirname, 1);
-    ENFORCE_ARG_TYPE(dirname, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(dirname, 0, bl_value_isstring);
     char* dir = dirname(AS_STRING(args[0])->chars);
     if(!dir)
     {
@@ -13325,7 +13558,7 @@ bool modfn_os_dirname(VMState* vm, int argcount, Value* args)
 bool modfn_os_basename(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(basename, 1);
-    ENFORCE_ARG_TYPE(basename, 0, IS_STRING);
+    ENFORCE_ARG_TYPE(basename, 0, bl_value_isstring);
     char* dir = basename(AS_STRING(args[0])->chars);
     if(!dir)
     {
@@ -13457,7 +13690,7 @@ bool modfn_process_process(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_RANGE(Process, 0, 1);
     BProcess* process = ALLOCATE(BProcess, 1);
-    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)new_ptr(vm, process));
+    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)bl_dict_makeptr(vm, process));
     ptr->name = "<*Process::Process>";
     process->pid = -1;
     RETURN_OBJ(ptr);
@@ -13466,7 +13699,7 @@ bool modfn_process_process(VMState* vm, int argcount, Value* args)
 bool modfn_process_create(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
-    ENFORCE_ARG_TYPE(create, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(create, 0, bl_value_ispointer);
     BProcess* process = (BProcess*)AS_PTR(args[0])->pointer;
     pid_t pid = fork();
     if(pid == -1)
@@ -13484,7 +13717,7 @@ bool modfn_process_create(VMState* vm, int argcount, Value* args)
 bool modfn_process_isalive(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
-    ENFORCE_ARG_TYPE(create, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(create, 0, bl_value_ispointer);
     BProcess* process = (BProcess*)AS_PTR(args[0])->pointer;
     RETURN_BOOL(waitpid(process->pid, NULL, WNOHANG) == 0);
 }
@@ -13492,7 +13725,7 @@ bool modfn_process_isalive(VMState* vm, int argcount, Value* args)
 bool modfn_process_kill(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(kill, 1);
-    ENFORCE_ARG_TYPE(kill, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(kill, 0, bl_value_ispointer);
     BProcess* process = (BProcess*)AS_PTR(args[0])->pointer;
     RETURN_BOOL(kill(process->pid, SIGKILL) == 0);
 }
@@ -13500,7 +13733,7 @@ bool modfn_process_kill(VMState* vm, int argcount, Value* args)
 bool modfn_process_wait(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
-    ENFORCE_ARG_TYPE(create, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(create, 0, bl_value_ispointer);
     BProcess* process = (BProcess*)AS_PTR(args[0])->pointer;
     int status;
     waitpid(process->pid, &status, 0);
@@ -13525,7 +13758,7 @@ bool modfn_process_wait(VMState* vm, int argcount, Value* args)
 bool modfn_process_id(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(create, 1);
-    ENFORCE_ARG_TYPE(create, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(create, 0, bl_value_ispointer);
     BProcess* process = (BProcess*)AS_PTR(args[0])->pointer;
     RETURN_NUMBER(process->pid);
 }
@@ -13538,7 +13771,7 @@ bool modfn_process_newshared(VMState* vm, int argcount, Value* args)
     shared->format = mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     shared->getformat = mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     shared->length = shared->getformatlength = shared->formatlength = 0;
-    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)new_ptr(vm, shared));
+    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)bl_dict_makeptr(vm, shared));
     ptr->name = "<*Process::SharedValue>";
     ptr->fnptrfree = b__free_shared_memory;
     RETURN_OBJ(ptr);
@@ -13547,10 +13780,10 @@ bool modfn_process_newshared(VMState* vm, int argcount, Value* args)
 bool modfn_process_sharedwrite(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sharedwrite, 4);
-    ENFORCE_ARG_TYPE(sharedwrite, 0, IS_PTR);
-    ENFORCE_ARG_TYPE(sharedwrite, 1, IS_STRING);
-    ENFORCE_ARG_TYPE(sharedwrite, 2, IS_STRING);
-    ENFORCE_ARG_TYPE(sharedwrite, 3, IS_BYTES);
+    ENFORCE_ARG_TYPE(sharedwrite, 0, bl_value_ispointer);
+    ENFORCE_ARG_TYPE(sharedwrite, 1, bl_value_isstring);
+    ENFORCE_ARG_TYPE(sharedwrite, 2, bl_value_isstring);
+    ENFORCE_ARG_TYPE(sharedwrite, 3, bl_value_isbytes);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     if(!shared->locked)
     {
@@ -13572,15 +13805,15 @@ bool modfn_process_sharedwrite(VMState* vm, int argcount, Value* args)
 bool modfn_process_sharedread(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sharedread, 1);
-    ENFORCE_ARG_TYPE(sharedread, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(sharedread, 0, bl_value_ispointer);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     if(shared->length > 0 || shared->formatlength > 0)
     {
         ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)copy_bytes(vm, shared->bytes, shared->length));
         // return [format, bytes]
-        ObjList* list = (ObjList*)gc_protect(vm, (Object*)new_list(vm));
-        write_list(vm, list, GC_L_STRING(shared->getformat, shared->getformatlength));
-        write_list(vm, list, OBJ_VAL(bytes));
+        ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+        bl_array_push(vm, list, GC_L_STRING(shared->getformat, shared->getformatlength));
+        bl_array_push(vm, list, OBJ_VAL(bytes));
         RETURN_OBJ(list);
     }
     return bl_value_returnnil(vm, args);
@@ -13589,7 +13822,7 @@ bool modfn_process_sharedread(VMState* vm, int argcount, Value* args)
 bool modfn_process_sharedlock(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sharedlock, 1);
-    ENFORCE_ARG_TYPE(sharedlock, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(sharedlock, 0, bl_value_ispointer);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = true;
     return bl_value_returnempty(vm, args);;
@@ -13598,7 +13831,7 @@ bool modfn_process_sharedlock(VMState* vm, int argcount, Value* args)
 bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sharedunlock, 1);
-    ENFORCE_ARG_TYPE(sharedunlock, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(sharedunlock, 0, bl_value_ispointer);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = false;
     return bl_value_returnempty(vm, args);;
@@ -13607,7 +13840,7 @@ bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args)
 bool modfn_process_sharedislocked(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(sharedislocked, 1);
-    ENFORCE_ARG_TYPE(sharedislocked, 0, IS_PTR);
+    ENFORCE_ARG_TYPE(sharedislocked, 0, bl_value_ispointer);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     RETURN_BOOL(shared->locked);
 }
@@ -13637,7 +13870,7 @@ RegModule* bl_modload_process(VMState* vm)
     return &module;
 }
 
-extern bool call_value(VMState* vm, Value callee, int argcount);
+extern bool bl_vmdo_callvalue(VMState* vm, Value callee, int argcount);
 
 /**
  * hasprop(object: instance, name: string)
@@ -13647,11 +13880,11 @@ extern bool call_value(VMState* vm, Value callee, int argcount);
 bool modfn_reflect_hasprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(hasprop, 2);
-    ENFORCE_ARG_TYPE(hasprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(hasprop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(hasprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(hasprop, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value dummy;
-    RETURN_BOOL(table_get(&instance->properties, args[1], &dummy));
+    RETURN_BOOL(bl_hashtable_get(&instance->properties, args[1], &dummy));
 }
 
 /**
@@ -13664,11 +13897,11 @@ bool modfn_reflect_hasprop(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_getprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(getprop, 2);
-    ENFORCE_ARG_TYPE(getprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(getprop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(getprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(getprop, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value value;
-    if(table_get(&instance->properties, args[1], &value))
+    if(bl_hashtable_get(&instance->properties, args[1], &value))
     {
         RETURN_VALUE(value);
     }
@@ -13687,11 +13920,11 @@ bool modfn_reflect_getprop(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_setprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(setprop, 3);
-    ENFORCE_ARG_TYPE(setprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(setprop, 1, IS_STRING);
-    ENFORCE_ARG_TYPE(setprop, 2, IS_STRING);
+    ENFORCE_ARG_TYPE(setprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(setprop, 1, bl_value_isstring);
+    ENFORCE_ARG_TYPE(setprop, 2, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
-    RETURN_BOOL(table_set(vm, &instance->properties, args[1], args[2]));
+    RETURN_BOOL(bl_hashtable_set(vm, &instance->properties, args[1], args[2]));
 }
 
 /**
@@ -13703,10 +13936,10 @@ bool modfn_reflect_setprop(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_delprop(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(delprop, 2);
-    ENFORCE_ARG_TYPE(delprop, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(delprop, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(delprop, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(delprop, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
-    RETURN_BOOL(table_delete(&instance->properties, args[1]));
+    RETURN_BOOL(bl_hashtable_delete(&instance->properties, args[1]));
 }
 
 /**
@@ -13718,11 +13951,11 @@ bool modfn_reflect_delprop(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_hasmethod(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(hasmethod, 2);
-    ENFORCE_ARG_TYPE(hasmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(hasmethod, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(hasmethod, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(hasmethod, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value dummy;
-    RETURN_BOOL(table_get(&instance->klass->methods, args[1], &dummy));
+    RETURN_BOOL(bl_hashtable_get(&instance->klass->methods, args[1], &dummy));
 }
 
 /**
@@ -13735,11 +13968,11 @@ bool modfn_reflect_hasmethod(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_getmethod(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(getmethod, 2);
-    ENFORCE_ARG_TYPE(getmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(getmethod, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(getmethod, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(getmethod, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value value;
-    if(table_get(&instance->klass->methods, args[1], &value))
+    if(bl_hashtable_get(&instance->klass->methods, args[1], &value))
     {
         RETURN_VALUE(value);
     }
@@ -13749,24 +13982,24 @@ bool modfn_reflect_getmethod(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_MIN_ARG(callmethod, 3);
-    ENFORCE_ARG_TYPE(callmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(callmethod, 1, IS_STRING);
-    ENFORCE_ARG_TYPE(callmethod, 2, IS_LIST);
+    ENFORCE_ARG_TYPE(callmethod, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(callmethod, 1, bl_value_isstring);
+    ENFORCE_ARG_TYPE(callmethod, 2, bl_value_isarray);
     Value value;
-    if(table_get(&AS_INSTANCE(args[0])->klass->methods, args[1], &value))
+    if(bl_hashtable_get(&AS_INSTANCE(args[0])->klass->methods, args[1], &value))
     {
-        ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)new_bound_method(vm, args[0], AS_CLOSURE(value)));
-        ObjList* list = AS_LIST(args[2]);
+        ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(value)));
+        ObjArray* list = AS_LIST(args[2]);
         // remove the args list, the string name and the instance
         // then push the bound method
-        pop_n(vm, 3);
-        push(vm, OBJ_VAL(bound));
+        bl_vm_popvaluen(vm, 3);
+        bl_vm_pushvalue(vm, OBJ_VAL(bound));
         // convert the list into function args
         for(int i = 0; i < list->items.count; i++)
         {
-            push(vm, list->items.values[i]);
+            bl_vm_pushvalue(vm, list->items.values[i]);
         }
-        return call_value(vm, OBJ_VAL(bound), list->items.count);
+        return bl_vmdo_callvalue(vm, OBJ_VAL(bound), list->items.count);
     }
     return bl_value_returnempty(vm, args);;
 }
@@ -13774,22 +14007,22 @@ bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_bindmethod(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(delist, 2);
-    ENFORCE_ARG_TYPE(delist, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(delist, 1, IS_CLOSURE);
-    ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)new_bound_method(vm, args[0], AS_CLOSURE(args[1])));
+    ENFORCE_ARG_TYPE(delist, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(delist, 1, bl_value_isclosure);
+    ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(args[1])));
     RETURN_OBJ(bound);
 }
 
 bool modfn_reflect_getboundmethod(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(getmethod, 2);
-    ENFORCE_ARG_TYPE(getmethod, 0, IS_INSTANCE);
-    ENFORCE_ARG_TYPE(getmethod, 1, IS_STRING);
+    ENFORCE_ARG_TYPE(getmethod, 0, bl_value_isinstance);
+    ENFORCE_ARG_TYPE(getmethod, 1, bl_value_isstring);
     ObjInstance* instance = AS_INSTANCE(args[0]);
     Value value;
-    if(table_get(&instance->klass->methods, args[1], &value))
+    if(bl_hashtable_get(&instance->klass->methods, args[1], &value))
     {
-        ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)new_bound_method(vm, args[0], AS_CLOSURE(value)));
+        ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(value)));
         RETURN_OBJ(bound);
     }
     return bl_value_returnnil(vm, args);
@@ -13798,28 +14031,28 @@ bool modfn_reflect_getboundmethod(VMState* vm, int argcount, Value* args)
 bool modfn_reflect_gettype(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(gettype, 1);
-    ENFORCE_ARG_TYPE(gettype, 0, IS_INSTANCE);
+    ENFORCE_ARG_TYPE(gettype, 0, bl_value_isinstance);
     RETURN_OBJ(AS_INSTANCE(args[0])->klass->name);
 }
 
 bool modfn_reflect_isptr(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(isptr, 1);
-    RETURN_BOOL(IS_PTR(args[0]));
+    RETURN_BOOL(bl_value_ispointer(args[0]));
 }
 
 bool modfn_reflect_getfunctionmetadata(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(getfunctionmetadata, 1);
-    ENFORCE_ARG_TYPE(getfunctionmetadata, 0, IS_CLOSURE);
+    ENFORCE_ARG_TYPE(getfunctionmetadata, 0, bl_value_isclosure);
     ObjClosure* closure = AS_CLOSURE(args[0]);
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
-    dict_set_entry(vm, result, GC_STRING("name"), OBJ_VAL(closure->fnptr->name));
-    dict_set_entry(vm, result, GC_STRING("arity"), NUMBER_VAL(closure->fnptr->arity));
-    dict_set_entry(vm, result, GC_STRING("isvariadic"), NUMBER_VAL(closure->fnptr->isvariadic));
-    dict_set_entry(vm, result, GC_STRING("capturedvars"), NUMBER_VAL(closure->upvaluecount));
-    dict_set_entry(vm, result, GC_STRING("module"), STRING_VAL(closure->fnptr->module->name));
-    dict_set_entry(vm, result, GC_STRING("file"), STRING_VAL(closure->fnptr->module->file));
+    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    bl_dict_setentry(vm, result, GC_STRING("name"), OBJ_VAL(closure->fnptr->name));
+    bl_dict_setentry(vm, result, GC_STRING("arity"), NUMBER_VAL(closure->fnptr->arity));
+    bl_dict_setentry(vm, result, GC_STRING("isvariadic"), NUMBER_VAL(closure->fnptr->isvariadic));
+    bl_dict_setentry(vm, result, GC_STRING("capturedvars"), NUMBER_VAL(closure->upvaluecount));
+    bl_dict_setentry(vm, result, GC_STRING("module"), STRING_VAL(closure->fnptr->module->name));
+    bl_dict_setentry(vm, result, GC_STRING("file"), STRING_VAL(closure->fnptr->module->file));
     RETURN_OBJ(result);
 }
 
@@ -13881,47 +14114,23 @@ RegModule* bl_modload_reflect(VMState* vm)
 #ifndef MAX
     #define MAX(a, b) (a > b ? a : b)
 #endif
-static uint16_t reverse_int16(uint16_t arg)
-{
-    return ((arg & 0xFF) << 8) | ((arg >> 8) & 0xFF);
-}
 
-static uint32_t reverse_int32(uint32_t arg)
-{
-    uint32_t result;
-    result = ((arg & 0xFF) << 24) | ((arg & 0xFF00) << 8) | ((arg >> 8) & 0xFF00) | ((arg >> 24) & 0xFF);
-    return result;
-}
-
-static uint64_t reverse_int64(uint64_t arg)
-{
-    union swaptag
-    {
-        uint64_t i;
-        uint32_t ul[2];
-    } tmp, result;
-
-    tmp.i = arg;
-    result.ul[0] = reverse_int32(tmp.ul[1]);
-    result.ul[1] = reverse_int32(tmp.ul[0]);
-    return result.i;
-}
 
 static long to_long(VMState* vm, Value value)
 {
-    if(IS_NUMBER(value))
+    if(bl_value_isnumber(value))
     {
         return (long)AS_NUMBER(value);
     }
-    else if(IS_BOOL(value))
+    else if(bl_value_isbool(value))
     {
         return AS_BOOL(value) ? 1L : 0L;
     }
-    else if(IS_NIL(value))
+    else if(bl_value_isnil(value))
     {
         return -1L;
     }
-    const char* v = (const char*)value_to_string(vm, value);
+    const char* v = (const char*)bl_value_tostring(vm, value);
     int length = (int)strlen(v);
     int start = 0, end = 1, multiplier = 1;
     if(v[0] == '-')
@@ -13952,19 +14161,19 @@ static long to_long(VMState* vm, Value value)
 
 static double to_double(VMState* vm, Value value)
 {
-    if(IS_NUMBER(value))
+    if(bl_value_isnumber(value))
     {
         return AS_NUMBER(value);
     }
-    else if(IS_BOOL(value))
+    else if(bl_value_isbool(value))
     {
         return AS_BOOL(value) ? 1 : 0;
     }
-    else if(IS_NIL(value))
+    else if(bl_value_isnil(value))
     {
         return -1;
     }
-    const char* v = (const char*)value_to_string(vm, value);
+    const char* v = (const char*)bl_value_tostring(vm, value);
     int length = (int)strlen(v);
     int start = 0, end = 1, multiplier = 1;
     if(v[0] == '-')
@@ -14004,104 +14213,7 @@ static void do_pack(VMState* vm, Value val, size_t size, const int* map, unsigne
     }
 }
 
-static void copy_float(int islittleendian, void* dst, float f)
-{
-    union floattag
-    {
-        float f;
-        uint32_t i;
-    } m;
 
-    m.f = f;
-#if IS_BIG_ENDIAN
-    if(islittleendian)
-    {
-#else
-    if(!islittleendian)
-    {
-#endif
-        m.i = reverse_int32(m.i);
-    }
-
-    memcpy(dst, &m.f, sizeof(float));
-}
-
-static void copy_double(int islittleendian, void* dst, double d)
-{
-    union doubletag
-    {
-        double d;
-        uint64_t i;
-    } m;
-
-    m.d = d;
-#if IS_BIG_ENDIAN
-    if(islittleendian)
-    {
-#else
-    if(!islittleendian)
-    {
-#endif
-        m.i = reverse_int64(m.i);
-    }
-
-    memcpy(dst, &m.d, sizeof(double));
-}
-
-static char* ulong_to_buffer(char* buf, long num)
-{
-    *buf = '\0';
-    do
-    {
-        *--buf = (char)((char)(num % 10) + '0');
-        num /= 10;
-    } while(num > 0);
-    return buf;
-}
-
-static float parse_float(int islittleendian, void* src)
-{
-    union floattag
-    {
-        float f;
-        uint32_t i;
-    } m;
-
-    memcpy(&m.i, src, sizeof(float));
-#if IS_BIG_ENDIAN
-    if(islittleendian)
-    {
-#else
-    if(!islittleendian)
-    {
-#endif
-        m.i = reverse_int32(m.i);
-    }
-
-    return m.f;
-}
-
-static double parse_double(int islittleendian, void* src)
-{
-    union doubletag
-    {
-        double d;
-        uint64_t i;
-    } m;
-
-    memcpy(&m.i, src, sizeof(double));
-#if IS_BIG_ENDIAN
-    if(islittleendian)
-    {
-#else
-    if(!islittleendian)
-    {
-#endif
-        m.i = reverse_int64(m.i);
-    }
-
-    return m.d;
-}
 
 /* Mapping of byte from char (8bit) to long for machine endian */
 static int bytemap[1];
@@ -14115,19 +14227,21 @@ static int littleendianshortmap[2];
 static int machineendianlongmap[4];
 static int bigendianlongmap[4];
 static int littleendianlongmap[4];
+
 #if IS_64_BIT
 /* Mappings of bytes from quads (64bit) for all endian environments */
 static int machineendianlonglongmap[8];
 static int bigendianlonglongmap[8];
 static int littleendianlonglongmap[8];
 #endif
+
 bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(pack, 2);
-    ENFORCE_ARG_TYPE(pack, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(pack, 1, IS_LIST);
+    ENFORCE_ARG_TYPE(pack, 0, bl_value_isstring);
+    ENFORCE_ARG_TYPE(pack, 1, bl_value_isarray);
     ObjString* string = AS_STRING(args[0]);
-    ObjList* params = AS_LIST(args[1]);
+    ObjArray* params = AS_LIST(args[1]);
     Value* argslist = params->items.values;
     int paramcount = params->items.count;
     size_t i;
@@ -14190,7 +14304,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 }
                 if(arg < 0)
                 {
-                    char* asstring = value_to_string(vm, argslist[currentarg]);
+                    char* asstring = bl_value_tostring(vm, argslist[currentarg]);
                     arg = (int)strlen(asstring);
                     if(code == 'Z')
                     {
@@ -14345,7 +14459,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             case 'Z':
             {
                 size_t argcp = (code != 'Z') ? arg : MAX(0, arg - 1);
-                char* str = value_to_string(vm, argslist[currentarg++]);
+                char* str = bl_value_tostring(vm, argslist[currentarg++]);
                 memset(&output[outputpos], (code == 'a' || code == 'Z') ? '\0' : ' ', arg);
                 memcpy(&output[outputpos], str, (strlen(str) < argcp) ? strlen(str) : argcp);
                 outputpos += arg;
@@ -14356,7 +14470,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
             {
                 int nibbleshift = (code == 'h') ? 0 : 4;
                 int first = 1;
-                char* str = value_to_string(vm, argslist[currentarg++]);
+                char* str = bl_value_tostring(vm, argslist[currentarg++]);
                 outputpos--;
                 if((size_t)arg > strlen(str))
                 {
@@ -14498,7 +14612,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 while(arg-- > 0)
                 {
                     float v = (float)to_double(vm, argslist[currentarg++]);
-                    copy_float(1, &output[outputpos], v);
+                    bl_util_copyfloat(1, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
                 break;
@@ -14509,7 +14623,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 while(arg-- > 0)
                 {
                     float v = (float)to_double(vm, argslist[currentarg++]);
-                    copy_float(0, &output[outputpos], v);
+                    bl_util_copyfloat(0, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
                 break;
@@ -14530,7 +14644,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 while(arg-- > 0)
                 {
                     double v = to_double(vm, argslist[currentarg++]);
-                    copy_double(1, &output[outputpos], v);
+                    bl_util_copydouble(1, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
                 break;
@@ -14541,7 +14655,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
                 while(arg-- > 0)
                 {
                     double v = to_double(vm, argslist[currentarg++]);
-                    copy_double(0, &output[outputpos], v);
+                    bl_util_copydouble(0, &output[outputpos], v);
                     outputpos += sizeof(v);
                 }
                 break;
@@ -14593,9 +14707,9 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
     ObjString* string;
     ObjBytes* data;
     ENFORCE_ARG_COUNT(unpack, 3);
-    ENFORCE_ARG_TYPE(unpack, 0, IS_STRING);
-    ENFORCE_ARG_TYPE(unpack, 1, IS_BYTES);
-    ENFORCE_ARG_TYPE(unpack, 2, IS_NUMBER);
+    ENFORCE_ARG_TYPE(unpack, 0, bl_value_isstring);
+    ENFORCE_ARG_TYPE(unpack, 1, bl_value_isbytes);
+    ENFORCE_ARG_TYPE(unpack, 2, bl_value_isnumber);
     string = AS_STRING(args[0]);
     data = AS_BYTES(args[1]);
     offset = AS_NUMBER(args[2]);
@@ -14610,7 +14724,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
     }
     input += offset;
     inputlen -= offset;
-    returnvalue = (ObjDict*)gc_protect(vm, (Object*)new_dict(vm));
+    returnvalue = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
     while(formatlen-- > 0)
     {
         type = *(format++);
@@ -14651,55 +14765,59 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
         }
         switch((int)type)
         {
-            /* Never use any input */
             case 'X':
-            {
-                size = -1;
-                if(repetitions < 0)
                 {
-                    // TODO: Give warning...
-                    //          RETURN_ERROR("Type %c: '*' ignored", type);
-                    repetitions = 1;
+                    /* Never use any input */
+                    size = -1;
+                    if(repetitions < 0)
+                    {
+                        // TODO: Give warning...
+                        //          RETURN_ERROR("Type %c: '*' ignored", type);
+                        repetitions = 1;
+                    }
                 }
-            }
-            break;
+                break;
             case '@':
-            {
-                size = 0;
-            }
-            break;
+                {
+                    size = 0;
+                }
+                break;
             case 'a':
             case 'A':
             case 'Z':
-            {
-                size = repetitions;
-                repetitions = 1;
-            }
-            break;
+                {
+                    size = repetitions;
+                    repetitions = 1;
+                }
+                break;
             case 'h':
             case 'H':
-            {
-                size = (repetitions > 0) ? (repetitions + (repetitions % 2)) / 2 : repetitions;
-                repetitions = 1;
-            }
-            break;
-                /* Use 1 byte of input */
+                {
+                    size = repetitions;
+                    if(repetitions > 0)
+                    {
+                        size = (repetitions + (repetitions % 2)) / 2;
+                    }
+                    repetitions = 1;
+                }
+                break;
             case 'c':
             case 'C':
             case 'x':
-            {
-                size = 1;
-            }
-            break;
-                /* Use 2 bytes of input */
+                {
+                    /* Use 1 byte of input */
+                    size = 1;
+                }
+                break;
             case 's':
             case 'S':
             case 'n':
             case 'v':
-            {
-                size = 2;
-            }
-            break;
+                {
+                    /* Use 2 bytes of input */
+                    size = 2;
+                }
+                break;
                 /* Use sizeof(int) bytes of input */
             case 'i':
             case 'I':
@@ -14707,21 +14825,21 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                 size = sizeof(int);
             }
             break;
-                /* Use 4 bytes of input */
             case 'l':
             case 'L':
             case 'N':
             case 'V':
             {
+                /* Use 4 bytes of input */
                 size = 4;
             }
             break;
-                /* Use 8 bytes of input */
             case 'q':
             case 'Q':
             case 'J':
             case 'P':
             {
+                /* Use 8 bytes of input */
 #if IS_64_BIT
                 size = 8;
                 break;
@@ -14781,7 +14899,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                 {
                     /* Need to add the 1-based element number to the name */
                     char buf[MAX_LENGTH_OF_LONG + 1];
-                    char* res = ulong_to_buffer(buf + sizeof(buf) - 1, i + 1);
+                    char* res = bl_util_ulongtobuffer(buf + sizeof(buf) - 1, i + 1);
                     size_t digits = buf + sizeof(buf) - 1 - res;
                     realname = ALLOCATE(char, namelen + digits);
                     if(realname == NULL)
@@ -14804,7 +14922,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                             len = size;
                         }
                         size = (int)len;
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
                     }
                     break;
                     case 'A':
@@ -14832,7 +14950,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                                 break;
                             }
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len + 1));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len + 1));
                         break;
                     }
                         /* New option added for Z to remain in-line with the Perl implementation */
@@ -14854,7 +14972,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                                 break;
                         }
                         len = s;
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
                         break;
                     }
                     case 'h':
@@ -14894,7 +15012,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                             }
                         }
                         buf[len] = '\0';
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(buf, len));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(buf, len));
                         break;
                     }
                     case 'c': /* signed */
@@ -14902,7 +15020,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                     { /* unsigned */
                         uint8_t x = input[inputpos];
                         long v = (type == 'c') ? (int8_t)x : x;
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                         break;
                     }
                     case 's': /* signed machine endian   */
@@ -14918,13 +15036,13 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         }
                         else if((type == 'n' && IS_LITTLE_ENDIAN) || (type == 'v' && !IS_LITTLE_ENDIAN))
                         {
-                            v = reverse_int16(x);
+                            v = bl_util_reverseint16(x);
                         }
                         else
                         {
                             v = x;
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                     }
                     break;
                     case 'i': /* signed integer, machine size, machine endian */
@@ -14941,7 +15059,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                             unsigned int x = *((unsigned int*)&input[inputpos]);
                             v = x;
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                     }
                     break;
                     case 'l': /* signed machine endian   */
@@ -14957,13 +15075,13 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         }
                         else if((type == 'N' && IS_LITTLE_ENDIAN) || (type == 'V' && !IS_LITTLE_ENDIAN))
                         {
-                            v = reverse_int32(x);
+                            v = bl_util_reverseint32(x);
                         }
                         else
                         {
                             v = x;
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                     }
                     break;
                     case 'q': /* signed machine endian   */
@@ -14980,13 +15098,13 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         }
                         else if((type == 'J' && IS_LITTLE_ENDIAN) || (type == 'P' && !IS_LITTLE_ENDIAN))
                         {
-                            v = reverse_int64(x);
+                            v = bl_util_reverseint64(x);
                         }
                         else
                         {
                             v = x;
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
 #else
                         RETURN_ERROR("q, Q, J and P are only valid on 64 bit build of Blade");
 #endif
@@ -14999,17 +15117,17 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         float v;
                         if(type == 'g')
                         {
-                            v = parse_float(1, &input[inputpos]);
+                            v = bl_util_parsefloat(1, &input[inputpos]);
                         }
                         else if(type == 'G')
                         {
-                            v = parse_float(0, &input[inputpos]);
+                            v = bl_util_parsefloat(0, &input[inputpos]);
                         }
                         else
                         {
                             memcpy(&v, &input[inputpos], sizeof(float));
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                     }
                     break;
                     case 'd': /* double */
@@ -15019,17 +15137,17 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         double v;
                         if(type == 'e')
                         {
-                            v = parse_double(1, &input[inputpos]);
+                            v = bl_util_parsedouble(1, &input[inputpos]);
                         }
                         else if(type == 'E')
                         {
-                            v = parse_double(0, &input[inputpos]);
+                            v = bl_util_parsedouble(0, &input[inputpos]);
                         }
                         else
                         {
                             memcpy(&v, &input[inputpos], sizeof(double));
                         }
-                        dict_set_entry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+                        bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
                     }
                     break;
                     case 'x':
@@ -15096,7 +15214,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
     RETURN_OBJ(returnvalue);
 }
 
-void __struct_module_preloader(VMState* vm)
+void modfn_struct_modulepreloader(VMState* vm)
 {
     int i;
     (void)vm;
@@ -15215,20 +15333,20 @@ RegModule* bl_modload_struct(VMState* vm)
         { NULL, false, NULL },
     };
     static RegModule module
-    = { .name = "_struct", .fields = NULL, .functions = modulefunctions, .classes = NULL, .preloader = &__struct_module_preloader, .unloader = NULL };
+    = { .name = "_struct", .fields = NULL, .functions = modulefunctions, .classes = NULL, .preloader = &modfn_struct_modulepreloader, .unloader = NULL };
     return &module;
 }
 
 #define ERR_CANT_ASSIGN_EMPTY "empty cannot be assigned."
 
-static void reset_stack(VMState* vm)
+static void bl_vm_resetstack(VMState* vm)
 {
     vm->stacktop = vm->stack;
     vm->framecount = 0;
     vm->openupvalues = NULL;
 }
 
-static Value get_stack_trace(VMState* vm)
+static Value bl_vm_getstacktrace(VMState* vm)
 {
     char* trace = calloc(0, sizeof(char));
     if(trace != NULL)
@@ -15259,7 +15377,7 @@ static Value get_stack_trace(VMState* vm)
 
 bool bl_vm_propagateexception(VMState* vm, bool isassert)
 {
-    ObjInstance* exception = AS_INSTANCE(peek(vm, 0));
+    ObjInstance* exception = AS_INSTANCE(bl_vm_peekvalue(vm, 0));
     while(vm->framecount > 0)
     {
         CallFrame* frame = &vm->frames[vm->framecount - 1];
@@ -15274,7 +15392,7 @@ bool bl_vm_propagateexception(VMState* vm, bool isassert)
             }
             else if(handler.finallyaddress != 0)
             {
-                push(vm, TRUE_VAL);// continue propagating once the 'finally' block completes
+                bl_vm_pushvalue(vm, TRUE_VAL);// continue propagating once the 'finally' block completes
                 frame->ip = &function->blob.code[handler.finallyaddress];
                 return true;
             }
@@ -15291,9 +15409,9 @@ bool bl_vm_propagateexception(VMState* vm, bool isassert)
     {
         fprintf(stderr, "Illegal State");
     }
-    if(table_get(&exception->properties, STRING_L_VAL("message", 7), &message))
+    if(bl_hashtable_get(&exception->properties, STRING_L_VAL("message", 7), &message))
     {
-        char* errormessage = value_to_string(vm, message);
+        char* errormessage = bl_value_tostring(vm, message);
         if(strlen(errormessage) > 0)
         {
             fprintf(stderr, ": %s", errormessage);
@@ -15308,9 +15426,9 @@ bool bl_vm_propagateexception(VMState* vm, bool isassert)
     {
         fprintf(stderr, "\n");
     }
-    if(table_get(&exception->properties, STRING_L_VAL("stacktrace", 10), &trace))
+    if(bl_hashtable_get(&exception->properties, STRING_L_VAL("stacktrace", 10), &trace))
     {
-        char* tracestr = value_to_string(vm, trace);
+        char* tracestr = bl_value_tostring(vm, trace);
         fprintf(stderr, "  StackTrace:\n%s\n", tracestr);
         free(tracestr);
     }
@@ -15339,14 +15457,14 @@ bool bl_vm_throwexception(VMState* vm, bool isassert, const char* format, ...)
     char* message = NULL;
     int length = vasprintf(&message, format, args);
     va_end(args);
-    ObjInstance* instance = create_exception(vm, take_string(vm, message, length));
-    push(vm, OBJ_VAL(instance));
-    Value stacktrace = get_stack_trace(vm);
-    table_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
+    ObjInstance* instance = bl_object_makeexception(vm, take_string(vm, message, length));
+    bl_vm_pushvalue(vm, OBJ_VAL(instance));
+    Value stacktrace = bl_vm_getstacktrace(vm);
+    bl_hashtable_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
     return bl_vm_propagateexception(vm, isassert);
 }
 
-static void initialize_exceptions(VMState* vm, ObjModule* module)
+static void bl_vm_initexceptions(VMState* vm, ObjModule* module)
 {
     size_t slen;
     const char* sstr;
@@ -15355,58 +15473,49 @@ static void initialize_exceptions(VMState* vm, ObjModule* module)
     slen = strlen(sstr);
     //classname = copy_string(vm, sstr, slen);
     classname = bl_string_fromallocated(vm, strdup(sstr), slen, bl_util_hashstring(sstr, slen));
-    push(vm, OBJ_VAL(classname));
-    ObjClass* klass = new_class(vm, classname);
-    pop(vm);
-    push(vm, OBJ_VAL(klass));
-    ObjFunction* function = new_function(vm, module, TYPE_METHOD);
-    pop(vm);
+    bl_vm_pushvalue(vm, OBJ_VAL(classname));
+    ObjClass* klass = bl_object_makeclass(vm, classname);
+    bl_vm_popvalue(vm);
+    bl_vm_pushvalue(vm, OBJ_VAL(klass));
+    ObjFunction* function = bl_object_makescriptfunction(vm, module, TYPE_METHOD);
+    bl_vm_popvalue(vm);
     function->arity = 1;
     function->isvariadic = false;
     // gloc 0
-    write_blob(vm, &function->blob, OP_GET_LOCAL, 0);
-    write_blob(vm, &function->blob, (0 >> 8) & 0xff, 0);
-    write_blob(vm, &function->blob, 0 & 0xff, 0);
+    bl_blob_write(vm, &function->blob, OP_GET_LOCAL, 0);
+    bl_blob_write(vm, &function->blob, (0 >> 8) & 0xff, 0);
+    bl_blob_write(vm, &function->blob, 0 & 0xff, 0);
     // gloc 1
-    write_blob(vm, &function->blob, OP_GET_LOCAL, 0);
-    write_blob(vm, &function->blob, (1 >> 8) & 0xff, 0);
-    write_blob(vm, &function->blob, 1 & 0xff, 0);
-    int messageconst = add_constant(vm, &function->blob, STRING_L_VAL("message", 7));
+    bl_blob_write(vm, &function->blob, OP_GET_LOCAL, 0);
+    bl_blob_write(vm, &function->blob, (1 >> 8) & 0xff, 0);
+    bl_blob_write(vm, &function->blob, 1 & 0xff, 0);
+    int messageconst = bl_blob_addconst(vm, &function->blob, STRING_L_VAL("message", 7));
     // sprop 1
-    write_blob(vm, &function->blob, OP_SET_PROPERTY, 0);
-    write_blob(vm, &function->blob, (messageconst >> 8) & 0xff, 0);
-    write_blob(vm, &function->blob, messageconst & 0xff, 0);
+    bl_blob_write(vm, &function->blob, OP_SET_PROPERTY, 0);
+    bl_blob_write(vm, &function->blob, (messageconst >> 8) & 0xff, 0);
+    bl_blob_write(vm, &function->blob, messageconst & 0xff, 0);
     // pop
-    write_blob(vm, &function->blob, OP_POP, 0);
+    bl_blob_write(vm, &function->blob, OP_POP, 0);
     // gloc 0
-    write_blob(vm, &function->blob, OP_GET_LOCAL, 0);
-    write_blob(vm, &function->blob, (0 >> 8) & 0xff, 0);
-    write_blob(vm, &function->blob, 0 & 0xff, 0);
+    bl_blob_write(vm, &function->blob, OP_GET_LOCAL, 0);
+    bl_blob_write(vm, &function->blob, (0 >> 8) & 0xff, 0);
+    bl_blob_write(vm, &function->blob, 0 & 0xff, 0);
     // ret
-    write_blob(vm, &function->blob, OP_RETURN, 0);
-    push(vm, OBJ_VAL(function));
-    ObjClosure* closure = new_closure(vm, function);
-    pop(vm);
+    bl_blob_write(vm, &function->blob, OP_RETURN, 0);
+    bl_vm_pushvalue(vm, OBJ_VAL(function));
+    ObjClosure* closure = bl_object_makeclosure(vm, function);
+    bl_vm_popvalue(vm);
     // set class constructor
-    push(vm, OBJ_VAL(closure));
-    table_set(vm, &klass->methods, OBJ_VAL(classname), OBJ_VAL(closure));
+    bl_vm_pushvalue(vm, OBJ_VAL(closure));
+    bl_hashtable_set(vm, &klass->methods, OBJ_VAL(classname), OBJ_VAL(closure));
     klass->initializer = OBJ_VAL(closure);
     // set class properties
-    table_set(vm, &klass->properties, STRING_L_VAL("message", 7), NIL_VAL);
-    table_set(vm, &klass->properties, STRING_L_VAL("stacktrace", 10), NIL_VAL);
-    table_set(vm, &vm->globals, OBJ_VAL(classname), OBJ_VAL(klass));
-    pop(vm);
-    pop(vm);// assert error name
+    bl_hashtable_set(vm, &klass->properties, STRING_L_VAL("message", 7), NIL_VAL);
+    bl_hashtable_set(vm, &klass->properties, STRING_L_VAL("stacktrace", 10), NIL_VAL);
+    bl_hashtable_set(vm, &vm->globals, OBJ_VAL(classname), OBJ_VAL(klass));
+    bl_vm_popvalue(vm);
+    bl_vm_popvalue(vm);// assert error name
     vm->exceptionclass = klass;
-}
-
-ObjInstance* create_exception(VMState* vm, ObjString* message)
-{
-    ObjInstance* instance = new_instance(vm, vm->exceptionclass);
-    push(vm, OBJ_VAL(instance));
-    table_set(vm, &instance->properties, STRING_L_VAL("message", 7), OBJ_VAL(message));
-    pop(vm);
-    return instance;
 }
 
 void bl_vm_runtimeerror(VMState* vm, const char* format, ...)
@@ -15444,46 +15553,46 @@ void bl_vm_runtimeerror(VMState* vm, const char* format, ...)
             fprintf(stderr, "\n");
         }
     }
-    reset_stack(vm);
+    bl_vm_resetstack(vm);
 }
 
-void push(VMState* vm, Value value)
+void bl_vm_pushvalue(VMState* vm, Value value)
 {
     *vm->stacktop = value;
     vm->stacktop++;
 }
 
-Value pop(VMState* vm)
+Value bl_vm_popvalue(VMState* vm)
 {
     vm->stacktop--;
     return *vm->stacktop;
 }
 
-Value pop_n(VMState* vm, int n)
+Value bl_vm_popvaluen(VMState* vm, int n)
 {
     vm->stacktop -= n;
     return *vm->stacktop;
 }
 
-Value peek(VMState* vm, int distance)
+Value bl_vm_peekvalue(VMState* vm, int distance)
 {
     return vm->stacktop[-1 - distance];
 }
 
 static void define_native(VMState* vm, const char* name, NativeCallbackFunc function)
 {
-    push(vm, STRING_VAL(name));
-    push(vm, OBJ_VAL(new_native(vm, function, name)));
-    table_set(vm, &vm->globals, vm->stack[0], vm->stack[1]);
-    pop_n(vm, 2);
+    bl_vm_pushvalue(vm, STRING_VAL(name));
+    bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makenativefunction(vm, function, name)));
+    bl_hashtable_set(vm, &vm->globals, vm->stack[0], vm->stack[1]);
+    bl_vm_popvaluen(vm, 2);
 }
 
-void define_native_method(VMState* vm, HashTable* table, const char* name, NativeCallbackFunc function)
+void bl_object_defnativemethod(VMState* vm, HashTable* table, const char* name, NativeCallbackFunc function)
 {
-    push(vm, STRING_VAL(name));
-    push(vm, OBJ_VAL(new_native(vm, function, name)));
-    table_set(vm, table, vm->stack[0], vm->stack[1]);
-    pop_n(vm, 2);
+    bl_vm_pushvalue(vm, STRING_VAL(name));
+    bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makenativefunction(vm, function, name)));
+    bl_hashtable_set(vm, table, vm->stack[0], vm->stack[1]);
+    bl_vm_popvaluen(vm, 2);
 }
 
 static void init_builtin_functions(VMState* vm)
@@ -15537,154 +15646,154 @@ static void init_builtin_methods(VMState* vm)
 {
     {
         // string methods
-        define_native_method(vm, &vm->methodsstring, "length", objfn_string_length);
-        define_native_method(vm, &vm->methodsstring, "upper", objfn_string_upper);
-        define_native_method(vm, &vm->methodsstring, "lower", objfn_string_lower);
-        define_native_method(vm, &vm->methodsstring, "is_alpha", objfn_string_isalpha);
-        define_native_method(vm, &vm->methodsstring, "isalnum", objfn_string_isalnum);
-        define_native_method(vm, &vm->methodsstring, "is_number", objfn_string_isnumber);
-        define_native_method(vm, &vm->methodsstring, "islower", objfn_string_islower);
-        define_native_method(vm, &vm->methodsstring, "isupper", objfn_string_isupper);
-        define_native_method(vm, &vm->methodsstring, "isspace", objfn_string_isspace);
-        define_native_method(vm, &vm->methodsstring, "trim", objfn_string_trim);
-        define_native_method(vm, &vm->methodsstring, "ltrim", objfn_string_ltrim);
-        define_native_method(vm, &vm->methodsstring, "rtrim", objfn_string_rtrim);
-        define_native_method(vm, &vm->methodsstring, "join", objfn_string_join);
-        define_native_method(vm, &vm->methodsstring, "split", objfn_string_split);
-        define_native_method(vm, &vm->methodsstring, "indexof", objfn_string_indexof);
-        define_native_method(vm, &vm->methodsstring, "startswith", objfn_string_startswith);
-        define_native_method(vm, &vm->methodsstring, "endswith", objfn_string_endswith);
-        define_native_method(vm, &vm->methodsstring, "count", objfn_string_count);
-        define_native_method(vm, &vm->methodsstring, "to_number", objfn_string_tonumber);
-        define_native_method(vm, &vm->methodsstring, "to_list", objfn_string_tolist);
-        define_native_method(vm, &vm->methodsstring, "tobytes", objfn_string_tobytes);
-        define_native_method(vm, &vm->methodsstring, "lpad", objfn_string_lpad);
-        define_native_method(vm, &vm->methodsstring, "rpad", objfn_string_rpad);
-        define_native_method(vm, &vm->methodsstring, "match", objfn_string_match);
-        define_native_method(vm, &vm->methodsstring, "matches", objfn_string_matches);
-        define_native_method(vm, &vm->methodsstring, "replace", objfn_string_replace);
-        define_native_method(vm, &vm->methodsstring, "ascii", objfn_string_ascii);
-        define_native_method(vm, &vm->methodsstring, "@iter", objfn_string_iter);
-        define_native_method(vm, &vm->methodsstring, "@itern", objfn_string_itern);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "length", objfn_string_length);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "upper", objfn_string_upper);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "lower", objfn_string_lower);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "is_alpha", objfn_string_isalpha);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "isalnum", objfn_string_isalnum);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "is_number", objfn_string_isnumber);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "islower", objfn_string_islower);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "isupper", objfn_string_isupper);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "isspace", objfn_string_isspace);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "trim", objfn_string_trim);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "ltrim", objfn_string_ltrim);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "rtrim", objfn_string_rtrim);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "join", objfn_string_join);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "split", objfn_string_split);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "indexof", objfn_string_indexof);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "startswith", objfn_string_startswith);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "endswith", objfn_string_endswith);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "count", objfn_string_count);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "to_number", objfn_string_tonumber);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "to_list", objfn_string_tolist);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "tobytes", objfn_string_tobytes);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "lpad", objfn_string_lpad);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "rpad", objfn_string_rpad);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "match", objfn_string_match);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "matches", objfn_string_matches);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "replace", objfn_string_replace);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "ascii", objfn_string_ascii);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "@iter", objfn_string_iter);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "@itern", objfn_string_itern);
     }
     {
         // list methods
-        define_native_method(vm, &vm->methodslist, "length", objfn_list_length);
-        define_native_method(vm, &vm->methodslist, "append", objfn_list_append);
-        define_native_method(vm, &vm->methodslist, "push", objfn_list_append);
-        define_native_method(vm, &vm->methodslist, "clear", objfn_list_clear);
-        define_native_method(vm, &vm->methodslist, "clone", objfn_list_clone);
-        define_native_method(vm, &vm->methodslist, "count", objfn_list_count);
-        define_native_method(vm, &vm->methodslist, "extend", objfn_list_extend);
-        define_native_method(vm, &vm->methodslist, "indexof", objfn_list_indexof);
-        define_native_method(vm, &vm->methodslist, "insert", objfn_list_insert);
-        define_native_method(vm, &vm->methodslist, "pop", objfn_list_pop);
-        define_native_method(vm, &vm->methodslist, "shift", objfn_list_shift);
-        define_native_method(vm, &vm->methodslist, "remove_at", objfn_list_removeat);
-        define_native_method(vm, &vm->methodslist, "remove", objfn_list_remove);
-        define_native_method(vm, &vm->methodslist, "reverse", objfn_list_reverse);
-        define_native_method(vm, &vm->methodslist, "sort", objfn_list_sort);
-        define_native_method(vm, &vm->methodslist, "contains", objfn_list_contains);
-        define_native_method(vm, &vm->methodslist, "delete", objfn_list_delete);
-        define_native_method(vm, &vm->methodslist, "first", objfn_list_first);
-        define_native_method(vm, &vm->methodslist, "last", objfn_list_last);
-        define_native_method(vm, &vm->methodslist, "isempty", objfn_list_isempty);
-        define_native_method(vm, &vm->methodslist, "take", objfn_list_take);
-        define_native_method(vm, &vm->methodslist, "get", objfn_list_get);
-        define_native_method(vm, &vm->methodslist, "compact", objfn_list_compact);
-        define_native_method(vm, &vm->methodslist, "unique", objfn_list_unique);
-        define_native_method(vm, &vm->methodslist, "zip", objfn_list_zip);
-        define_native_method(vm, &vm->methodslist, "to_dict", objfn_list_todict);
-        define_native_method(vm, &vm->methodslist, "@iter", objfn_list_iter);
-        define_native_method(vm, &vm->methodslist, "@itern", objfn_list_itern);
+        bl_object_defnativemethod(vm, &vm->methodslist, "length", objfn_list_length);
+        bl_object_defnativemethod(vm, &vm->methodslist, "append", objfn_list_append);
+        bl_object_defnativemethod(vm, &vm->methodslist, "push", objfn_list_append);
+        bl_object_defnativemethod(vm, &vm->methodslist, "clear", objfn_list_clear);
+        bl_object_defnativemethod(vm, &vm->methodslist, "clone", objfn_list_clone);
+        bl_object_defnativemethod(vm, &vm->methodslist, "count", objfn_list_count);
+        bl_object_defnativemethod(vm, &vm->methodslist, "extend", objfn_list_extend);
+        bl_object_defnativemethod(vm, &vm->methodslist, "indexof", objfn_list_indexof);
+        bl_object_defnativemethod(vm, &vm->methodslist, "insert", objfn_list_insert);
+        bl_object_defnativemethod(vm, &vm->methodslist, "pop", objfn_list_pop);
+        bl_object_defnativemethod(vm, &vm->methodslist, "shift", objfn_list_shift);
+        bl_object_defnativemethod(vm, &vm->methodslist, "remove_at", objfn_list_removeat);
+        bl_object_defnativemethod(vm, &vm->methodslist, "remove", objfn_list_remove);
+        bl_object_defnativemethod(vm, &vm->methodslist, "reverse", objfn_list_reverse);
+        bl_object_defnativemethod(vm, &vm->methodslist, "sort", objfn_list_sort);
+        bl_object_defnativemethod(vm, &vm->methodslist, "contains", objfn_list_contains);
+        bl_object_defnativemethod(vm, &vm->methodslist, "delete", objfn_list_delete);
+        bl_object_defnativemethod(vm, &vm->methodslist, "first", objfn_list_first);
+        bl_object_defnativemethod(vm, &vm->methodslist, "last", objfn_list_last);
+        bl_object_defnativemethod(vm, &vm->methodslist, "isempty", objfn_list_isempty);
+        bl_object_defnativemethod(vm, &vm->methodslist, "take", objfn_list_take);
+        bl_object_defnativemethod(vm, &vm->methodslist, "get", objfn_list_get);
+        bl_object_defnativemethod(vm, &vm->methodslist, "compact", objfn_list_compact);
+        bl_object_defnativemethod(vm, &vm->methodslist, "unique", objfn_list_unique);
+        bl_object_defnativemethod(vm, &vm->methodslist, "zip", objfn_list_zip);
+        bl_object_defnativemethod(vm, &vm->methodslist, "to_dict", objfn_list_todict);
+        bl_object_defnativemethod(vm, &vm->methodslist, "@iter", objfn_list_iter);
+        bl_object_defnativemethod(vm, &vm->methodslist, "@itern", objfn_list_itern);
     }
     {
         // dictionary methods
-        define_native_method(vm, &vm->methodsdict, "length", objfn_dict_length);
-        define_native_method(vm, &vm->methodsdict, "add", objfn_dict_add);
-        define_native_method(vm, &vm->methodsdict, "set", objfn_dict_set);
-        define_native_method(vm, &vm->methodsdict, "clear", objfn_dict_clear);
-        define_native_method(vm, &vm->methodsdict, "clone", objfn_dict_clone);
-        define_native_method(vm, &vm->methodsdict, "compact", objfn_dict_compact);
-        define_native_method(vm, &vm->methodsdict, "contains", objfn_dict_contains);
-        define_native_method(vm, &vm->methodsdict, "extend", objfn_dict_extend);
-        define_native_method(vm, &vm->methodsdict, "get", objfn_dict_get);
-        define_native_method(vm, &vm->methodsdict, "keys", objfn_dict_keys);
-        define_native_method(vm, &vm->methodsdict, "values", objfn_dict_values);
-        define_native_method(vm, &vm->methodsdict, "remove", objfn_dict_remove);
-        define_native_method(vm, &vm->methodsdict, "isempty", objfn_dict_isempty);
-        define_native_method(vm, &vm->methodsdict, "findkey", objfn_dict_findkey);
-        define_native_method(vm, &vm->methodsdict, "to_list", objfn_dict_tolist);
-        define_native_method(vm, &vm->methodsdict, "@iter", objfn_dict_iter);
-        define_native_method(vm, &vm->methodsdict, "@itern", objfn_dict_itern);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "length", objfn_dict_length);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "add", objfn_dict_add);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "set", objfn_dict_set);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "clear", objfn_dict_clear);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "clone", objfn_dict_clone);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "compact", objfn_dict_compact);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "contains", objfn_dict_contains);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "extend", objfn_dict_extend);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "get", objfn_dict_get);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "keys", objfn_dict_keys);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "values", objfn_dict_values);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "remove", objfn_dict_remove);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "isempty", objfn_dict_isempty);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "findkey", objfn_dict_findkey);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "to_list", objfn_dict_tolist);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "@iter", objfn_dict_iter);
+        bl_object_defnativemethod(vm, &vm->methodsdict, "@itern", objfn_dict_itern);
     }
     {
         // file methods
-        define_native_method(vm, &vm->methodsfile, "exists", objfn_file_exists);
-        define_native_method(vm, &vm->methodsfile, "close", objfn_file_close);
-        define_native_method(vm, &vm->methodsfile, "open", objfn_file_open);
-        define_native_method(vm, &vm->methodsfile, "read", objfn_file_read);
-        define_native_method(vm, &vm->methodsfile, "gets", objfn_file_gets);
-        define_native_method(vm, &vm->methodsfile, "write", objfn_file_write);
-        define_native_method(vm, &vm->methodsfile, "puts", objfn_file_puts);
-        define_native_method(vm, &vm->methodsfile, "number", objfn_file_number);
-        define_native_method(vm, &vm->methodsfile, "istty", objfn_file_istty);
-        define_native_method(vm, &vm->methodsfile, "isopen", objfn_file_isopen);
-        define_native_method(vm, &vm->methodsfile, "isclosed", objfn_file_isclosed);
-        define_native_method(vm, &vm->methodsfile, "flush", objfn_file_flush);
-        define_native_method(vm, &vm->methodsfile, "stats", objfn_file_stats);
-        define_native_method(vm, &vm->methodsfile, "symlink", objfn_file_symlink);
-        define_native_method(vm, &vm->methodsfile, "delete", objfn_file_delete);
-        define_native_method(vm, &vm->methodsfile, "rename", objfn_file_rename);
-        define_native_method(vm, &vm->methodsfile, "path", objfn_file_path);
-        define_native_method(vm, &vm->methodsfile, "abspath", objfn_file_abspath);
-        define_native_method(vm, &vm->methodsfile, "copy", objfn_file_copy);
-        define_native_method(vm, &vm->methodsfile, "truncate", objfn_file_truncate);
-        define_native_method(vm, &vm->methodsfile, "chmod", objfn_file_chmod);
-        define_native_method(vm, &vm->methodsfile, "settimes", objfn_file_settimes);
-        define_native_method(vm, &vm->methodsfile, "seek", objfn_file_seek);
-        define_native_method(vm, &vm->methodsfile, "tell", objfn_file_tell);
-        define_native_method(vm, &vm->methodsfile, "mode", objfn_file_mode);
-        define_native_method(vm, &vm->methodsfile, "name", objfn_file_name);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "exists", objfn_file_exists);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "close", objfn_file_close);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "open", objfn_file_open);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "read", objfn_file_read);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "gets", objfn_file_gets);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "write", objfn_file_write);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "puts", objfn_file_puts);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "number", objfn_file_number);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "istty", objfn_file_istty);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "isopen", objfn_file_isopen);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "isclosed", objfn_file_isclosed);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "flush", objfn_file_flush);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "stats", objfn_file_stats);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "symlink", objfn_file_symlink);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "delete", objfn_file_delete);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "rename", objfn_file_rename);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "path", objfn_file_path);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "abspath", objfn_file_abspath);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "copy", objfn_file_copy);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "truncate", objfn_file_truncate);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "chmod", objfn_file_chmod);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "settimes", objfn_file_settimes);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "seek", objfn_file_seek);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "tell", objfn_file_tell);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "mode", objfn_file_mode);
+        bl_object_defnativemethod(vm, &vm->methodsfile, "name", objfn_file_name);
     }
     {
         // bytes
-        define_native_method(vm, &vm->methodsbytes, "length", objfn_bytes_length);
-        define_native_method(vm, &vm->methodsbytes, "append", objfn_bytes_append);
-        define_native_method(vm, &vm->methodsbytes, "clone", objfn_bytes_clone);
-        define_native_method(vm, &vm->methodsbytes, "extend", objfn_bytes_extend);
-        define_native_method(vm, &vm->methodsbytes, "pop", objfn_bytes_pop);
-        define_native_method(vm, &vm->methodsbytes, "remove", objfn_bytes_remove);
-        define_native_method(vm, &vm->methodsbytes, "reverse", objfn_bytes_reverse);
-        define_native_method(vm, &vm->methodsbytes, "first", objfn_bytes_first);
-        define_native_method(vm, &vm->methodsbytes, "last", objfn_bytes_last);
-        define_native_method(vm, &vm->methodsbytes, "get", objfn_bytes_get);
-        define_native_method(vm, &vm->methodsbytes, "split", objfn_bytes_split);
-        define_native_method(vm, &vm->methodsbytes, "dispose", objfn_bytes_dispose);
-        define_native_method(vm, &vm->methodsbytes, "is_alpha", objfn_bytes_isalpha);
-        define_native_method(vm, &vm->methodsbytes, "isalnum", objfn_bytes_isalnum);
-        define_native_method(vm, &vm->methodsbytes, "is_number", objfn_bytes_isnumber);
-        define_native_method(vm, &vm->methodsbytes, "islower", objfn_bytes_islower);
-        define_native_method(vm, &vm->methodsbytes, "isupper", objfn_bytes_isupper);
-        define_native_method(vm, &vm->methodsbytes, "isspace", objfn_bytes_isspace);
-        define_native_method(vm, &vm->methodsbytes, "to_list", objfn_bytes_tolist);
-        define_native_method(vm, &vm->methodsbytes, "to_string", objfn_bytes_tostring);
-        define_native_method(vm, &vm->methodsbytes, "@iter", objfn_bytes_iter);
-        define_native_method(vm, &vm->methodsbytes, "@itern", objfn_bytes_itern);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "length", objfn_bytes_length);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "append", objfn_bytes_append);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "clone", objfn_bytes_clone);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "extend", objfn_bytes_extend);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "pop", objfn_bytes_pop);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "remove", objfn_bytes_remove);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "reverse", objfn_bytes_reverse);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "first", objfn_bytes_first);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "last", objfn_bytes_last);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "get", objfn_bytes_get);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "split", objfn_bytes_split);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "dispose", objfn_bytes_dispose);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "is_alpha", objfn_bytes_isalpha);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "isalnum", objfn_bytes_isalnum);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "is_number", objfn_bytes_isnumber);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "islower", objfn_bytes_islower);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "isupper", objfn_bytes_isupper);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "isspace", objfn_bytes_isspace);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "to_list", objfn_bytes_tolist);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "to_string", objfn_bytes_tostring);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "@iter", objfn_bytes_iter);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "@itern", objfn_bytes_itern);
     }
     {
         // range
-        define_native_method(vm, &vm->methodsrange, "lower", objfn_range_lower);
-        define_native_method(vm, &vm->methodsrange, "upper", objfn_range_upper);
-        define_native_method(vm, &vm->methodsrange, "@iter", objfn_range_iter);
-        define_native_method(vm, &vm->methodsrange, "@itern", objfn_range_itern);
+        bl_object_defnativemethod(vm, &vm->methodsrange, "lower", objfn_range_lower);
+        bl_object_defnativemethod(vm, &vm->methodsrange, "upper", objfn_range_upper);
+        bl_object_defnativemethod(vm, &vm->methodsrange, "@iter", objfn_range_iter);
+        bl_object_defnativemethod(vm, &vm->methodsrange, "@itern", objfn_range_itern);
     }
 }
 
 void init_vm(VMState* vm)
 {
     fprintf(stderr, "call to init_vm()\n");
-    reset_stack(vm);
+    bl_vm_resetstack(vm);
     vm->compiler = NULL;
     vm->objectlinks = NULL;
     vm->objectcount = 0;
@@ -15702,63 +15811,63 @@ void init_vm(VMState* vm)
     vm->stdargs = NULL;
     vm->stdargscount = 0;
     vm->allowgc = false;
-    init_table(&vm->modules);
-    init_table(&vm->strings);
-    init_table(&vm->globals);
+    bl_hashtable_init(&vm->modules);
+    bl_hashtable_init(&vm->strings);
+    bl_hashtable_init(&vm->globals);
     // object methods tables
-    init_table(&vm->methodsstring);
-    init_table(&vm->methodslist);
-    init_table(&vm->methodsdict);
-    init_table(&vm->methodsfile);
-    init_table(&vm->methodsbytes);
-    init_table(&vm->methodsrange);
+    bl_hashtable_init(&vm->methodsstring);
+    bl_hashtable_init(&vm->methodslist);
+    bl_hashtable_init(&vm->methodsdict);
+    bl_hashtable_init(&vm->methodsfile);
+    bl_hashtable_init(&vm->methodsbytes);
+    bl_hashtable_init(&vm->methodsrange);
     init_builtin_functions(vm);
     init_builtin_methods(vm);
     //vm->allowgc = true;
 }
 
-void free_vm(VMState* vm)
+void bl_vm_freevm(VMState* vm)
 {
-    fprintf(stderr, "call to free_vm()\n");
+    fprintf(stderr, "call to bl_vm_freevm()\n");
     //@TODO: Fix segfault from enabling this...
     bl_mem_freegcobjects(vm);
-    free_table(vm, &vm->strings);
-    free_table(vm, &vm->globals);
+    bl_hashtable_free(vm, &vm->strings);
+    bl_hashtable_free(vm, &vm->globals);
     // since object in module can exist in globals
     // it must come after
-    clean_free_table(vm, &vm->modules);
-    free_table(vm, &vm->methodsstring);
-    free_table(vm, &vm->methodslist);
-    free_table(vm, &vm->methodsdict);
-    free_table(vm, &vm->methodsfile);
-    free_table(vm, &vm->methodsbytes);
-    free_table(vm, &vm->methodsrange);
+    bl_hashtable_cleanfree(vm, &vm->modules);
+    bl_hashtable_free(vm, &vm->methodsstring);
+    bl_hashtable_free(vm, &vm->methodslist);
+    bl_hashtable_free(vm, &vm->methodsdict);
+    bl_hashtable_free(vm, &vm->methodsfile);
+    bl_hashtable_free(vm, &vm->methodsbytes);
+    bl_hashtable_free(vm, &vm->methodsrange);
 }
 
-static bool bl_vm_docall(VMState* vm, ObjClosure* closure, int argcount)
+static bool bl_vmdo_docall(VMState* vm, ObjClosure* closure, int argcount)
 {
     // fill empty parameters if not variadic
     for(; !closure->fnptr->isvariadic && argcount < closure->fnptr->arity; argcount++)
     {
-        push(vm, NIL_VAL);
+        bl_vm_pushvalue(vm, NIL_VAL);
     }
     // handle variadic arguments...
     if(closure->fnptr->isvariadic && argcount >= closure->fnptr->arity - 1)
     {
         int vaargsstart = argcount - closure->fnptr->arity;
-        ObjList* argslist = new_list(vm);
-        push(vm, OBJ_VAL(argslist));
+        ObjArray* argslist = bl_object_makelist(vm);
+        bl_vm_pushvalue(vm, OBJ_VAL(argslist));
         for(int i = vaargsstart; i >= 0; i--)
         {
-            write_value_arr(vm, &argslist->items, peek(vm, i + 1));
+            bl_valarray_push(vm, &argslist->items, bl_vm_peekvalue(vm, i + 1));
         }
         argcount -= vaargsstart;
-        pop_n(vm, vaargsstart + 2);// +1 for the gc protection push above
-        push(vm, OBJ_VAL(argslist));
+        bl_vm_popvaluen(vm, vaargsstart + 2);// +1 for the gc protection push above
+        bl_vm_pushvalue(vm, OBJ_VAL(argslist));
     }
     if(argcount != closure->fnptr->arity)
     {
-        pop_n(vm, argcount);
+        bl_vm_popvaluen(vm, argcount);
         if(closure->fnptr->isvariadic)
         {
             return bl_vm_throwexception(vm, false, "expected at least %d arguments but got %d", closure->fnptr->arity - 1, argcount);
@@ -15770,7 +15879,7 @@ static bool bl_vm_docall(VMState* vm, ObjClosure* closure, int argcount)
     }
     if(vm->framecount == FRAMES_MAX)
     {
-        pop_n(vm, argcount);
+        bl_vm_popvaluen(vm, argcount);
         return bl_vm_throwexception(vm, false, "stack overflow");
     }
     CallFrame* frame = &vm->frames[vm->framecount++];
@@ -15780,7 +15889,7 @@ static bool bl_vm_docall(VMState* vm, ObjClosure* closure, int argcount)
     return true;
 }
 
-static bool call_native_method(VMState* vm, ObjNativeFunction* native, int argcount)
+static bool bl_vmdo_callnativemethod(VMState* vm, ObjNativeFunction* native, int argcount)
 {
     if(native->natfn(vm, argcount, vm->stacktop - argcount))
     {
@@ -15798,30 +15907,30 @@ static bool call_native_method(VMState* vm, ObjNativeFunction* native, int argco
     return true;
 }
 
-bool call_value(VMState* vm, Value callee, int argcount)
+bool bl_vmdo_callvalue(VMState* vm, Value callee, int argcount)
 {
-    if(IS_OBJ(callee))
+    if(bl_value_isobject(callee))
     {
         switch(OBJ_TYPE(callee))
         {
-            case OBJ_BOUND_METHOD:
+            case OBJ_BOUNDFUNCTION:
             {
                 ObjBoundMethod* bound = AS_BOUND(callee);
                 vm->stacktop[-argcount - 1] = bound->receiver;
-                return bl_vm_docall(vm, bound->method, argcount);
+                return bl_vmdo_docall(vm, bound->method, argcount);
             }
             break;
             case OBJ_CLASS:
             {
                 ObjClass* klass = AS_CLASS(callee);
-                vm->stacktop[-argcount - 1] = OBJ_VAL(new_instance(vm, klass));
-                if(!IS_EMPTY(klass->initializer))
+                vm->stacktop[-argcount - 1] = OBJ_VAL(bl_object_makeinstance(vm, klass));
+                if(!bl_value_isempty(klass->initializer))
                 {
-                    return bl_vm_docall(vm, AS_CLOSURE(klass->initializer), argcount);
+                    return bl_vmdo_docall(vm, AS_CLOSURE(klass->initializer), argcount);
                 }
-                else if(klass->superclass != NULL && !IS_EMPTY(klass->superclass->initializer))
+                else if(klass->superclass != NULL && !bl_value_isempty(klass->superclass->initializer))
                 {
-                    return bl_vm_docall(vm, AS_CLOSURE(klass->superclass->initializer), argcount);
+                    return bl_vmdo_docall(vm, AS_CLOSURE(klass->superclass->initializer), argcount);
                 }
                 else if(argcount != 0)
                 {
@@ -15834,34 +15943,34 @@ bool call_value(VMState* vm, Value callee, int argcount)
             {
                 ObjModule* module = AS_MODULE(callee);
                 Value callable;
-                if(table_get(&module->values, STRING_VAL(module->name), &callable))
+                if(bl_hashtable_get(&module->values, STRING_VAL(module->name), &callable))
                 {
-                    return call_value(vm, callable, argcount);
+                    return bl_vmdo_callvalue(vm, callable, argcount);
                 }
             }
             break;
             case OBJ_CLOSURE:
             {
-                return bl_vm_docall(vm, AS_CLOSURE(callee), argcount);
+                return bl_vmdo_docall(vm, AS_CLOSURE(callee), argcount);
             }
             break;
-            case OBJ_NATIVE:
+            case OBJ_NATIVEFUNCTION:
             {
-                return call_native_method(vm, AS_NATIVE(callee), argcount);
+                return bl_vmdo_callnativemethod(vm, AS_NATIVE(callee), argcount);
             }
             break;
             default:// non callable
                 break;
         }
     }
-    return bl_vm_throwexception(vm, false, "object of type %s is not callable", value_type(callee));
+    return bl_vm_throwexception(vm, false, "object of type %s is not callable", bl_value_typename(callee));
 }
 
-static FuncType get_method_type(Value method)
+static FuncType bl_value_getmethodtype(Value method)
 {
     switch(OBJ_TYPE(method))
     {
-        case OBJ_NATIVE:
+        case OBJ_NATIVEFUNCTION:
         {
             return AS_NATIVE(method)->type;
         }
@@ -15877,59 +15986,59 @@ static FuncType get_method_type(Value method)
     return TYPE_FUNCTION;
 }
 
-bool invoke_from_class(VMState* vm, ObjClass* klass, ObjString* name, int argcount)
+bool bl_instance_invokefromclass(VMState* vm, ObjClass* klass, ObjString* name, int argcount)
 {
     Value method;
-    if(table_get(&klass->methods, OBJ_VAL(name), &method))
+    if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &method))
     {
-        if(get_method_type(method) == TYPE_PRIVATE)
+        if(bl_value_getmethodtype(method) == TYPE_PRIVATE)
         {
             return bl_vm_throwexception(vm, false, "cannot call private method '%s' from instance of %s", name->chars, klass->name->chars);
         }
-        return call_value(vm, method, argcount);
+        return bl_vmdo_callvalue(vm, method, argcount);
     }
     return bl_vm_throwexception(vm, false, "undefined method '%s' in %s", name->chars, klass->name->chars);
 }
 
-static bool invoke_self(VMState* vm, ObjString* name, int argcount)
+static bool bl_instance_invokefromself(VMState* vm, ObjString* name, int argcount)
 {
-    Value receiver = peek(vm, argcount);
+    Value receiver = bl_vm_peekvalue(vm, argcount);
     Value value;
-    if(IS_INSTANCE(receiver))
+    if(bl_value_isinstance(receiver))
     {
         ObjInstance* instance = AS_INSTANCE(receiver);
-        if(table_get(&instance->klass->methods, OBJ_VAL(name), &value))
+        if(bl_hashtable_get(&instance->klass->methods, OBJ_VAL(name), &value))
         {
-            return call_value(vm, value, argcount);
+            return bl_vmdo_callvalue(vm, value, argcount);
         }
-        if(table_get(&instance->properties, OBJ_VAL(name), &value))
+        if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
         {
             vm->stacktop[-argcount - 1] = value;
-            return call_value(vm, value, argcount);
+            return bl_vmdo_callvalue(vm, value, argcount);
         }
     }
-    else if(IS_CLASS(receiver))
+    else if(bl_value_isclass(receiver))
     {
-        if(table_get(&AS_CLASS(receiver)->methods, OBJ_VAL(name), &value))
+        if(bl_hashtable_get(&AS_CLASS(receiver)->methods, OBJ_VAL(name), &value))
         {
-            if(get_method_type(value) == TYPE_STATIC)
+            if(bl_value_getmethodtype(value) == TYPE_STATIC)
             {
-                return call_value(vm, value, argcount);
+                return bl_vmdo_callvalue(vm, value, argcount);
             }
             return bl_vm_throwexception(vm, false, "cannot call non-static method %s() on non instance", name->chars);
         }
     }
-    return bl_vm_throwexception(vm, false, "cannot call method %s on object of type %s", name->chars, value_type(receiver));
+    return bl_vm_throwexception(vm, false, "cannot call method %s on object of type %s", name->chars, bl_value_typename(receiver));
 }
 
-static bool invoke(VMState* vm, ObjString* name, int argcount)
+static bool blade_vm_invokemethod(VMState* vm, ObjString* name, int argcount)
 {
-    Value receiver = peek(vm, argcount);
+    Value receiver = bl_vm_peekvalue(vm, argcount);
     Value value;
-    if(!IS_OBJ(receiver))
+    if(!bl_value_isobject(receiver))
     {
         // @TODO: have methods for non objects as well.
-        return bl_vm_throwexception(vm, false, "non-object %s has no method", value_type(receiver));
+        return bl_vm_throwexception(vm, false, "non-object %s has no method", bl_value_typename(receiver));
     }
     else
     {
@@ -15938,117 +16047,117 @@ static bool invoke(VMState* vm, ObjString* name, int argcount)
             case OBJ_MODULE:
             {
                 ObjModule* module = AS_MODULE(receiver);
-                if(table_get(&module->values, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
                 {
                     if(name->length > 0 && name->chars[0] == '_')
                     {
                         return bl_vm_throwexception(vm, false, "cannot call private module method '%s'", name->chars);
                     }
-                    return call_value(vm, value, argcount);
+                    return bl_vmdo_callvalue(vm, value, argcount);
                 }
                 return bl_vm_throwexception(vm, false, "module %s does not define class or method %s()", module->name, name->chars);
                 break;
             }
             case OBJ_CLASS:
             {
-                if(table_get(&AS_CLASS(receiver)->methods, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&AS_CLASS(receiver)->methods, OBJ_VAL(name), &value))
                 {
-                    if(get_method_type(value) == TYPE_PRIVATE)
+                    if(bl_value_getmethodtype(value) == TYPE_PRIVATE)
                     {
                         return bl_vm_throwexception(vm, false, "cannot call private method %s() on %s", name->chars, AS_CLASS(receiver)->name->chars);
                     }
-                    return call_value(vm, value, argcount);
+                    return bl_vmdo_callvalue(vm, value, argcount);
                 }
-                else if(table_get(&AS_CLASS(receiver)->staticproperties, OBJ_VAL(name), &value))
+                else if(bl_hashtable_get(&AS_CLASS(receiver)->staticproperties, OBJ_VAL(name), &value))
                 {
-                    return call_value(vm, value, argcount);
+                    return bl_vmdo_callvalue(vm, value, argcount);
                 }
                 return bl_vm_throwexception(vm, false, "unknown method %s() in class %s", name->chars, AS_CLASS(receiver)->name->chars);
             }
             case OBJ_INSTANCE:
             {
                 ObjInstance* instance = AS_INSTANCE(receiver);
-                if(table_get(&instance->properties, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
                 {
                     vm->stacktop[-argcount - 1] = value;
-                    return call_value(vm, value, argcount);
+                    return bl_vmdo_callvalue(vm, value, argcount);
                 }
-                return invoke_from_class(vm, instance->klass, name, argcount);
+                return bl_instance_invokefromclass(vm, instance->klass, name, argcount);
             }
             case OBJ_STRING:
             {
-                if(table_get(&vm->methodsstring, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&vm->methodsstring, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
                 }
                 return bl_vm_throwexception(vm, false, "String has no method %s()", name->chars);
             }
-            case OBJ_LIST:
+            case OBJ_ARRAY:
             {
-                if(table_get(&vm->methodslist, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&vm->methodslist, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
                 }
                 return bl_vm_throwexception(vm, false, "List has no method %s()", name->chars);
             }
             case OBJ_RANGE:
             {
-                if(table_get(&vm->methodsrange, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&vm->methodsrange, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
                 }
                 return bl_vm_throwexception(vm, false, "Range has no method %s()", name->chars);
             }
             case OBJ_DICT:
             {
-                if(table_get(&vm->methodsdict, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&vm->methodsdict, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
                 }
                 return bl_vm_throwexception(vm, false, "Dict has no method %s()", name->chars);
             }
             case OBJ_FILE:
             {
-                if(table_get(&vm->methodsfile, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&vm->methodsfile, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
                 }
                 return bl_vm_throwexception(vm, false, "File has no method %s()", name->chars);
             }
             case OBJ_BYTES:
             {
-                if(table_get(&vm->methodsbytes, OBJ_VAL(name), &value))
+                if(bl_hashtable_get(&vm->methodsbytes, OBJ_VAL(name), &value))
                 {
-                    return call_native_method(vm, AS_NATIVE(value), argcount);
+                    return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
                 }
                 return bl_vm_throwexception(vm, false, "Bytes has no method %s()", name->chars);
             }
             default:
             {
-                return bl_vm_throwexception(vm, false, "cannot call method %s on object of type %s", name->chars, value_type(receiver));
+                return bl_vm_throwexception(vm, false, "cannot call method %s on object of type %s", name->chars, bl_value_typename(receiver));
             }
         }
     }
 }
 
-static bool bind_method(VMState* vm, ObjClass* klass, ObjString* name)
+static bool bl_class_bindmethod(VMState* vm, ObjClass* klass, ObjString* name)
 {
     Value method;
-    if(table_get(&klass->methods, OBJ_VAL(name), &method))
+    if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &method))
     {
-        if(get_method_type(method) == TYPE_PRIVATE)
+        if(bl_value_getmethodtype(method) == TYPE_PRIVATE)
         {
             return bl_vm_throwexception(vm, false, "cannot get private property '%s' from instance", name->chars);
         }
-        ObjBoundMethod* bound = new_bound_method(vm, peek(vm, 0), AS_CLOSURE(method));
-        pop(vm);
-        push(vm, OBJ_VAL(bound));
+        ObjBoundMethod* bound = bl_object_makeboundmethod(vm, bl_vm_peekvalue(vm, 0), AS_CLOSURE(method));
+        bl_vm_popvalue(vm);
+        bl_vm_pushvalue(vm, OBJ_VAL(bound));
         return true;
     }
     return bl_vm_throwexception(vm, false, "undefined property '%s'", name->chars);
 }
 
-static ObjUpvalue* capture_up_value(VMState* vm, Value* local)
+static ObjUpvalue* bl_vm_captureupvalue(VMState* vm, Value* local)
 {
     ObjUpvalue* prevupvalue = NULL;
     ObjUpvalue* upvalue = vm->openupvalues;
@@ -16072,7 +16181,7 @@ static ObjUpvalue* capture_up_value(VMState* vm, Value* local)
     return createdupvalue;
 }
 
-static void close_up_values(VMState* vm, const Value* last)
+static void bl_vm_closeupvalues(VMState* vm, const Value* last)
 {
     while(vm->openupvalues != NULL && vm->openupvalues->location >= last)
     {
@@ -16083,31 +16192,31 @@ static void close_up_values(VMState* vm, const Value* last)
     }
 }
 
-static void define_method(VMState* vm, ObjString* name)
+static void bl_vm_classdefmethod(VMState* vm, ObjString* name)
 {
-    Value method = peek(vm, 0);
-    ObjClass* klass = AS_CLASS(peek(vm, 1));
-    table_set(vm, &klass->methods, OBJ_VAL(name), method);
-    if(get_method_type(method) == TYPE_INITIALIZER)
+    Value method = bl_vm_peekvalue(vm, 0);
+    ObjClass* klass = AS_CLASS(bl_vm_peekvalue(vm, 1));
+    bl_hashtable_set(vm, &klass->methods, OBJ_VAL(name), method);
+    if(bl_value_getmethodtype(method) == TYPE_INITIALIZER)
     {
         klass->initializer = method;
     }
-    pop(vm);
+    bl_vm_popvalue(vm);
 }
 
-static void define_property(VMState* vm, ObjString* name, bool isstatic)
+static void bl_vm_classdefproperty(VMState* vm, ObjString* name, bool isstatic)
 {
-    Value property = peek(vm, 0);
-    ObjClass* klass = AS_CLASS(peek(vm, 1));
+    Value property = bl_vm_peekvalue(vm, 0);
+    ObjClass* klass = AS_CLASS(bl_vm_peekvalue(vm, 1));
     if(!isstatic)
     {
-        table_set(vm, &klass->properties, OBJ_VAL(name), property);
+        bl_hashtable_set(vm, &klass->properties, OBJ_VAL(name), property);
     }
     else
     {
-        table_set(vm, &klass->staticproperties, OBJ_VAL(name), property);
+        bl_hashtable_set(vm, &klass->staticproperties, OBJ_VAL(name), property);
     }
-    pop(vm);
+    bl_vm_popvalue(vm);
 }
 
 bool bl_class_isinstanceof(ObjClass* klass1, char* klass2name)
@@ -16123,7 +16232,7 @@ bool bl_class_isinstanceof(ObjClass* klass1, char* klass2name)
     return false;
 }
 
-static ObjString* multiply_string(VMState* vm, ObjString* str, double number)
+static ObjString* bl_vmdo_stringmultiply(VMState* vm, ObjString* str, double number)
 {
     int times = (int)number;
     if(times <= 0)// 'str' * 0 == '', 'str' * -1 == ''
@@ -16140,64 +16249,64 @@ static ObjString* multiply_string(VMState* vm, ObjString* str, double number)
     return take_string(vm, result, totallength);
 }
 
-static ObjList* add_list(VMState* vm, ObjList* a, ObjList* b)
+static ObjArray* bl_array_addarray(VMState* vm, ObjArray* a, ObjArray* b)
 {
-    ObjList* list = new_list(vm);
-    push(vm, OBJ_VAL(list));
+    ObjArray* list = bl_object_makelist(vm);
+    bl_vm_pushvalue(vm, OBJ_VAL(list));
     for(int i = 0; i < a->items.count; i++)
     {
-        write_value_arr(vm, &list->items, a->items.values[i]);
+        bl_valarray_push(vm, &list->items, a->items.values[i]);
     }
     for(int i = 0; i < b->items.count; i++)
     {
-        write_value_arr(vm, &list->items, b->items.values[i]);
+        bl_valarray_push(vm, &list->items, b->items.values[i]);
     }
-    pop(vm);
+    bl_vm_popvalue(vm);
     return list;
 }
 
-static ObjBytes* add_bytes(VMState* vm, ObjBytes* a, ObjBytes* b)
+static ObjBytes* bl_bytes_addbytes(VMState* vm, ObjBytes* a, ObjBytes* b)
 {
-    ObjBytes* bytes = new_bytes(vm, a->bytes.count + b->bytes.count);
+    ObjBytes* bytes = bl_object_makebytes(vm, a->bytes.count + b->bytes.count);
     memcpy(bytes->bytes.bytes, a->bytes.bytes, a->bytes.count);
     memcpy(bytes->bytes.bytes + a->bytes.count, b->bytes.bytes, b->bytes.count);
     return bytes;
 }
 
-static void multiply_list(VMState* vm, ObjList* a, ObjList* new_list, int times)
+static void bl_vmdo_listmultiply(VMState* vm, ObjArray* a, ObjArray* newlist, int times)
 {
     for(int i = 0; i < times; i++)
     {
         for(int j = 0; j < a->items.count; j++)
         {
-            write_value_arr(vm, &new_list->items, a->items.values[j]);
+            bl_valarray_push(vm, &newlist->items, a->items.values[j]);
         }
     }
 }
 
-static bool module_get_index(VMState* vm, ObjModule* module, bool willassign)
+static bool bl_vmdo_modulegetindex(VMState* vm, ObjModule* module, bool willassign)
 {
-    Value index = peek(vm, 0);
+    Value index = bl_vm_peekvalue(vm, 0);
     Value result;
-    if(table_get(&module->values, index, &result))
+    if(bl_hashtable_get(&module->values, index, &result))
     {
         if(!willassign)
         {
-            pop_n(vm, 2);// we can safely get rid of the index from the stack
+            bl_vm_popvaluen(vm, 2);// we can safely get rid of the index from the stack
         }
-        push(vm, result);
+        bl_vm_pushvalue(vm, result);
         return true;
     }
-    pop_n(vm, 1);
-    return bl_vm_throwexception(vm, false, "%s is undefined in module %s", value_to_string(vm, index), module->name);
+    bl_vm_popvaluen(vm, 1);
+    return bl_vm_throwexception(vm, false, "%s is undefined in module %s", bl_value_tostring(vm, index), module->name);
 }
 
-static bool string_get_index(VMState* vm, ObjString* string, bool willassign)
+static bool bl_vmdo_stringgetindex(VMState* vm, ObjString* string, bool willassign)
 {
-    Value lower = peek(vm, 0);
-    if(!IS_NUMBER(lower))
+    Value lower = bl_vm_peekvalue(vm, 0);
+    if(!bl_value_isnumber(lower))
     {
-        pop_n(vm, 1);
+        bl_vm_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "strings are numerically indexed");
     }
     int index = AS_NUMBER(lower);
@@ -16215,38 +16324,38 @@ static bool string_get_index(VMState* vm, ObjString* string, bool willassign)
         if(!willassign)
         {
             // we can safely get rid of the index from the stack
-            pop_n(vm, 2);// +1 for the string itself
+            bl_vm_popvaluen(vm, 2);// +1 for the string itself
         }
-        push(vm, STRING_L_VAL(string->chars + start, end - start));
+        bl_vm_pushvalue(vm, STRING_L_VAL(string->chars + start, end - start));
         return true;
     }
     else
     {
-        pop_n(vm, 1);
+        bl_vm_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "string index %d out of range", realindex);
     }
 }
 
-static bool string_get_ranged_index(VMState* vm, ObjString* string, bool willassign)
+static bool bl_vmdo_stringgetrangedindex(VMState* vm, ObjString* string, bool willassign)
 {
-    Value upper = peek(vm, 0);
-    Value lower = peek(vm, 1);
-    if(!(IS_NIL(lower) || IS_NUMBER(lower)) || !(IS_NUMBER(upper) || IS_NIL(upper)))
+    Value upper = bl_vm_peekvalue(vm, 0);
+    Value lower = bl_vm_peekvalue(vm, 1);
+    if(!(bl_value_isnil(lower) || bl_value_isnumber(lower)) || !(bl_value_isnumber(upper) || bl_value_isnil(upper)))
     {
-        pop_n(vm, 2);
+        bl_vm_popvaluen(vm, 2);
         return bl_vm_throwexception(vm, false, "string are numerically indexed");
     }
     int length = string->isascii ? string->length : string->utf8length;
-    int lowerindex = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = IS_NIL(upper) ? length : AS_NUMBER(upper);
+    int lowerindex = bl_value_isnumber(lower) ? AS_NUMBER(lower) : 0;
+    int upperindex = bl_value_isnil(upper) ? length : AS_NUMBER(upper);
     if(lowerindex < 0 || (upperindex < 0 && ((length + upperindex) < 0)))
     {
         // always return an empty string...
         if(!willassign)
         {
-            pop_n(vm, 3);// +1 for the string itself
+            bl_vm_popvaluen(vm, 3);// +1 for the string itself
         }
-        push(vm, STRING_L_VAL("", 0));
+        bl_vm_pushvalue(vm, STRING_L_VAL("", 0));
         return true;
     }
     if(upperindex < 0)
@@ -16260,18 +16369,18 @@ static bool string_get_ranged_index(VMState* vm, ObjString* string, bool willass
     }
     if(!willassign)
     {
-        pop_n(vm, 3);// +1 for the string itself
+        bl_vm_popvaluen(vm, 3);// +1 for the string itself
     }
-    push(vm, STRING_L_VAL(string->chars + start, end - start));
+    bl_vm_pushvalue(vm, STRING_L_VAL(string->chars + start, end - start));
     return true;
 }
 
-static bool bytes_get_index(VMState* vm, ObjBytes* bytes, bool willassign)
+static bool bl_vmdo_bytesgetindex(VMState* vm, ObjBytes* bytes, bool willassign)
 {
-    Value lower = peek(vm, 0);
-    if(!IS_NUMBER(lower))
+    Value lower = bl_vm_peekvalue(vm, 0);
+    if(!bl_value_isnumber(lower))
     {
-        pop_n(vm, 1);
+        bl_vm_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "bytes are numerically indexed");
     }
     int index = AS_NUMBER(lower);
@@ -16283,37 +16392,37 @@ static bool bytes_get_index(VMState* vm, ObjBytes* bytes, bool willassign)
         if(!willassign)
         {
             // we can safely get rid of the index from the stack
-            pop_n(vm, 2);// +1 for the bytes itself
+            bl_vm_popvaluen(vm, 2);// +1 for the bytes itself
         }
-        push(vm, NUMBER_VAL((int)bytes->bytes.bytes[index]));
+        bl_vm_pushvalue(vm, NUMBER_VAL((int)bytes->bytes.bytes[index]));
         return true;
     }
     else
     {
-        pop_n(vm, 1);
+        bl_vm_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "bytes index %d out of range", realindex);
     }
 }
 
-static bool bytes_get_ranged_index(VMState* vm, ObjBytes* bytes, bool willassign)
+static bool bl_vmdo_bytesgetrangedindex(VMState* vm, ObjBytes* bytes, bool willassign)
 {
-    Value upper = peek(vm, 0);
-    Value lower = peek(vm, 1);
-    if(!(IS_NIL(lower) || IS_NUMBER(lower)) || !(IS_NUMBER(upper) || IS_NIL(upper)))
+    Value upper = bl_vm_peekvalue(vm, 0);
+    Value lower = bl_vm_peekvalue(vm, 1);
+    if(!(bl_value_isnil(lower) || bl_value_isnumber(lower)) || !(bl_value_isnumber(upper) || bl_value_isnil(upper)))
     {
-        pop_n(vm, 2);
+        bl_vm_popvaluen(vm, 2);
         return bl_vm_throwexception(vm, false, "bytes are numerically indexed");
     }
-    int lowerindex = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = IS_NIL(upper) ? bytes->bytes.count : AS_NUMBER(upper);
+    int lowerindex = bl_value_isnumber(lower) ? AS_NUMBER(lower) : 0;
+    int upperindex = bl_value_isnil(upper) ? bytes->bytes.count : AS_NUMBER(upper);
     if(lowerindex < 0 || (upperindex < 0 && ((bytes->bytes.count + upperindex) < 0)))
     {
         // always return an empty bytes...
         if(!willassign)
         {
-            pop_n(vm, 3);// +1 for the bytes itself
+            bl_vm_popvaluen(vm, 3);// +1 for the bytes itself
         }
-        push(vm, OBJ_VAL(new_bytes(vm, 0)));
+        bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makebytes(vm, 0)));
         return true;
     }
     if(upperindex < 0)
@@ -16322,18 +16431,18 @@ static bool bytes_get_ranged_index(VMState* vm, ObjBytes* bytes, bool willassign
         upperindex = bytes->bytes.count;
     if(!willassign)
     {
-        pop_n(vm, 3);// +1 for the list itself
+        bl_vm_popvaluen(vm, 3);// +1 for the list itself
     }
-    push(vm, OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes + lowerindex, upperindex - lowerindex)));
+    bl_vm_pushvalue(vm, OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes + lowerindex, upperindex - lowerindex)));
     return true;
 }
 
-static bool list_get_index(VMState* vm, ObjList* list, bool willassign)
+static bool bl_vmdo_listgetindex(VMState* vm, ObjArray* list, bool willassign)
 {
-    Value lower = peek(vm, 0);
-    if(!IS_NUMBER(lower))
+    Value lower = bl_vm_peekvalue(vm, 0);
+    if(!bl_value_isnumber(lower))
     {
-        pop_n(vm, 1);
+        bl_vm_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "list are numerically indexed");
     }
     int index = AS_NUMBER(lower);
@@ -16345,72 +16454,72 @@ static bool list_get_index(VMState* vm, ObjList* list, bool willassign)
         if(!willassign)
         {
             // we can safely get rid of the index from the stack
-            pop_n(vm, 2);// +1 for the list itself
+            bl_vm_popvaluen(vm, 2);// +1 for the list itself
         }
-        push(vm, list->items.values[index]);
+        bl_vm_pushvalue(vm, list->items.values[index]);
         return true;
     }
     else
     {
-        pop_n(vm, 1);
+        bl_vm_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "list index %d out of range", realindex);
     }
 }
 
-static bool list_get_ranged_index(VMState* vm, ObjList* list, bool willassign)
+static bool bl_vmdo_listgetrangedindex(VMState* vm, ObjArray* list, bool willassign)
 {
-    Value upper = peek(vm, 0);
-    Value lower = peek(vm, 1);
-    if(!(IS_NIL(lower) || IS_NUMBER(lower)) || !(IS_NUMBER(upper) || IS_NIL(upper)))
+    Value upper = bl_vm_peekvalue(vm, 0);
+    Value lower = bl_vm_peekvalue(vm, 1);
+    if(!(bl_value_isnil(lower) || bl_value_isnumber(lower)) || !(bl_value_isnumber(upper) || bl_value_isnil(upper)))
     {
-        pop_n(vm, 2);
+        bl_vm_popvaluen(vm, 2);
         return bl_vm_throwexception(vm, false, "list are numerically indexed");
     }
-    int lowerindex = IS_NUMBER(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = IS_NIL(upper) ? list->items.count : AS_NUMBER(upper);
+    int lowerindex = bl_value_isnumber(lower) ? AS_NUMBER(lower) : 0;
+    int upperindex = bl_value_isnil(upper) ? list->items.count : AS_NUMBER(upper);
     if(lowerindex < 0 || (upperindex < 0 && ((list->items.count + upperindex) < 0)))
     {
         // always return an empty list...
         if(!willassign)
         {
-            pop_n(vm, 3);// +1 for the list itself
+            bl_vm_popvaluen(vm, 3);// +1 for the list itself
         }
-        push(vm, OBJ_VAL(new_list(vm)));
+        bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makelist(vm)));
         return true;
     }
     if(upperindex < 0)
         upperindex = list->items.count + upperindex;
     if(upperindex > list->items.count)
         upperindex = list->items.count;
-    ObjList* nlist = new_list(vm);
-    push(vm, OBJ_VAL(nlist));// gc protect
+    ObjArray* nlist = bl_object_makelist(vm);
+    bl_vm_pushvalue(vm, OBJ_VAL(nlist));// gc protect
     for(int i = lowerindex; i < upperindex; i++)
     {
-        write_value_arr(vm, &nlist->items, list->items.values[i]);
+        bl_valarray_push(vm, &nlist->items, list->items.values[i]);
     }
-    pop(vm);// clear gc protect
+    bl_vm_popvalue(vm);// clear gc protect
     if(!willassign)
     {
-        pop_n(vm, 3);// +1 for the list itself
+        bl_vm_popvaluen(vm, 3);// +1 for the list itself
     }
-    push(vm, OBJ_VAL(nlist));
+    bl_vm_pushvalue(vm, OBJ_VAL(nlist));
     return true;
 }
 
-static void module_set_index(VMState* vm, ObjModule* module, Value index, Value value)
+static void bl_vmdo_modulesetindex(VMState* vm, ObjModule* module, Value index, Value value)
 {
-    table_set(vm, &module->values, index, value);
-    pop_n(vm, 3);// pop the value, index and dict out
+    bl_hashtable_set(vm, &module->values, index, value);
+    bl_vm_popvaluen(vm, 3);// pop the value, index and dict out
     // leave the value on the stack for consumption
     // e.g. variable = dict[index] = 10
-    push(vm, value);
+    bl_vm_pushvalue(vm, value);
 }
 
-static bool list_set_index(VMState* vm, ObjList* list, Value index, Value value)
+static bool bl_vmdo_listsetindex(VMState* vm, ObjArray* list, Value index, Value value)
 {
-    if(!IS_NUMBER(index))
+    if(!bl_value_isnumber(index))
     {
-        pop_n(vm, 3);// pop the value, index and list out
+        bl_vm_popvaluen(vm, 3);// pop the value, index and list out
         return bl_vm_throwexception(vm, false, "list are numerically indexed");
     }
     int _position = AS_NUMBER(index);
@@ -16418,26 +16527,26 @@ static bool list_set_index(VMState* vm, ObjList* list, Value index, Value value)
     if(position < list->items.count && position > -(list->items.count))
     {
         list->items.values[position] = value;
-        pop_n(vm, 3);// pop the value, index and list out
+        bl_vm_popvaluen(vm, 3);// pop the value, index and list out
         // leave the value on the stack for consumption
         // e.g. variable = list[index] = 10
-        push(vm, value);
+        bl_vm_pushvalue(vm, value);
         return true;
     }
-    pop_n(vm, 3);// pop the value, index and list out
+    bl_vm_popvaluen(vm, 3);// pop the value, index and list out
     return bl_vm_throwexception(vm, false, "lists index %d out of range", _position);
 }
 
-static bool bytes_set_index(VMState* vm, ObjBytes* bytes, Value index, Value value)
+static bool bl_vmdo_bytessetindex(VMState* vm, ObjBytes* bytes, Value index, Value value)
 {
-    if(!IS_NUMBER(index))
+    if(!bl_value_isnumber(index))
     {
-        pop_n(vm, 3);// pop the value, index and bytes out
+        bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
         return bl_vm_throwexception(vm, false, "bytes are numerically indexed");
     }
-    else if(!IS_NUMBER(value) || AS_NUMBER(value) < 0 || AS_NUMBER(value) > 255)
+    else if(!bl_value_isnumber(value) || AS_NUMBER(value) < 0 || AS_NUMBER(value) > 255)
     {
-        pop_n(vm, 3);// pop the value, index and bytes out
+        bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
         return bl_vm_throwexception(vm, false, "invalid byte. bytes are numbers between 0 and 255.");
     }
     int _position = AS_NUMBER(index);
@@ -16446,30 +16555,30 @@ static bool bytes_set_index(VMState* vm, ObjBytes* bytes, Value index, Value val
     if(position < bytes->bytes.count && position > -(bytes->bytes.count))
     {
         bytes->bytes.bytes[position] = (unsigned char)byte;
-        pop_n(vm, 3);// pop the value, index and bytes out
+        bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
         // leave the value on the stack for consumption
         // e.g. variable = bytes[index] = 10
-        push(vm, value);
+        bl_vm_pushvalue(vm, value);
         return true;
     }
-    pop_n(vm, 3);// pop the value, index and bytes out
+    bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
     return bl_vm_throwexception(vm, false, "bytes index %d out of range", _position);
 }
 
-static bool concatenate(VMState* vm)
+static bool bl_vmdo_concat(VMState* vm)
 {
-    Value _b = peek(vm, 0);
-    Value _a = peek(vm, 1);
-    if(IS_NIL(_a))
+    Value _b = bl_vm_peekvalue(vm, 0);
+    Value _a = bl_vm_peekvalue(vm, 1);
+    if(bl_value_isnil(_a))
     {
-        pop_n(vm, 2);
-        push(vm, _b);
+        bl_vm_popvaluen(vm, 2);
+        bl_vm_pushvalue(vm, _b);
     }
-    else if(IS_NIL(_b))
+    else if(bl_value_isnil(_b))
     {
-        pop(vm);
+        bl_vm_popvalue(vm);
     }
-    else if(IS_NUMBER(_a))
+    else if(bl_value_isnumber(_a))
     {
         double a = AS_NUMBER(_a);
         char numstr[27];// + 1 for null terminator
@@ -16482,10 +16591,10 @@ static bool concatenate(VMState* vm)
         chars[length] = '\0';
         ObjString* result = take_string(vm, chars, length);
         result->utf8length = numlength + b->utf8length;
-        pop_n(vm, 2);
-        push(vm, OBJ_VAL(result));
+        bl_vm_popvaluen(vm, 2);
+        bl_vm_pushvalue(vm, OBJ_VAL(result));
     }
-    else if(IS_NUMBER(_b))
+    else if(bl_value_isnumber(_b))
     {
         ObjString* a = AS_STRING(_a);
         double b = AS_NUMBER(_b);
@@ -16498,10 +16607,10 @@ static bool concatenate(VMState* vm)
         chars[length] = '\0';
         ObjString* result = take_string(vm, chars, length);
         result->utf8length = numlength + a->utf8length;
-        pop_n(vm, 2);
-        push(vm, OBJ_VAL(result));
+        bl_vm_popvaluen(vm, 2);
+        bl_vm_pushvalue(vm, OBJ_VAL(result));
     }
-    else if(IS_STRING(_a) && IS_STRING(_b))
+    else if(bl_value_isstring(_a) && bl_value_isstring(_b))
     {
         ObjString* b = AS_STRING(_b);
         ObjString* a = AS_STRING(_a);
@@ -16512,8 +16621,8 @@ static bool concatenate(VMState* vm)
         chars[length] = '\0';
         ObjString* result = take_string(vm, chars, length);
         result->utf8length = a->utf8length + b->utf8length;
-        pop_n(vm, 2);
-        push(vm, OBJ_VAL(result));
+        bl_vm_popvaluen(vm, 2);
+        bl_vm_pushvalue(vm, OBJ_VAL(result));
     }
     else
     {
@@ -16522,13 +16631,13 @@ static bool concatenate(VMState* vm)
     return true;
 }
 
-static int floor_div(double a, double b)
+static int bl_util_floordiv(double a, double b)
 {
     int d = (int)a / (int)b;
     return d - ((d * b == a) & ((a < 0) ^ (b < 0)));
 }
 
-static double modulo(double a, double b)
+static double bl_util_modulo(double a, double b)
 {
     double r = fmod(a, b);
     if(r != 0 && ((r < 0) != (b < 0)))
@@ -16548,42 +16657,42 @@ PtrResult bl_vm_run(VMState* vm)
 #define BINARY_OP(type, op) \
     do \
     { \
-        if((!IS_NUMBER(peek(vm, 0)) && !IS_BOOL(peek(vm, 0))) || (!IS_NUMBER(peek(vm, 1)) && !IS_BOOL(peek(vm, 1)))) \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
         { \
-            runtime_error("unsupported operand %s for %s and %s", #op, value_type(peek(vm, 0)), value_type(peek(vm, 1))); \
+            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
             break; \
         } \
-        Value _b = pop(vm); \
-        double b = IS_BOOL(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b); \
-        Value _a = pop(vm); \
-        double a = IS_BOOL(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a); \
-        push(vm, type(a op b)); \
+        Value _b = bl_vm_popvalue(vm); \
+        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b); \
+        Value _a = bl_vm_popvalue(vm); \
+        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a); \
+        bl_vm_pushvalue(vm, type(a op b)); \
     } while(false)
 #define BINARY_BIT_OP(op) \
     do \
     { \
-        if((!IS_NUMBER(peek(vm, 0)) && !IS_BOOL(peek(vm, 0))) || (!IS_NUMBER(peek(vm, 1)) && !IS_BOOL(peek(vm, 1)))) \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
         { \
-            runtime_error("unsupported operand %s for %s and %s", #op, value_type(peek(vm, 0)), value_type(peek(vm, 1))); \
+            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
             break; \
         } \
-        long b = AS_NUMBER(pop(vm)); \
-        long a = AS_NUMBER(pop(vm)); \
-        push(vm, INTEGER_VAL(a op b)); \
+        long b = AS_NUMBER(bl_vm_popvalue(vm)); \
+        long a = AS_NUMBER(bl_vm_popvalue(vm)); \
+        bl_vm_pushvalue(vm, INTEGER_VAL(a op b)); \
     } while(false)
 #define BINARY_MOD_OP(type, op) \
     do \
     { \
-        if((!IS_NUMBER(peek(vm, 0)) && !IS_BOOL(peek(vm, 0))) || (!IS_NUMBER(peek(vm, 1)) && !IS_BOOL(peek(vm, 1)))) \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
         { \
-            runtime_error("unsupported operand %s for %s and %s", #op, value_type(peek(vm, 0)), value_type(peek(vm, 1))); \
+            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
             break; \
         } \
-        Value _b = pop(vm); \
-        double b = IS_BOOL(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b); \
-        Value _a = pop(vm); \
-        double a = IS_BOOL(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a); \
-        push(vm, type(op(a, b))); \
+        Value _b = bl_vm_popvalue(vm); \
+        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b); \
+        Value _a = bl_vm_popvalue(vm); \
+        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a); \
+        bl_vm_pushvalue(vm, type(op(a, b))); \
     } while(false)
     for(;;)
     {
@@ -16601,7 +16710,7 @@ PtrResult bl_vm_run(VMState* vm)
             for(Value* slot = vm->stack; slot < vm->stacktop; slot++)
             {
                 printf("[ ");
-                print_value(*slot);
+                bl_value_printvalue(*slot);
                 printf(" ]");
             }
             printf("\n");
@@ -16613,30 +16722,30 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_CONSTANT:
             {
                 Value constant = READ_CONSTANT();
-                push(vm, constant);
+                bl_vm_pushvalue(vm, constant);
                 break;
             }
             case OP_ADD:
             {
-                if(IS_STRING(peek(vm, 0)) || IS_STRING(peek(vm, 1)))
+                if(bl_value_isstring(bl_vm_peekvalue(vm, 0)) || bl_value_isstring(bl_vm_peekvalue(vm, 1)))
                 {
-                    if(!concatenate(vm))
+                    if(!bl_vmdo_concat(vm))
                     {
-                        runtime_error("unsupported operand + for %s and %s", value_type(peek(vm, 0)), value_type(peek(vm, 1)));
+                        runtime_error("unsupported operand + for %s and %s", bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1)));
                         break;
                     }
                 }
-                else if(IS_LIST(peek(vm, 0)) && IS_LIST(peek(vm, 1)))
+                else if(bl_value_isarray(bl_vm_peekvalue(vm, 0)) && bl_value_isarray(bl_vm_peekvalue(vm, 1)))
                 {
-                    Value result = OBJ_VAL(add_list(vm, AS_LIST(peek(vm, 1)), AS_LIST(peek(vm, 0))));
-                    pop_n(vm, 2);
-                    push(vm, result);
+                    Value result = OBJ_VAL(bl_array_addarray(vm, AS_LIST(bl_vm_peekvalue(vm, 1)), AS_LIST(bl_vm_peekvalue(vm, 0))));
+                    bl_vm_popvaluen(vm, 2);
+                    bl_vm_pushvalue(vm, result);
                 }
-                else if(IS_BYTES(peek(vm, 0)) && IS_BYTES(peek(vm, 1)))
+                else if(bl_value_isbytes(bl_vm_peekvalue(vm, 0)) && bl_value_isbytes(bl_vm_peekvalue(vm, 1)))
                 {
-                    Value result = OBJ_VAL(add_bytes(vm, AS_BYTES(peek(vm, 1)), AS_BYTES(peek(vm, 0))));
-                    pop_n(vm, 2);
-                    push(vm, result);
+                    Value result = OBJ_VAL(bl_bytes_addbytes(vm, AS_BYTES(bl_vm_peekvalue(vm, 1)), AS_BYTES(bl_vm_peekvalue(vm, 0))));
+                    bl_vm_popvaluen(vm, 2);
+                    bl_vm_pushvalue(vm, result);
                 }
                 else
                 {
@@ -16651,24 +16760,24 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_MULTIPLY:
             {
-                if(IS_STRING(peek(vm, 1)) && IS_NUMBER(peek(vm, 0)))
+                if(bl_value_isstring(bl_vm_peekvalue(vm, 1)) && bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
                 {
-                    double number = AS_NUMBER(peek(vm, 0));
-                    ObjString* string = AS_STRING(peek(vm, 1));
-                    Value result = OBJ_VAL(multiply_string(vm, string, number));
-                    pop_n(vm, 2);
-                    push(vm, result);
+                    double number = AS_NUMBER(bl_vm_peekvalue(vm, 0));
+                    ObjString* string = AS_STRING(bl_vm_peekvalue(vm, 1));
+                    Value result = OBJ_VAL(bl_vmdo_stringmultiply(vm, string, number));
+                    bl_vm_popvaluen(vm, 2);
+                    bl_vm_pushvalue(vm, result);
                     break;
                 }
-                else if(IS_LIST(peek(vm, 1)) && IS_NUMBER(peek(vm, 0)))
+                else if(bl_value_isarray(bl_vm_peekvalue(vm, 1)) && bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
                 {
-                    int number = (int)AS_NUMBER(pop(vm));
-                    ObjList* list = AS_LIST(peek(vm, 0));
-                    ObjList* nlist = new_list(vm);
-                    push(vm, OBJ_VAL(nlist));
-                    multiply_list(vm, list, nlist, number);
-                    pop_n(vm, 2);
-                    push(vm, OBJ_VAL(nlist));
+                    int number = (int)AS_NUMBER(bl_vm_popvalue(vm));
+                    ObjArray* list = AS_LIST(bl_vm_peekvalue(vm, 0));
+                    ObjArray* nlist = bl_object_makelist(vm);
+                    bl_vm_pushvalue(vm, OBJ_VAL(nlist));
+                    bl_vmdo_listmultiply(vm, list, nlist, number);
+                    bl_vm_popvaluen(vm, 2);
+                    bl_vm_pushvalue(vm, OBJ_VAL(nlist));
                     break;
                 }
                 BINARY_OP(NUMBER_VAL, *);
@@ -16681,7 +16790,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_REMINDER:
             {
-                BINARY_MOD_OP(NUMBER_VAL, modulo);
+                BINARY_MOD_OP(NUMBER_VAL, bl_util_modulo);
                 break;
             }
             case OP_POW:
@@ -16691,27 +16800,27 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_F_DIVIDE:
             {
-                BINARY_MOD_OP(NUMBER_VAL, floor_div);
+                BINARY_MOD_OP(NUMBER_VAL, bl_util_floordiv);
                 break;
             }
             case OP_NEGATE:
             {
-                if(!IS_NUMBER(peek(vm, 0)))
+                if(!bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
                 {
-                    runtime_error("operator - not defined for object of type %s", value_type(peek(vm, 0)));
+                    runtime_error("operator - not defined for object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 0)));
                     break;
                 }
-                push(vm, NUMBER_VAL(-AS_NUMBER(pop(vm))));
+                bl_vm_pushvalue(vm, NUMBER_VAL(-AS_NUMBER(bl_vm_popvalue(vm))));
                 break;
             }
             case OP_BIT_NOT:
             {
-                if(!IS_NUMBER(peek(vm, 0)))
+                if(!bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
                 {
-                    runtime_error("operator ~ not defined for object of type %s", value_type(peek(vm, 0)));
+                    runtime_error("operator ~ not defined for object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 0)));
                     break;
                 }
-                push(vm, INTEGER_VAL(~((int)AS_NUMBER(pop(vm)))));
+                bl_vm_pushvalue(vm, INTEGER_VAL(~((int)AS_NUMBER(bl_vm_popvalue(vm)))));
                 break;
             }
             case OP_AND:
@@ -16741,15 +16850,15 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_ONE:
             {
-                push(vm, NUMBER_VAL(1));
+                bl_vm_pushvalue(vm, NUMBER_VAL(1));
                 break;
             }
                 // comparisons
             case OP_EQUAL:
             {
-                Value b = pop(vm);
-                Value a = pop(vm);
-                push(vm, BOOL_VAL(values_equal(a, b)));
+                Value b = bl_vm_popvalue(vm);
+                Value a = bl_vm_popvalue(vm);
+                bl_vm_pushvalue(vm, BOOL_VAL(bl_value_valuesequal(a, b)));
                 break;
             }
             case OP_GREATER:
@@ -16763,19 +16872,19 @@ PtrResult bl_vm_run(VMState* vm)
                 break;
             }
             case OP_NOT:
-                push(vm, BOOL_VAL(is_false(pop(vm))));
+                bl_vm_pushvalue(vm, BOOL_VAL(bl_value_isfalse(bl_vm_popvalue(vm))));
                 break;
             case OP_NIL:
-                push(vm, NIL_VAL);
+                bl_vm_pushvalue(vm, NIL_VAL);
                 break;
             case OP_EMPTY:
-                push(vm, EMPTY_VAL);
+                bl_vm_pushvalue(vm, EMPTY_VAL);
                 break;
             case OP_TRUE:
-                push(vm, BOOL_VAL(true));
+                bl_vm_pushvalue(vm, BOOL_VAL(true));
                 break;
             case OP_FALSE:
-                push(vm, BOOL_VAL(false));
+                bl_vm_pushvalue(vm, BOOL_VAL(false));
                 break;
             case OP_JUMP:
             {
@@ -16786,7 +16895,7 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_JUMP_IF_FALSE:
             {
                 uint16_t offset = READ_SHORT();
-                if(is_false(peek(vm, 0)))
+                if(bl_value_isfalse(bl_vm_peekvalue(vm, 0)))
                 {
                     frame->ip += offset;
                 }
@@ -16800,71 +16909,71 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_ECHO:
             {
-                Value val = peek(vm, 0);
+                Value val = bl_vm_peekvalue(vm, 0);
                 if(vm->isrepl)
                 {
-                    echo_value(val);
+                    bl_value_echovalue(val);
                 }
                 else
                 {
-                    print_value(val);
+                    bl_value_printvalue(val);
                 }
-                if(!IS_EMPTY(val))
+                if(!bl_value_isempty(val))
                 {
                     printf("\n");
                 }
-                pop(vm);
+                bl_vm_popvalue(vm);
                 break;
             }
             case OP_STRINGIFY:
             {
-                if(!IS_STRING(peek(vm, 0)) && !IS_NIL(peek(vm, 0)))
+                if(!bl_value_isstring(bl_vm_peekvalue(vm, 0)) && !bl_value_isnil(bl_vm_peekvalue(vm, 0)))
                 {
-                    char* value = value_to_string(vm, pop(vm));
+                    char* value = bl_value_tostring(vm, bl_vm_popvalue(vm));
                     if((int)strlen(value) != 0)
                     {
-                        push(vm, STRING_TT_VAL(value));
+                        bl_vm_pushvalue(vm, STRING_TT_VAL(value));
                     }
                     else
                     {
-                        push(vm, NIL_VAL);
+                        bl_vm_pushvalue(vm, NIL_VAL);
                     }
                 }
                 break;
             }
             case OP_DUP:
             {
-                push(vm, peek(vm, 0));
+                bl_vm_pushvalue(vm, bl_vm_peekvalue(vm, 0));
                 break;
             }
             case OP_POP:
             {
-                pop(vm);
+                bl_vm_popvalue(vm);
                 break;
             }
             case OP_POP_N:
             {
-                pop_n(vm, READ_SHORT());
+                bl_vm_popvaluen(vm, READ_SHORT());
                 break;
             }
             case OP_CLOSE_UP_VALUE:
             {
-                close_up_values(vm, vm->stacktop - 1);
-                pop(vm);
+                bl_vm_closeupvalues(vm, vm->stacktop - 1);
+                bl_vm_popvalue(vm);
                 break;
             }
             case OP_DEFINE_GLOBAL:
             {
                 ObjString* name = READ_STRING();
-                if(IS_EMPTY(peek(vm, 0)))
+                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
-                table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(name), peek(vm, 0));
-                pop(vm);
+                bl_hashtable_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(name), bl_vm_peekvalue(vm, 0));
+                bl_vm_popvalue(vm);
 #if defined(DEBUG_TABLE) && DEBUG_TABLE
-                table_print(&vm->globals);
+                bl_hashtable_print(&vm->globals);
 #endif
                 break;
             }
@@ -16872,29 +16981,29 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjString* name = READ_STRING();
                 Value value;
-                if(!table_get(&frame->closure->fnptr->module->values, OBJ_VAL(name), &value))
+                if(!bl_hashtable_get(&frame->closure->fnptr->module->values, OBJ_VAL(name), &value))
                 {
-                    if(!table_get(&vm->globals, OBJ_VAL(name), &value))
+                    if(!bl_hashtable_get(&vm->globals, OBJ_VAL(name), &value))
                     {
                         runtime_error("'%s' is undefined in this scope", name->chars);
                         break;
                     }
                 }
-                push(vm, value);
+                bl_vm_pushvalue(vm, value);
                 break;
             }
             case OP_SET_GLOBAL:
             {
-                if(IS_EMPTY(peek(vm, 0)))
+                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
                 ObjString* name = READ_STRING();
                 HashTable* table = &frame->closure->fnptr->module->values;
-                if(table_set(vm, table, OBJ_VAL(name), peek(vm, 0)))
+                if(bl_hashtable_set(vm, table, OBJ_VAL(name), bl_vm_peekvalue(vm, 0)))
                 {
-                    table_delete(table, OBJ_VAL(name));
+                    bl_hashtable_delete(table, OBJ_VAL(name));
                     runtime_error("%s is undefined in this scope", name->chars);
                     break;
                 }
@@ -16903,40 +17012,40 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_GET_LOCAL:
             {
                 uint16_t slot = READ_SHORT();
-                push(vm, frame->slots[slot]);
+                bl_vm_pushvalue(vm, frame->slots[slot]);
                 break;
             }
             case OP_SET_LOCAL:
             {
                 uint16_t slot = READ_SHORT();
-                if(IS_EMPTY(peek(vm, 0)))
+                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
-                frame->slots[slot] = peek(vm, 0);
+                frame->slots[slot] = bl_vm_peekvalue(vm, 0);
                 break;
             }
             case OP_GET_PROPERTY:
             {
                 ObjString* name = READ_STRING();
-                if(IS_OBJ(peek(vm, 0)))
+                if(bl_value_isobject(bl_vm_peekvalue(vm, 0)))
                 {
                     Value value;
-                    switch(AS_OBJ(peek(vm, 0))->type)
+                    switch(AS_OBJ(bl_vm_peekvalue(vm, 0))->type)
                     {
                         case OBJ_MODULE:
                         {
-                            ObjModule* module = AS_MODULE(peek(vm, 0));
-                            if(table_get(&module->values, OBJ_VAL(name), &value))
+                            ObjModule* module = AS_MODULE(bl_vm_peekvalue(vm, 0));
+                            if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
                             {
                                 if(name->length > 0 && name->chars[0] == '_')
                                 {
                                     runtime_error("cannot get private module property '%s'", name->chars);
                                     break;
                                 }
-                                pop(vm);// pop the list...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the list...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             runtime_error("%s module does not define '%s'", module->name, name->chars);
@@ -16944,46 +17053,46 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_CLASS:
                         {
-                            if(table_get(&AS_CLASS(peek(vm, 0))->methods, OBJ_VAL(name), &value))
+                            if(bl_hashtable_get(&AS_CLASS(bl_vm_peekvalue(vm, 0))->methods, OBJ_VAL(name), &value))
                             {
-                                if(get_method_type(value) == TYPE_STATIC)
+                                if(bl_value_getmethodtype(value) == TYPE_STATIC)
                                 {
                                     if(name->length > 0 && name->chars[0] == '_')
                                     {
-                                        runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(peek(vm, 0))->name->chars);
+                                        runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(bl_vm_peekvalue(vm, 0))->name->chars);
                                         break;
                                     }
-                                    pop(vm);// pop the class...
-                                    push(vm, value);
+                                    bl_vm_popvalue(vm);// pop the class...
+                                    bl_vm_pushvalue(vm, value);
                                     break;
                                 }
                             }
-                            else if(table_get(&AS_CLASS(peek(vm, 0))->staticproperties, OBJ_VAL(name), &value))
+                            else if(bl_hashtable_get(&AS_CLASS(bl_vm_peekvalue(vm, 0))->staticproperties, OBJ_VAL(name), &value))
                             {
                                 if(name->length > 0 && name->chars[0] == '_')
                                 {
-                                    runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(peek(vm, 0))->name->chars);
+                                    runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(bl_vm_peekvalue(vm, 0))->name->chars);
                                     break;
                                 }
-                                pop(vm);// pop the class...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the class...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
-                            runtime_error("class %s does not have a static property or method named '%s'", AS_CLASS(peek(vm, 0))->name->chars, name->chars);
+                            runtime_error("class %s does not have a static property or method named '%s'", AS_CLASS(bl_vm_peekvalue(vm, 0))->name->chars, name->chars);
                             break;
                         }
                         case OBJ_INSTANCE:
                         {
-                            ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
-                            if(table_get(&instance->properties, OBJ_VAL(name), &value))
+                            ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 0));
+                            if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
                             {
                                 if(name->length > 0 && name->chars[0] == '_')
                                 {
                                     runtime_error("cannot call private property '%s' from instance of %s", name->chars, instance->klass->name->chars);
                                     break;
                                 }
-                                pop(vm);// pop the instance...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the instance...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             if(name->length > 0 && name->chars[0] == '_')
@@ -16991,31 +17100,31 @@ PtrResult bl_vm_run(VMState* vm)
                                 runtime_error("cannot bind private property '%s' to instance of %s", name->chars, instance->klass->name->chars);
                                 break;
                             }
-                            if(bind_method(vm, instance->klass, name))
+                            if(bl_class_bindmethod(vm, instance->klass, name))
                             {
                                 break;
                             }
-                            runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(peek(vm, 0))->klass->name->chars,
+                            runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars,
                                           name->chars);
                             break;
                         }
                         case OBJ_STRING:
                         {
-                            if(table_get(&vm->methodsstring, OBJ_VAL(name), &value))
+                            if(bl_hashtable_get(&vm->methodsstring, OBJ_VAL(name), &value))
                             {
-                                pop(vm);// pop the list...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the list...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             runtime_error("class String has no named property '%s'", name->chars);
                             break;
                         }
-                        case OBJ_LIST:
+                        case OBJ_ARRAY:
                         {
-                            if(table_get(&vm->methodslist, OBJ_VAL(name), &value))
+                            if(bl_hashtable_get(&vm->methodslist, OBJ_VAL(name), &value))
                             {
-                                pop(vm);// pop the list...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the list...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             runtime_error("class List has no named property '%s'", name->chars);
@@ -17023,10 +17132,10 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_RANGE:
                         {
-                            if(table_get(&vm->methodsrange, OBJ_VAL(name), &value))
+                            if(bl_hashtable_get(&vm->methodsrange, OBJ_VAL(name), &value))
                             {
-                                pop(vm);// pop the list...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the list...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             runtime_error("class Range has no named property '%s'", name->chars);
@@ -17034,10 +17143,10 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_DICT:
                         {
-                            if(table_get(&AS_DICT(peek(vm, 0))->items, OBJ_VAL(name), &value) || table_get(&vm->methodsdict, OBJ_VAL(name), &value))
+                            if(bl_hashtable_get(&AS_DICT(bl_vm_peekvalue(vm, 0))->items, OBJ_VAL(name), &value) || bl_hashtable_get(&vm->methodsdict, OBJ_VAL(name), &value))
                             {
-                                pop(vm);// pop the dictionary...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the dictionary...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             runtime_error("unknown key or class Dict property '%s'", name->chars);
@@ -17045,10 +17154,10 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_BYTES:
                         {
-                            if(table_get(&vm->methodsbytes, OBJ_VAL(name), &value))
+                            if(bl_hashtable_get(&vm->methodsbytes, OBJ_VAL(name), &value))
                             {
-                                pop(vm);// pop the list...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the list...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             runtime_error("class Bytes has no named property '%s'", name->chars);
@@ -17056,10 +17165,10 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_FILE:
                         {
-                            if(table_get(&vm->methodsfile, OBJ_VAL(name), &value))
+                            if(bl_hashtable_get(&vm->methodsfile, OBJ_VAL(name), &value))
                             {
-                                pop(vm);// pop the list...
-                                push(vm, value);
+                                bl_vm_popvalue(vm);// pop the list...
+                                bl_vm_pushvalue(vm, value);
                                 break;
                             }
                             runtime_error("class File has no named property '%s'", name->chars);
@@ -17067,14 +17176,14 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         default:
                         {
-                            runtime_error("object of type %s does not carry properties", value_type(peek(vm, 0)));
+                            runtime_error("object of type %s does not carry properties", bl_value_typename(bl_vm_peekvalue(vm, 0)));
                             break;
                         }
                     }
                 }
                 else
                 {
-                    runtime_error("'%s' of type %s does not have properties", value_to_string(vm, peek(vm, 0)), value_type(peek(vm, 0)));
+                    runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 0)));
                     break;
                 }
                 break;
@@ -17083,101 +17192,101 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjString* name = READ_STRING();
                 Value value;
-                if(IS_INSTANCE(peek(vm, 0)))
+                if(bl_value_isinstance(bl_vm_peekvalue(vm, 0)))
                 {
-                    ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
-                    if(table_get(&instance->properties, OBJ_VAL(name), &value))
+                    ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 0));
+                    if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
                     {
-                        pop(vm);// pop the instance...
-                        push(vm, value);
+                        bl_vm_popvalue(vm);// pop the instance...
+                        bl_vm_pushvalue(vm, value);
                         break;
                     }
-                    if(bind_method(vm, instance->klass, name))
+                    if(bl_class_bindmethod(vm, instance->klass, name))
                     {
                         break;
                     }
-                    runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(peek(vm, 0))->klass->name->chars, name->chars);
+                    runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars, name->chars);
                     break;
                 }
-                else if(IS_CLASS(peek(vm, 0)))
+                else if(bl_value_isclass(bl_vm_peekvalue(vm, 0)))
                 {
-                    ObjClass* klass = AS_CLASS(peek(vm, 0));
-                    if(table_get(&klass->methods, OBJ_VAL(name), &value))
+                    ObjClass* klass = AS_CLASS(bl_vm_peekvalue(vm, 0));
+                    if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
                     {
-                        if(get_method_type(value) == TYPE_STATIC)
+                        if(bl_value_getmethodtype(value) == TYPE_STATIC)
                         {
-                            pop(vm);// pop the class...
-                            push(vm, value);
+                            bl_vm_popvalue(vm);// pop the class...
+                            bl_vm_pushvalue(vm, value);
                             break;
                         }
                     }
-                    else if(table_get(&klass->staticproperties, OBJ_VAL(name), &value))
+                    else if(bl_hashtable_get(&klass->staticproperties, OBJ_VAL(name), &value))
                     {
-                        pop(vm);// pop the class...
-                        push(vm, value);
+                        bl_vm_popvalue(vm);// pop the class...
+                        bl_vm_pushvalue(vm, value);
                         break;
                     }
                     runtime_error("class %s does not have a static property or method named '%s'", klass->name->chars, name->chars);
                     break;
                 }
-                else if(IS_MODULE(peek(vm, 0)))
+                else if(bl_value_ismodule(bl_vm_peekvalue(vm, 0)))
                 {
-                    ObjModule* module = AS_MODULE(peek(vm, 0));
-                    if(table_get(&module->values, OBJ_VAL(name), &value))
+                    ObjModule* module = AS_MODULE(bl_vm_peekvalue(vm, 0));
+                    if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
                     {
-                        pop(vm);// pop the class...
-                        push(vm, value);
+                        bl_vm_popvalue(vm);// pop the class...
+                        bl_vm_pushvalue(vm, value);
                         break;
                     }
                     runtime_error("module %s does not define '%s'", module->name, name->chars);
                     break;
                 }
-                runtime_error("'%s' of type %s does not have properties", value_to_string(vm, peek(vm, 0)), value_type(peek(vm, 0)));
+                runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 0)));
                 break;
             }
             case OP_SET_PROPERTY:
             {
-                if(!IS_INSTANCE(peek(vm, 1)) && !IS_DICT(peek(vm, 1)))
+                if(!bl_value_isinstance(bl_vm_peekvalue(vm, 1)) && !bl_value_isdict(bl_vm_peekvalue(vm, 1)))
                 {
-                    runtime_error("object of type %s can not carry properties", value_type(peek(vm, 1)));
+                    runtime_error("object of type %s can not carry properties", bl_value_typename(bl_vm_peekvalue(vm, 1)));
                     break;
                 }
-                else if(IS_EMPTY(peek(vm, 0)))
+                else if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
                 ObjString* name = READ_STRING();
-                if(IS_INSTANCE(peek(vm, 1)))
+                if(bl_value_isinstance(bl_vm_peekvalue(vm, 1)))
                 {
-                    ObjInstance* instance = AS_INSTANCE(peek(vm, 1));
-                    table_set(vm, &instance->properties, OBJ_VAL(name), peek(vm, 0));
-                    Value value = pop(vm);
-                    pop(vm);// removing the instance object
-                    push(vm, value);
+                    ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 1));
+                    bl_hashtable_set(vm, &instance->properties, OBJ_VAL(name), bl_vm_peekvalue(vm, 0));
+                    Value value = bl_vm_popvalue(vm);
+                    bl_vm_popvalue(vm);// removing the instance object
+                    bl_vm_pushvalue(vm, value);
                 }
                 else
                 {
-                    ObjDict* dict = AS_DICT(peek(vm, 1));
-                    dict_set_entry(vm, dict, OBJ_VAL(name), peek(vm, 0));
-                    Value value = pop(vm);
-                    pop(vm);// removing the dictionary object
-                    push(vm, value);
+                    ObjDict* dict = AS_DICT(bl_vm_peekvalue(vm, 1));
+                    bl_dict_setentry(vm, dict, OBJ_VAL(name), bl_vm_peekvalue(vm, 0));
+                    Value value = bl_vm_popvalue(vm);
+                    bl_vm_popvalue(vm);// removing the dictionary object
+                    bl_vm_pushvalue(vm, value);
                 }
                 break;
             }
             case OP_CLOSURE:
             {
                 ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
-                ObjClosure* closure = new_closure(vm, function);
-                push(vm, OBJ_VAL(closure));
+                ObjClosure* closure = bl_object_makeclosure(vm, function);
+                bl_vm_pushvalue(vm, OBJ_VAL(closure));
                 for(int i = 0; i < closure->upvaluecount; i++)
                 {
                     uint8_t islocal = READ_BYTE();
                     int index = READ_SHORT();
                     if(islocal)
                     {
-                        closure->upvalues[i] = capture_up_value(vm, frame->slots + index);
+                        closure->upvalues[i] = bl_vm_captureupvalue(vm, frame->slots + index);
                     }
                     else
                     {
@@ -17189,24 +17298,24 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_GET_UP_VALUE:
             {
                 int index = READ_SHORT();
-                push(vm, *((ObjClosure*)frame->closure)->upvalues[index]->location);
+                bl_vm_pushvalue(vm, *((ObjClosure*)frame->closure)->upvalues[index]->location);
                 break;
             }
             case OP_SET_UP_VALUE:
             {
                 int index = READ_SHORT();
-                if(IS_EMPTY(peek(vm, 0)))
+                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
-                *((ObjClosure*)frame->closure)->upvalues[index]->location = peek(vm, 0);
+                *((ObjClosure*)frame->closure)->upvalues[index]->location = bl_vm_peekvalue(vm, 0);
                 break;
             }
             case OP_CALL:
             {
                 int argcount = READ_BYTE();
-                if(!call_value(vm, peek(vm, argcount), argcount))
+                if(!bl_vmdo_callvalue(vm, bl_vm_peekvalue(vm, argcount), argcount))
                 {
                     EXIT_VM();
                 }
@@ -17217,7 +17326,7 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjString* method = READ_STRING();
                 int argcount = READ_BYTE();
-                if(!invoke(vm, method, argcount))
+                if(!blade_vm_invokemethod(vm, method, argcount))
                 {
                     EXIT_VM();
                 }
@@ -17228,7 +17337,7 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjString* method = READ_STRING();
                 int argcount = READ_BYTE();
-                if(!invoke_self(vm, method, argcount))
+                if(!bl_instance_invokefromself(vm, method, argcount))
                 {
                     EXIT_VM();
                 }
@@ -17238,42 +17347,42 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_CLASS:
             {
                 ObjString* name = READ_STRING();
-                push(vm, OBJ_VAL(new_class(vm, name)));
+                bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makeclass(vm, name)));
                 break;
             }
             case OP_METHOD:
             {
                 ObjString* name = READ_STRING();
-                define_method(vm, name);
+                bl_vm_classdefmethod(vm, name);
                 break;
             }
             case OP_CLASS_PROPERTY:
             {
                 ObjString* name = READ_STRING();
                 int isstatic = READ_BYTE();
-                define_property(vm, name, isstatic == 1);
+                bl_vm_classdefproperty(vm, name, isstatic == 1);
                 break;
             }
             case OP_INHERIT:
             {
-                if(!IS_CLASS(peek(vm, 1)))
+                if(!bl_value_isclass(bl_vm_peekvalue(vm, 1)))
                 {
                     runtime_error("cannot inherit from non-class object");
                     break;
                 }
-                ObjClass* superclass = AS_CLASS(peek(vm, 1));
-                ObjClass* subclass = AS_CLASS(peek(vm, 0));
-                table_add_all(vm, &superclass->properties, &subclass->properties);
-                table_add_all(vm, &superclass->methods, &subclass->methods);
+                ObjClass* superclass = AS_CLASS(bl_vm_peekvalue(vm, 1));
+                ObjClass* subclass = AS_CLASS(bl_vm_peekvalue(vm, 0));
+                bl_hashtable_addall(vm, &superclass->properties, &subclass->properties);
+                bl_hashtable_addall(vm, &superclass->methods, &subclass->methods);
                 subclass->superclass = superclass;
-                pop(vm);// pop the subclass
+                bl_vm_popvalue(vm);// pop the subclass
                 break;
             }
             case OP_GET_SUPER:
             {
                 ObjString* name = READ_STRING();
-                ObjClass* klass = AS_CLASS(peek(vm, 0));
-                if(!bind_method(vm, klass->superclass, name))
+                ObjClass* klass = AS_CLASS(bl_vm_peekvalue(vm, 0));
+                if(!bl_class_bindmethod(vm, klass->superclass, name))
                 {
                     runtime_error("class %s does not define a function %s", klass->name->chars, name->chars);
                 }
@@ -17283,8 +17392,8 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjString* method = READ_STRING();
                 int argcount = READ_BYTE();
-                ObjClass* klass = AS_CLASS(pop(vm));
-                if(!invoke_from_class(vm, klass, method, argcount))
+                ObjClass* klass = AS_CLASS(bl_vm_popvalue(vm));
+                if(!bl_instance_invokefromclass(vm, klass, method, argcount))
                 {
                     EXIT_VM();
                 }
@@ -17294,8 +17403,8 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_SUPER_INVOKE_SELF:
             {
                 int argcount = READ_BYTE();
-                ObjClass* klass = AS_CLASS(pop(vm));
-                if(!invoke_from_class(vm, klass, klass->name, argcount))
+                ObjClass* klass = AS_CLASS(bl_vm_popvalue(vm));
+                if(!bl_instance_invokefromclass(vm, klass, klass->name, argcount))
                 {
                     EXIT_VM();
                 }
@@ -17305,65 +17414,65 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_LIST:
             {
                 int count = READ_SHORT();
-                ObjList* list = new_list(vm);
+                ObjArray* list = bl_object_makelist(vm);
                 vm->stacktop[-count - 1] = OBJ_VAL(list);
                 for(int i = count - 1; i >= 0; i--)
                 {
-                    write_list(vm, list, peek(vm, i));
+                    bl_array_push(vm, list, bl_vm_peekvalue(vm, i));
                 }
-                pop_n(vm, count);
+                bl_vm_popvaluen(vm, count);
                 break;
             }
             case OP_RANGE:
             {
-                Value _upper = peek(vm, 0), _lower = peek(vm, 1);
-                if(!IS_NUMBER(_upper) || !IS_NUMBER(_lower))
+                Value _upper = bl_vm_peekvalue(vm, 0), _lower = bl_vm_peekvalue(vm, 1);
+                if(!bl_value_isnumber(_upper) || !bl_value_isnumber(_lower))
                 {
                     runtime_error("invalid range boundaries");
                     break;
                 }
                 double lower = AS_NUMBER(_lower), upper = AS_NUMBER(_upper);
-                pop_n(vm, 2);
-                push(vm, OBJ_VAL(new_range(vm, lower, upper)));
+                bl_vm_popvaluen(vm, 2);
+                bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makerange(vm, lower, upper)));
                 break;
             }
             case OP_DICT:
             {
                 int count = READ_SHORT() * 2;// 1 for key, 1 for value
-                ObjDict* dict = new_dict(vm);
+                ObjDict* dict = bl_object_makedict(vm);
                 vm->stacktop[-count - 1] = OBJ_VAL(dict);
                 for(int i = 0; i < count; i += 2)
                 {
                     Value name = vm->stacktop[-count + i];
-                    if(!IS_STRING(name) && !IS_NUMBER(name) && !IS_BOOL(name))
+                    if(!bl_value_isstring(name) && !bl_value_isnumber(name) && !bl_value_isbool(name))
                     {
                         runtime_error("dictionary key must be one of string, number or boolean");
                     }
                     Value value = vm->stacktop[-count + i + 1];
-                    dict_add_entry(vm, dict, name, value);
+                    bl_dict_addentry(vm, dict, name, value);
                 }
-                pop_n(vm, count);
+                bl_vm_popvaluen(vm, count);
                 break;
             }
             case OP_GET_RANGED_INDEX:
             {
                 uint8_t willassign = READ_BYTE();
                 bool isgotten = true;
-                if(IS_OBJ(peek(vm, 2)))
+                if(bl_value_isobject(bl_vm_peekvalue(vm, 2)))
                 {
-                    switch(AS_OBJ(peek(vm, 2))->type)
+                    switch(AS_OBJ(bl_vm_peekvalue(vm, 2))->type)
                     {
                         case OBJ_STRING:
                         {
-                            if(!string_get_ranged_index(vm, AS_STRING(peek(vm, 2)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_stringgetrangedindex(vm, AS_STRING(bl_vm_peekvalue(vm, 2)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
                             break;
                         }
-                        case OBJ_LIST:
+                        case OBJ_ARRAY:
                         {
-                            if(!list_get_ranged_index(vm, AS_LIST(peek(vm, 2)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_listgetrangedindex(vm, AS_LIST(bl_vm_peekvalue(vm, 2)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -17371,7 +17480,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_BYTES:
                         {
-                            if(!bytes_get_ranged_index(vm, AS_BYTES(peek(vm, 2)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_bytesgetrangedindex(vm, AS_BYTES(bl_vm_peekvalue(vm, 2)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -17390,7 +17499,7 @@ PtrResult bl_vm_run(VMState* vm)
                 }
                 if(!isgotten)
                 {
-                    runtime_error("cannot range index object of type %s", value_type(peek(vm, 2)));
+                    runtime_error("cannot range index object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 2)));
                 }
                 break;
             }
@@ -17398,21 +17507,21 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 uint8_t willassign = READ_BYTE();
                 bool isgotten = true;
-                if(IS_OBJ(peek(vm, 1)))
+                if(bl_value_isobject(bl_vm_peekvalue(vm, 1)))
                 {
-                    switch(AS_OBJ(peek(vm, 1))->type)
+                    switch(AS_OBJ(bl_vm_peekvalue(vm, 1))->type)
                     {
                         case OBJ_STRING:
                         {
-                            if(!string_get_index(vm, AS_STRING(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_stringgetindex(vm, AS_STRING(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
                             break;
                         }
-                        case OBJ_LIST:
+                        case OBJ_ARRAY:
                         {
-                            if(!list_get_index(vm, AS_LIST(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_listgetindex(vm, AS_LIST(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -17420,7 +17529,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_DICT:
                         {
-                            if(!bl_vmdo_dictgetindex(vm, AS_DICT(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_dictgetindex(vm, AS_DICT(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -17428,7 +17537,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_MODULE:
                         {
-                            if(!module_get_index(vm, AS_MODULE(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_modulegetindex(vm, AS_MODULE(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -17436,7 +17545,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_BYTES:
                         {
-                            if(!bytes_get_index(vm, AS_BYTES(peek(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_bytesgetindex(vm, AS_BYTES(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -17455,27 +17564,27 @@ PtrResult bl_vm_run(VMState* vm)
                 }
                 if(!isgotten)
                 {
-                    runtime_error("cannot index object of type %s", value_type(peek(vm, 1)));
+                    runtime_error("cannot index object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 1)));
                 }
                 break;
             }
             case OP_SET_INDEX:
             {
                 bool isset = true;
-                if(IS_OBJ(peek(vm, 2)))
+                if(bl_value_isobject(bl_vm_peekvalue(vm, 2)))
                 {
-                    Value value = peek(vm, 0);
-                    Value index = peek(vm, 1);
-                    if(IS_EMPTY(value))
+                    Value value = bl_vm_peekvalue(vm, 0);
+                    Value index = bl_vm_peekvalue(vm, 1);
+                    if(bl_value_isempty(value))
                     {
                         runtime_error(ERR_CANT_ASSIGN_EMPTY);
                         break;
                     }
-                    switch(AS_OBJ(peek(vm, 2))->type)
+                    switch(AS_OBJ(bl_vm_peekvalue(vm, 2))->type)
                     {
-                        case OBJ_LIST:
+                        case OBJ_ARRAY:
                         {
-                            if(!list_set_index(vm, AS_LIST(peek(vm, 2)), index, value))
+                            if(!bl_vmdo_listsetindex(vm, AS_LIST(bl_vm_peekvalue(vm, 2)), index, value))
                             {
                                 EXIT_VM();
                             }
@@ -17488,17 +17597,17 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_DICT:
                         {
-                            bl_vmdo_dictsetindex(vm, AS_DICT(peek(vm, 2)), index, value);
+                            bl_vmdo_dictsetindex(vm, AS_DICT(bl_vm_peekvalue(vm, 2)), index, value);
                             break;
                         }
                         case OBJ_MODULE:
                         {
-                            module_set_index(vm, AS_MODULE(peek(vm, 2)), index, value);
+                            bl_vmdo_modulesetindex(vm, AS_MODULE(bl_vm_peekvalue(vm, 2)), index, value);
                             break;
                         }
                         case OBJ_BYTES:
                         {
-                            if(!bytes_set_index(vm, AS_BYTES(peek(vm, 2)), index, value))
+                            if(!bl_vmdo_bytessetindex(vm, AS_BYTES(bl_vm_peekvalue(vm, 2)), index, value))
                             {
                                 EXIT_VM();
                             }
@@ -17517,22 +17626,22 @@ PtrResult bl_vm_run(VMState* vm)
                 }
                 if(!isset)
                 {
-                    runtime_error("type of %s is not a valid iterable", value_type(peek(vm, 3)));
+                    runtime_error("type of %s is not a valid iterable", bl_value_typename(bl_vm_peekvalue(vm, 3)));
                 }
                 break;
             }
             case OP_RETURN:
             {
-                Value result = pop(vm);
-                close_up_values(vm, frame->slots);
+                Value result = bl_vm_popvalue(vm);
+                bl_vm_closeupvalues(vm, frame->slots);
                 vm->framecount--;
                 if(vm->framecount == 0)
                 {
-                    pop(vm);
+                    bl_vm_popvalue(vm);
                     return PTR_OK;
                 }
                 vm->stacktop = frame->slots;
-                push(vm, result);
+                bl_vm_pushvalue(vm, result);
                 frame = &vm->frames[vm->framecount - 1];
                 break;
             }
@@ -17540,7 +17649,7 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjClosure* closure = AS_CLOSURE(READ_CONSTANT());
                 add_module(vm, closure->fnptr->module);
-                bl_vm_docall(vm, closure, 0);
+                bl_vmdo_docall(vm, closure, 0);
                 frame = &vm->frames[vm->framecount - 1];
                 break;
             }
@@ -17548,7 +17657,7 @@ PtrResult bl_vm_run(VMState* vm)
             {
                 ObjString* modulename = READ_STRING();
                 Value value;
-                if(table_get(&vm->modules, OBJ_VAL(modulename), &value))
+                if(bl_hashtable_get(&vm->modules, OBJ_VAL(modulename), &value))
                 {
                     ObjModule* module = AS_MODULE(value);
                     if(module->preloader != NULL)
@@ -17556,7 +17665,7 @@ PtrResult bl_vm_run(VMState* vm)
                         ((ModLoaderFunc)module->preloader)(vm);
                     }
                     module->imported = true;
-                    table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(modulename), value);
+                    bl_hashtable_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(modulename), value);
                     break;
                 }
                 runtime_error("module '%s' not found", modulename->chars);
@@ -17565,11 +17674,11 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_SELECT_IMPORT:
             {
                 ObjString* entryname = READ_STRING();
-                ObjFunction* function = AS_CLOSURE(peek(vm, 0))->fnptr;
+                ObjFunction* function = AS_CLOSURE(bl_vm_peekvalue(vm, 0))->fnptr;
                 Value value;
-                if(table_get(&function->module->values, OBJ_VAL(entryname), &value))
+                if(bl_hashtable_get(&function->module->values, OBJ_VAL(entryname), &value))
                 {
-                    table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(entryname), value);
+                    bl_hashtable_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(entryname), value);
                 }
                 else
                 {
@@ -17579,16 +17688,16 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_SELECT_NATIVE_IMPORT:
             {
-                ObjString* modulename = AS_STRING(peek(vm, 0));
+                ObjString* modulename = AS_STRING(bl_vm_peekvalue(vm, 0));
                 ObjString* valuename = READ_STRING();
                 Value mod;
-                if(table_get(&vm->modules, OBJ_VAL(modulename), &mod))
+                if(bl_hashtable_get(&vm->modules, OBJ_VAL(modulename), &mod))
                 {
                     ObjModule* module = AS_MODULE(mod);
                     Value value;
-                    if(table_get(&module->values, OBJ_VAL(valuename), &value))
+                    if(bl_hashtable_get(&module->values, OBJ_VAL(valuename), &value))
                     {
-                        table_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(valuename), value);
+                        bl_hashtable_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(valuename), value);
                     }
                     else
                     {
@@ -17603,45 +17712,45 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_IMPORT_ALL:
             {
-                table_add_all(vm, &AS_CLOSURE(peek(vm, 0))->fnptr->module->values, &frame->closure->fnptr->module->values);
+                bl_hashtable_addall(vm, &AS_CLOSURE(bl_vm_peekvalue(vm, 0))->fnptr->module->values, &frame->closure->fnptr->module->values);
                 break;
             }
             case OP_IMPORT_ALL_NATIVE:
             {
-                ObjString* name = AS_STRING(peek(vm, 0));
+                ObjString* name = AS_STRING(bl_vm_peekvalue(vm, 0));
                 Value mod;
-                if(table_get(&vm->modules, OBJ_VAL(name), &mod))
+                if(bl_hashtable_get(&vm->modules, OBJ_VAL(name), &mod))
                 {
-                    table_add_all(vm, &AS_MODULE(mod)->values, &frame->closure->fnptr->module->values);
+                    bl_hashtable_addall(vm, &AS_MODULE(mod)->values, &frame->closure->fnptr->module->values);
                 }
                 break;
             }
             case OP_EJECT_IMPORT:
             {
                 ObjFunction* function = AS_CLOSURE(READ_CONSTANT())->fnptr;
-                table_delete(&frame->closure->fnptr->module->values, STRING_VAL(function->module->name));
+                bl_hashtable_delete(&frame->closure->fnptr->module->values, STRING_VAL(function->module->name));
                 break;
             }
             case OP_EJECT_NATIVE_IMPORT:
             {
                 Value mod;
                 ObjString* name = READ_STRING();
-                if(table_get(&vm->modules, OBJ_VAL(name), &mod))
+                if(bl_hashtable_get(&vm->modules, OBJ_VAL(name), &mod))
                 {
-                    table_add_all(vm, &AS_MODULE(mod)->values, &frame->closure->fnptr->module->values);
-                    table_delete(&frame->closure->fnptr->module->values, OBJ_VAL(name));
+                    bl_hashtable_addall(vm, &AS_MODULE(mod)->values, &frame->closure->fnptr->module->values);
+                    bl_hashtable_delete(&frame->closure->fnptr->module->values, OBJ_VAL(name));
                 }
                 break;
             }
             case OP_ASSERT:
             {
-                Value message = pop(vm);
-                Value expression = pop(vm);
-                if(is_false(expression))
+                Value message = bl_vm_popvalue(vm);
+                Value expression = bl_vm_popvalue(vm);
+                if(bl_value_isfalse(expression))
                 {
-                    if(!IS_NIL(message))
+                    if(!bl_value_isnil(message))
                     {
-                        bl_vm_throwexception(vm, true, value_to_string(vm, message));
+                        bl_vm_throwexception(vm, true, bl_value_tostring(vm, message));
                     }
                     else
                     {
@@ -17652,14 +17761,14 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_DIE:
             {
-                if(!IS_INSTANCE(peek(vm, 0)) || !bl_class_isinstanceof(AS_INSTANCE(peek(vm, 0))->klass, vm->exceptionclass->name->chars))
+                if(!bl_value_isinstance(bl_vm_peekvalue(vm, 0)) || !bl_class_isinstanceof(AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass, vm->exceptionclass->name->chars))
                 {
                     runtime_error("instance of Exception expected");
                     break;
                 }
-                Value stacktrace = get_stack_trace(vm);
-                ObjInstance* instance = AS_INSTANCE(peek(vm, 0));
-                table_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
+                Value stacktrace = bl_vm_getstacktrace(vm);
+                ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 0));
+                bl_hashtable_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
                 if(bl_vm_propagateexception(vm, false))
                 {
                     frame = &vm->frames[vm->framecount - 1];
@@ -17675,7 +17784,7 @@ PtrResult bl_vm_run(VMState* vm)
                 if(address != 0)
                 {
                     Value value;
-                    if(!table_get(&vm->globals, OBJ_VAL(type), &value) || !IS_CLASS(value))
+                    if(!bl_hashtable_get(&vm->globals, OBJ_VAL(type), &value) || !bl_value_isclass(value))
                     {
                         runtime_error("object of type '%s' is not an exception", type->chars);
                         break;
@@ -17706,9 +17815,9 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_SWITCH:
             {
                 ObjSwitch* sw = AS_SWITCH(READ_CONSTANT());
-                Value expr = peek(vm, 0);
+                Value expr = bl_vm_peekvalue(vm, 0);
                 Value value;
-                if(table_get(&sw->table, expr, &value))
+                if(bl_hashtable_get(&sw->table, expr, &value))
                 {
                     frame->ip += (int)AS_NUMBER(value);
                 }
@@ -17720,22 +17829,22 @@ PtrResult bl_vm_run(VMState* vm)
                 {
                     frame->ip += sw->exitjump;
                 }
-                pop(vm);
+                bl_vm_popvalue(vm);
                 break;
             }
             case OP_CHOICE:
             {
-                Value _else = peek(vm, 0);
-                Value _then = peek(vm, 1);
-                Value _condition = peek(vm, 2);
-                pop_n(vm, 3);
-                if(!is_false(_condition))
+                Value _else = bl_vm_peekvalue(vm, 0);
+                Value _then = bl_vm_peekvalue(vm, 1);
+                Value _condition = bl_vm_peekvalue(vm, 2);
+                bl_vm_popvaluen(vm, 3);
+                if(!bl_value_isfalse(_condition))
                 {
-                    push(vm, _then);
+                    bl_vm_pushvalue(vm, _then);
                 }
                 else
                 {
-                    push(vm, _else);
+                    bl_vm_pushvalue(vm, _else);
                 }
                 break;
             }
@@ -17756,9 +17865,9 @@ PtrResult bl_vm_run(VMState* vm)
 PtrResult bl_vm_interpsource(VMState* vm, ObjModule* module, const char* source)
 {
     BinaryBlob blob;
-    init_blob(&blob);
+    bl_blob_init(&blob);
     vm->allowgc = false;
-    initialize_exceptions(vm, module);
+    bl_vm_initexceptions(vm, module);
     vm->allowgc = true;
     ObjFunction* function = bl_compiler_compilesource(vm, module, source, &blob);
     if(vm->shouldprintbytecode)
@@ -17767,14 +17876,14 @@ PtrResult bl_vm_interpsource(VMState* vm, ObjModule* module, const char* source)
     }
     if(function == NULL)
     {
-        free_blob(vm, &blob);
+        bl_blob_free(vm, &blob);
         return PTR_COMPILE_ERR;
     }
-    push(vm, OBJ_VAL(function));
-    ObjClosure* closure = new_closure(vm, function);
-    pop(vm);
-    push(vm, OBJ_VAL(closure));
-    bl_vm_docall(vm, closure, 0);
+    bl_vm_pushvalue(vm, OBJ_VAL(function));
+    ObjClosure* closure = bl_object_makeclosure(vm, function);
+    bl_vm_popvalue(vm);
+    bl_vm_pushvalue(vm, OBJ_VAL(closure));
+    bl_vmdo_docall(vm, closure, 0);
     PtrResult result = bl_vm_run(vm);
     return result;
 }
@@ -17791,7 +17900,7 @@ static void repl(VMState* vm)
     char* source = (char*)malloc(sizeof(char));
     memset(source, 0, sizeof(char));
     int bracecount = 0, parencount = 0, bracketcount = 0, singlequotecount = 0, doublequotecount = 0;
-    ObjModule* module = new_module(vm, strdup(""), strdup("<repl>"));
+    ObjModule* module = bl_object_makemodule(vm, strdup(""), strdup("<repl>"));
     add_module(vm, module);
     for(;;)
     {
@@ -17891,6 +18000,22 @@ static void repl(VMState* vm)
     free(source);
 }
 
+static void run_source(VMState* vm, const char* source, const char* filename)
+{
+    ObjModule* module = bl_object_makemodule(vm, strdup(""), strdup(filename));
+    add_module(vm, module);
+    PtrResult result = bl_vm_interpsource(vm, module, source);
+    fflush(stdout);
+    if(result == PTR_COMPILE_ERR)
+    {
+        exit(EXIT_COMPILE);
+    }
+    if(result == PTR_RUNTIME_ERR)
+    {
+        exit(EXIT_RUNTIME);
+    }
+}
+
 static void run_file(VMState* vm, char* file)
 {
     char* source = bl_util_readfile(file);
@@ -17906,15 +18031,8 @@ static void run_file(VMState* vm, char* file)
             exit(EXIT_FAILURE);
         }
     }
-    ObjModule* module = new_module(vm, strdup(""), strdup(file));
-    add_module(vm, module);
-    PtrResult result = bl_vm_interpsource(vm, module, source);
+    run_source(vm, source, file);
     free(source);
-    fflush(stdout);
-    if(result == PTR_COMPILE_ERR)
-        exit(EXIT_COMPILE);
-    if(result == PTR_RUNTIME_ERR)
-        exit(EXIT_RUNTIME);
 }
 
 void show_usage(char* argv[], bool fail)
@@ -17927,6 +18045,7 @@ void show_usage(char* argv[], bool fail)
     fprintf(out, "         [This will cause the output to be buffered with 1kb]\n");
     fprintf(out, "   -d    Show generated bytecode.\n");
     fprintf(out, "   -j    Show stack objects during execution.\n");
+    fprintf(out, "   -e<s> eval <s>\n");
     fprintf(out,
             "   -g    Sets the minimum heap size in kilobytes before the GC\n"
             "         can start. [Default = %d (%dmb)]\n",
@@ -17937,6 +18056,7 @@ void show_usage(char* argv[], bool fail)
 int main(int argc, char* argv[])
 {
     VMState* vm;
+    const char* codeline;
     vm = (VMState*)malloc(sizeof(VMState));
     if(vm == NULL)
     {
@@ -17950,53 +18070,59 @@ int main(int argc, char* argv[])
     bool shouldprintbytecode = false;
     bool shouldbufferstdout = false;
     int nextgcstart = DEFAULT_GC_START;
+    codeline = NULL;
     if(argc > 1)
     {
         int opt;
-        while((opt = getopt(argc, argv, "hdbjvg:")) != -1)
+        while((opt = getopt(argc, argv, "hdbjvg:e:")) != -1)
         {
             switch(opt)
             {
                 case 'h':
-                {
-                    show_usage(argv, false);// exits
-                }
-                break;
-                case 'd':
-                {
-                    shouldprintbytecode = true;
-                }
-                break;
-                case 'b':
-                {
-                    shouldbufferstdout = true;
-                }
-                break;
-                case 'j':
-                {
-                    shoulddebugstack = true;
-                }
-                break;
-                case 'v':
-                {
-                    printf("Blade " BLADE_VERSION_STRING " (running on BladeVM " BVM_VERSION ")\n");
-                    return EXIT_SUCCESS;
-                }
-                break;
-                case 'g':
-                {
-                    int next = (int)strtol(optarg, NULL, 10);
-                    if(next > 0)
                     {
-                        nextgcstart = next * 1024;// expected value is in kilobytes
+                        show_usage(argv, false);// exits
                     }
-                }
-                break;
+                    break;
+                case 'd':
+                    {
+                        shouldprintbytecode = true;
+                    }
+                    break;
+                case 'b':
+                    {
+                        shouldbufferstdout = true;
+                    }
+                    break;
+                case 'j':
+                    {
+                        shoulddebugstack = true;
+                    }
+                    break;
+                case 'v':
+                    {
+                        printf("Blade " BLADE_VERSION_STRING " (running on BladeVM " BVM_VERSION ")\n");
+                        return EXIT_SUCCESS;
+                    }
+                    break;
+                case 'g':
+                    {
+                        int next = (int)strtol(optarg, NULL, 10);
+                        if(next > 0)
+                        {
+                            nextgcstart = next * 1024;// expected value is in kilobytes
+                        }
+                    }
+                    break;
+                case 'e':
+                    {
+                        codeline = optarg;
+                    }
+                    break;
                 default:
-                {
-                    show_usage(argv, true);// exits
-                }
-                break;
+                    {
+                        show_usage(argv, true);// exits
+                    }
+                    break;
             }
         }
     }
@@ -18030,7 +18156,11 @@ int main(int argc, char* argv[])
         }
         // always do this last so that we can have access to everything else
         bind_native_modules(vm);
-        if(argc == 1 || argc <= optind)
+        if(codeline != NULL)
+        {
+            run_source(vm, codeline, "<-e>");
+        }
+        else if(argc == 1 || argc <= optind)
         {
             repl(vm);
         }
@@ -18041,10 +18171,11 @@ int main(int argc, char* argv[])
         fprintf(stderr, "freeing up memory?\n");
         bl_mem_collectgarbage(vm);
         free(stdargs);
-        free_vm(vm);
+        bl_vm_freevm(vm);
         free(vm);
         return EXIT_SUCCESS;
     }
     fprintf(stderr, "Device out of memory.");
     exit(EXIT_FAILURE);
 }
+

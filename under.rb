@@ -47,6 +47,7 @@ class Underscore
     /\bsi_\w+\b/,
     /\bva_\w+\b/,
     /jmp_buf/,
+    /pcre\w+/
   ]
 
   REPLACEME = {

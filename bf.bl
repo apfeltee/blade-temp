@@ -4,7 +4,7 @@ def bf(src, input)
 {
     var i
     var memory = []
-    // foreach i in 0..300
+    /* foreach i in 0..300 */
     for i=0; i<300; i++
     {
         memory.append(0)
