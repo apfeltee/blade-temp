@@ -1,0 +1,3984 @@
+  # static __inline __uint16_t __bswap_16(__uint16_t __bsx);
+  "__bswap_16": "__bswap_16"
+
+  # static __inline __uint32_t __bswap_32(__uint32_t __bsx);
+  "__bswap_32": "__bswap_32"
+
+  # static __inline __uint16_t __uint16_identity(__uint16_t __x);
+  "__uint16_identity": "__uint16_identity"
+
+  # static __inline __uint32_t __uint32_identity(__uint32_t __x);
+  "__uint32_identity": "__uint32_identity"
+
+  # static __inline __uint64_t __uint64_identity(__uint64_t __x);
+  "__uint64_identity": "__uint64_identity"
+
+  # static void * XXH_malloc(size_t s);
+  "XXH_malloc": "XXH_malloc"
+
+  # static void XXH_free(void *p);
+  "XXH_free": "XXH_free"
+
+  # static void * XXH_memcpy(void *dest, const void *src, size_t size);
+  "XXH_memcpy": "XXH_memcpy"
+
+  # static xxhu32 XXH_read32(const void *ptr);
+  "XXH_read32": "XXH_read32"
+
+  # static xxhu32 XXH_readLE32(const void *ptr);
+  "XXH_readLE32": "XXH_readLE32"
+
+  # static xxhu32 XXH_readBE32(const void *ptr);
+  "XXH_readBE32": "XXH_readBE32"
+
+  # static xxhu32 XXH_readLE32_align(const void *ptr, XXH_alignment align);
+  "XXH_readLE32_align": "XXH_readLE32_align"
+
+  # static __inline unsigned XXH_INLINE_XXH_versionNumber(void);
+  "XXH_INLINE_XXH_versionNumber": "XXH_INLINE_XXH_versionNumber"
+
+  # static xxhu32 XXH32_round(xxhu32 acc, xxhu32 input);
+  "XXH32_round": "XXH32_round"
+
+  # static xxhu32 XXH32_avalanche(xxhu32 hash);
+  "XXH32_avalanche": "XXH32_avalanche"
+
+  # static xxhu32 XXH32_finalize(xxhu32 hash, const xxhu8 *ptr, size_t len, XXH_alignment align);
+  "XXH32_finalize": "XXH32_finalize"
+
+  # static xxhu32 XXH32_endian_align(const xxhu8 *input, size_t len, xxhu32 seed, XXH_alignment align);
+  "XXH32_endian_align": "XXH32_endian_align"
+
+  # static __inline XXH32_hash_t XXH_INLINE_XXH32(const void *input, size_t len, XXH32_hash_t seed);
+  "XXH_INLINE_XXH32": "XXH_INLINE_XXH32"
+
+  # static __inline XXH_NAMESPACEXXH32_state_t * XXH_INLINE_XXH32_createState(void);
+  "XXH_INLINE_XXH32_createState": "XXH_INLINE_XXH32_createState"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH32_freeState(XXH_NAMESPACEXXH32_state_t *statePtr);
+  "XXH_INLINE_XXH32_freeState": "XXH_INLINE_XXH32_freeState"
+
+  # static __inline void XXH_INLINE_XXH32_copyState(XXH_NAMESPACEXXH32_state_t *dstState, const XXH_NAMESPACEXXH32_state_t *srcState);
+  "XXH_INLINE_XXH32_copyState": "XXH_INLINE_XXH32_copyState"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH32_reset(XXH_NAMESPACEXXH32_state_t *statePtr, XXH32_hash_t seed);
+  "XXH_INLINE_XXH32_reset": "XXH_INLINE_XXH32_reset"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH32_update(XXH_NAMESPACEXXH32_state_t *state, const void *input, size_t len);
+  "XXH_INLINE_XXH32_update": "XXH_INLINE_XXH32_update"
+
+  # static __inline XXH32_hash_t XXH_INLINE_XXH32_digest(const XXH_NAMESPACEXXH32_state_t *state);
+  "XXH_INLINE_XXH32_digest": "XXH_INLINE_XXH32_digest"
+
+  # static __inline void XXH_INLINE_XXH32_canonicalFromHash(XXH_NAMESPACEXXH32_canonical_t *dst, XXH32_hash_t hash);
+  "XXH_INLINE_XXH32_canonicalFromHash": "XXH_INLINE_XXH32_canonicalFromHash"
+
+  # static __inline XXH32_hash_t XXH_INLINE_XXH32_hashFromCanonical(const XXH_NAMESPACEXXH32_canonical_t *src);
+  "XXH_INLINE_XXH32_hashFromCanonical": "XXH_INLINE_XXH32_hashFromCanonical"
+
+  # static xxhu64 XXH_read64(const void *ptr);
+  "XXH_read64": "XXH_read64"
+
+  # static xxhu64 XXH_readLE64(const void *ptr);
+  "XXH_readLE64": "XXH_readLE64"
+
+  # static xxhu64 XXH_readBE64(const void *ptr);
+  "XXH_readBE64": "XXH_readBE64"
+
+  # static xxhu64 XXH_readLE64_align(const void *ptr, XXH_alignment align);
+  "XXH_readLE64_align": "XXH_readLE64_align"
+
+  # static xxhu64 XXH64_round(xxhu64 acc, xxhu64 input);
+  "XXH64_round": "XXH64_round"
+
+  # static xxhu64 XXH64_mergeRound(xxhu64 acc, xxhu64 val);
+  "XXH64_mergeRound": "XXH64_mergeRound"
+
+  # static xxhu64 XXH64_avalanche(xxhu64 hash);
+  "XXH64_avalanche": "XXH64_avalanche"
+
+  # static xxhu64 XXH64_finalize(xxhu64 hash, const xxhu8 *ptr, size_t len, XXH_alignment align);
+  "XXH64_finalize": "XXH64_finalize"
+
+  # static xxhu64 XXH64_endian_align(const xxhu8 *input, size_t len, xxhu64 seed, XXH_alignment align);
+  "XXH64_endian_align": "XXH64_endian_align"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH64(const void *input, size_t len, XXH64_hash_t seed);
+  "XXH_INLINE_XXH64": "XXH_INLINE_XXH64"
+
+  # static __inline XXH_NAMESPACEXXH64_state_t * XXH_INLINE_XXH64_createState(void);
+  "XXH_INLINE_XXH64_createState": "XXH_INLINE_XXH64_createState"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH64_freeState(XXH_NAMESPACEXXH64_state_t *statePtr);
+  "XXH_INLINE_XXH64_freeState": "XXH_INLINE_XXH64_freeState"
+
+  # static __inline void XXH_INLINE_XXH64_copyState(XXH_NAMESPACEXXH64_state_t *dstState, const XXH_NAMESPACEXXH64_state_t *srcState);
+  "XXH_INLINE_XXH64_copyState": "XXH_INLINE_XXH64_copyState"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH64_reset(XXH_NAMESPACEXXH64_state_t *statePtr, XXH64_hash_t seed);
+  "XXH_INLINE_XXH64_reset": "XXH_INLINE_XXH64_reset"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH64_update(XXH_NAMESPACEXXH64_state_t *state, const void *input, size_t len);
+  "XXH_INLINE_XXH64_update": "XXH_INLINE_XXH64_update"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH64_digest(const XXH_NAMESPACEXXH64_state_t *state);
+  "XXH_INLINE_XXH64_digest": "XXH_INLINE_XXH64_digest"
+
+  # static __inline void XXH_INLINE_XXH64_canonicalFromHash(XXH_NAMESPACEXXH64_canonical_t *dst, XXH64_hash_t hash);
+  "XXH_INLINE_XXH64_canonicalFromHash": "XXH_INLINE_XXH64_canonicalFromHash"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH64_hashFromCanonical(const XXH_NAMESPACEXXH64_canonical_t *src);
+  "XXH_INLINE_XXH64_hashFromCanonical": "XXH_INLINE_XXH64_hashFromCanonical"
+
+  # __inline void _mm_empty(void);
+  "_mm_empty": "_mm_empty"
+
+  # __inline void _m_empty(void);
+  "_m_empty": "_m_empty"
+
+  # __inline __m64 _mm_cvtsi32_si64(int __i);
+  "_mm_cvtsi32_si64": "_mm_cvtsi32_si64"
+
+  # __inline __m64 _m_from_int(int __i);
+  "_m_from_int": "_m_from_int"
+
+  # __inline __m64 _m_from_int64(long long __i);
+  "_m_from_int64": "_m_from_int64"
+
+  # __inline __m64 _mm_cvtsi64_m64(long long __i);
+  "_mm_cvtsi64_m64": "_mm_cvtsi64_m64"
+
+  # __inline __m64 _mm_cvtsi64x_si64(long long __i);
+  "_mm_cvtsi64x_si64": "_mm_cvtsi64x_si64"
+
+  # __inline __m64 _mm_set_pi64x(long long __i);
+  "_mm_set_pi64x": "_mm_set_pi64x"
+
+  # __inline int _mm_cvtsi64_si32(__m64 __i);
+  "_mm_cvtsi64_si32": "_mm_cvtsi64_si32"
+
+  # __inline int _m_to_int(__m64 __i);
+  "_m_to_int": "_m_to_int"
+
+  # __inline long long _m_to_int64(__m64 __i);
+  "_m_to_int64": "_m_to_int64"
+
+  # __inline long long _mm_cvtm64_si64(__m64 __i);
+  "_mm_cvtm64_si64": "_mm_cvtm64_si64"
+
+  # __inline long long _mm_cvtsi64_si64x(__m64 __i);
+  "_mm_cvtsi64_si64x": "_mm_cvtsi64_si64x"
+
+  # __inline __m64 _mm_packs_pi16(__m64 __m1, __m64 __m2);
+  "_mm_packs_pi16": "_mm_packs_pi16"
+
+  # __inline __m64 _m_packsswb(__m64 __m1, __m64 __m2);
+  "_m_packsswb": "_m_packsswb"
+
+  # __inline __m64 _mm_packs_pi32(__m64 __m1, __m64 __m2);
+  "_mm_packs_pi32": "_mm_packs_pi32"
+
+  # __inline __m64 _m_packssdw(__m64 __m1, __m64 __m2);
+  "_m_packssdw": "_m_packssdw"
+
+  # __inline __m64 _mm_packs_pu16(__m64 __m1, __m64 __m2);
+  "_mm_packs_pu16": "_mm_packs_pu16"
+
+  # __inline __m64 _m_packuswb(__m64 __m1, __m64 __m2);
+  "_m_packuswb": "_m_packuswb"
+
+  # __inline __m64 _mm_unpackhi_pi8(__m64 __m1, __m64 __m2);
+  "_mm_unpackhi_pi8": "_mm_unpackhi_pi8"
+
+  # __inline __m64 _m_punpckhbw(__m64 __m1, __m64 __m2);
+  "_m_punpckhbw": "_m_punpckhbw"
+
+  # __inline __m64 _mm_unpackhi_pi16(__m64 __m1, __m64 __m2);
+  "_mm_unpackhi_pi16": "_mm_unpackhi_pi16"
+
+  # __inline __m64 _m_punpckhwd(__m64 __m1, __m64 __m2);
+  "_m_punpckhwd": "_m_punpckhwd"
+
+  # __inline __m64 _mm_unpackhi_pi32(__m64 __m1, __m64 __m2);
+  "_mm_unpackhi_pi32": "_mm_unpackhi_pi32"
+
+  # __inline __m64 _m_punpckhdq(__m64 __m1, __m64 __m2);
+  "_m_punpckhdq": "_m_punpckhdq"
+
+  # __inline __m64 _mm_unpacklo_pi8(__m64 __m1, __m64 __m2);
+  "_mm_unpacklo_pi8": "_mm_unpacklo_pi8"
+
+  # __inline __m64 _m_punpcklbw(__m64 __m1, __m64 __m2);
+  "_m_punpcklbw": "_m_punpcklbw"
+
+  # __inline __m64 _mm_unpacklo_pi16(__m64 __m1, __m64 __m2);
+  "_mm_unpacklo_pi16": "_mm_unpacklo_pi16"
+
+  # __inline __m64 _m_punpcklwd(__m64 __m1, __m64 __m2);
+  "_m_punpcklwd": "_m_punpcklwd"
+
+  # __inline __m64 _mm_unpacklo_pi32(__m64 __m1, __m64 __m2);
+  "_mm_unpacklo_pi32": "_mm_unpacklo_pi32"
+
+  # __inline __m64 _m_punpckldq(__m64 __m1, __m64 __m2);
+  "_m_punpckldq": "_m_punpckldq"
+
+  # __inline __m64 _mm_add_pi8(__m64 __m1, __m64 __m2);
+  "_mm_add_pi8": "_mm_add_pi8"
+
+  # __inline __m64 _m_paddb(__m64 __m1, __m64 __m2);
+  "_m_paddb": "_m_paddb"
+
+  # __inline __m64 _mm_add_pi16(__m64 __m1, __m64 __m2);
+  "_mm_add_pi16": "_mm_add_pi16"
+
+  # __inline __m64 _m_paddw(__m64 __m1, __m64 __m2);
+  "_m_paddw": "_m_paddw"
+
+  # __inline __m64 _mm_add_pi32(__m64 __m1, __m64 __m2);
+  "_mm_add_pi32": "_mm_add_pi32"
+
+  # __inline __m64 _m_paddd(__m64 __m1, __m64 __m2);
+  "_m_paddd": "_m_paddd"
+
+  # __inline __m64 _mm_add_si64(__m64 __m1, __m64 __m2);
+  "_mm_add_si64": "_mm_add_si64"
+
+  # __inline __m64 _mm_adds_pi8(__m64 __m1, __m64 __m2);
+  "_mm_adds_pi8": "_mm_adds_pi8"
+
+  # __inline __m64 _m_paddsb(__m64 __m1, __m64 __m2);
+  "_m_paddsb": "_m_paddsb"
+
+  # __inline __m64 _mm_adds_pi16(__m64 __m1, __m64 __m2);
+  "_mm_adds_pi16": "_mm_adds_pi16"
+
+  # __inline __m64 _m_paddsw(__m64 __m1, __m64 __m2);
+  "_m_paddsw": "_m_paddsw"
+
+  # __inline __m64 _mm_adds_pu8(__m64 __m1, __m64 __m2);
+  "_mm_adds_pu8": "_mm_adds_pu8"
+
+  # __inline __m64 _m_paddusb(__m64 __m1, __m64 __m2);
+  "_m_paddusb": "_m_paddusb"
+
+  # __inline __m64 _mm_adds_pu16(__m64 __m1, __m64 __m2);
+  "_mm_adds_pu16": "_mm_adds_pu16"
+
+  # __inline __m64 _m_paddusw(__m64 __m1, __m64 __m2);
+  "_m_paddusw": "_m_paddusw"
+
+  # __inline __m64 _mm_sub_pi8(__m64 __m1, __m64 __m2);
+  "_mm_sub_pi8": "_mm_sub_pi8"
+
+  # __inline __m64 _m_psubb(__m64 __m1, __m64 __m2);
+  "_m_psubb": "_m_psubb"
+
+  # __inline __m64 _mm_sub_pi16(__m64 __m1, __m64 __m2);
+  "_mm_sub_pi16": "_mm_sub_pi16"
+
+  # __inline __m64 _m_psubw(__m64 __m1, __m64 __m2);
+  "_m_psubw": "_m_psubw"
+
+  # __inline __m64 _mm_sub_pi32(__m64 __m1, __m64 __m2);
+  "_mm_sub_pi32": "_mm_sub_pi32"
+
+  # __inline __m64 _m_psubd(__m64 __m1, __m64 __m2);
+  "_m_psubd": "_m_psubd"
+
+  # __inline __m64 _mm_sub_si64(__m64 __m1, __m64 __m2);
+  "_mm_sub_si64": "_mm_sub_si64"
+
+  # __inline __m64 _mm_subs_pi8(__m64 __m1, __m64 __m2);
+  "_mm_subs_pi8": "_mm_subs_pi8"
+
+  # __inline __m64 _m_psubsb(__m64 __m1, __m64 __m2);
+  "_m_psubsb": "_m_psubsb"
+
+  # __inline __m64 _mm_subs_pi16(__m64 __m1, __m64 __m2);
+  "_mm_subs_pi16": "_mm_subs_pi16"
+
+  # __inline __m64 _m_psubsw(__m64 __m1, __m64 __m2);
+  "_m_psubsw": "_m_psubsw"
+
+  # __inline __m64 _mm_subs_pu8(__m64 __m1, __m64 __m2);
+  "_mm_subs_pu8": "_mm_subs_pu8"
+
+  # __inline __m64 _m_psubusb(__m64 __m1, __m64 __m2);
+  "_m_psubusb": "_m_psubusb"
+
+  # __inline __m64 _mm_subs_pu16(__m64 __m1, __m64 __m2);
+  "_mm_subs_pu16": "_mm_subs_pu16"
+
+  # __inline __m64 _m_psubusw(__m64 __m1, __m64 __m2);
+  "_m_psubusw": "_m_psubusw"
+
+  # __inline __m64 _mm_madd_pi16(__m64 __m1, __m64 __m2);
+  "_mm_madd_pi16": "_mm_madd_pi16"
+
+  # __inline __m64 _m_pmaddwd(__m64 __m1, __m64 __m2);
+  "_m_pmaddwd": "_m_pmaddwd"
+
+  # __inline __m64 _mm_mulhi_pi16(__m64 __m1, __m64 __m2);
+  "_mm_mulhi_pi16": "_mm_mulhi_pi16"
+
+  # __inline __m64 _m_pmulhw(__m64 __m1, __m64 __m2);
+  "_m_pmulhw": "_m_pmulhw"
+
+  # __inline __m64 _mm_mullo_pi16(__m64 __m1, __m64 __m2);
+  "_mm_mullo_pi16": "_mm_mullo_pi16"
+
+  # __inline __m64 _m_pmullw(__m64 __m1, __m64 __m2);
+  "_m_pmullw": "_m_pmullw"
+
+  # __inline __m64 _mm_sll_pi16(__m64 __m, __m64 __count);
+  "_mm_sll_pi16": "_mm_sll_pi16"
+
+  # __inline __m64 _m_psllw(__m64 __m, __m64 __count);
+  "_m_psllw": "_m_psllw"
+
+  # __inline __m64 _mm_slli_pi16(__m64 __m, int __count);
+  "_mm_slli_pi16": "_mm_slli_pi16"
+
+  # __inline __m64 _m_psllwi(__m64 __m, int __count);
+  "_m_psllwi": "_m_psllwi"
+
+  # __inline __m64 _mm_sll_pi32(__m64 __m, __m64 __count);
+  "_mm_sll_pi32": "_mm_sll_pi32"
+
+  # __inline __m64 _m_pslld(__m64 __m, __m64 __count);
+  "_m_pslld": "_m_pslld"
+
+  # __inline __m64 _mm_slli_pi32(__m64 __m, int __count);
+  "_mm_slli_pi32": "_mm_slli_pi32"
+
+  # __inline __m64 _m_pslldi(__m64 __m, int __count);
+  "_m_pslldi": "_m_pslldi"
+
+  # __inline __m64 _mm_sll_si64(__m64 __m, __m64 __count);
+  "_mm_sll_si64": "_mm_sll_si64"
+
+  # __inline __m64 _m_psllq(__m64 __m, __m64 __count);
+  "_m_psllq": "_m_psllq"
+
+  # __inline __m64 _mm_slli_si64(__m64 __m, int __count);
+  "_mm_slli_si64": "_mm_slli_si64"
+
+  # __inline __m64 _m_psllqi(__m64 __m, int __count);
+  "_m_psllqi": "_m_psllqi"
+
+  # __inline __m64 _mm_sra_pi16(__m64 __m, __m64 __count);
+  "_mm_sra_pi16": "_mm_sra_pi16"
+
+  # __inline __m64 _m_psraw(__m64 __m, __m64 __count);
+  "_m_psraw": "_m_psraw"
+
+  # __inline __m64 _mm_srai_pi16(__m64 __m, int __count);
+  "_mm_srai_pi16": "_mm_srai_pi16"
+
+  # __inline __m64 _m_psrawi(__m64 __m, int __count);
+  "_m_psrawi": "_m_psrawi"
+
+  # __inline __m64 _mm_sra_pi32(__m64 __m, __m64 __count);
+  "_mm_sra_pi32": "_mm_sra_pi32"
+
+  # __inline __m64 _m_psrad(__m64 __m, __m64 __count);
+  "_m_psrad": "_m_psrad"
+
+  # __inline __m64 _mm_srai_pi32(__m64 __m, int __count);
+  "_mm_srai_pi32": "_mm_srai_pi32"
+
+  # __inline __m64 _m_psradi(__m64 __m, int __count);
+  "_m_psradi": "_m_psradi"
+
+  # __inline __m64 _mm_srl_pi16(__m64 __m, __m64 __count);
+  "_mm_srl_pi16": "_mm_srl_pi16"
+
+  # __inline __m64 _m_psrlw(__m64 __m, __m64 __count);
+  "_m_psrlw": "_m_psrlw"
+
+  # __inline __m64 _mm_srli_pi16(__m64 __m, int __count);
+  "_mm_srli_pi16": "_mm_srli_pi16"
+
+  # __inline __m64 _m_psrlwi(__m64 __m, int __count);
+  "_m_psrlwi": "_m_psrlwi"
+
+  # __inline __m64 _mm_srl_pi32(__m64 __m, __m64 __count);
+  "_mm_srl_pi32": "_mm_srl_pi32"
+
+  # __inline __m64 _m_psrld(__m64 __m, __m64 __count);
+  "_m_psrld": "_m_psrld"
+
+  # __inline __m64 _mm_srli_pi32(__m64 __m, int __count);
+  "_mm_srli_pi32": "_mm_srli_pi32"
+
+  # __inline __m64 _m_psrldi(__m64 __m, int __count);
+  "_m_psrldi": "_m_psrldi"
+
+  # __inline __m64 _mm_srl_si64(__m64 __m, __m64 __count);
+  "_mm_srl_si64": "_mm_srl_si64"
+
+  # __inline __m64 _m_psrlq(__m64 __m, __m64 __count);
+  "_m_psrlq": "_m_psrlq"
+
+  # __inline __m64 _mm_srli_si64(__m64 __m, int __count);
+  "_mm_srli_si64": "_mm_srli_si64"
+
+  # __inline __m64 _m_psrlqi(__m64 __m, int __count);
+  "_m_psrlqi": "_m_psrlqi"
+
+  # __inline __m64 _mm_and_si64(__m64 __m1, __m64 __m2);
+  "_mm_and_si64": "_mm_and_si64"
+
+  # __inline __m64 _m_pand(__m64 __m1, __m64 __m2);
+  "_m_pand": "_m_pand"
+
+  # __inline __m64 _mm_andnot_si64(__m64 __m1, __m64 __m2);
+  "_mm_andnot_si64": "_mm_andnot_si64"
+
+  # __inline __m64 _m_pandn(__m64 __m1, __m64 __m2);
+  "_m_pandn": "_m_pandn"
+
+  # __inline __m64 _mm_or_si64(__m64 __m1, __m64 __m2);
+  "_mm_or_si64": "_mm_or_si64"
+
+  # __inline __m64 _m_por(__m64 __m1, __m64 __m2);
+  "_m_por": "_m_por"
+
+  # __inline __m64 _mm_xor_si64(__m64 __m1, __m64 __m2);
+  "_mm_xor_si64": "_mm_xor_si64"
+
+  # __inline __m64 _m_pxor(__m64 __m1, __m64 __m2);
+  "_m_pxor": "_m_pxor"
+
+  # __inline __m64 _mm_cmpeq_pi8(__m64 __m1, __m64 __m2);
+  "_mm_cmpeq_pi8": "_mm_cmpeq_pi8"
+
+  # __inline __m64 _m_pcmpeqb(__m64 __m1, __m64 __m2);
+  "_m_pcmpeqb": "_m_pcmpeqb"
+
+  # __inline __m64 _mm_cmpgt_pi8(__m64 __m1, __m64 __m2);
+  "_mm_cmpgt_pi8": "_mm_cmpgt_pi8"
+
+  # __inline __m64 _m_pcmpgtb(__m64 __m1, __m64 __m2);
+  "_m_pcmpgtb": "_m_pcmpgtb"
+
+  # __inline __m64 _mm_cmpeq_pi16(__m64 __m1, __m64 __m2);
+  "_mm_cmpeq_pi16": "_mm_cmpeq_pi16"
+
+  # __inline __m64 _m_pcmpeqw(__m64 __m1, __m64 __m2);
+  "_m_pcmpeqw": "_m_pcmpeqw"
+
+  # __inline __m64 _mm_cmpgt_pi16(__m64 __m1, __m64 __m2);
+  "_mm_cmpgt_pi16": "_mm_cmpgt_pi16"
+
+  # __inline __m64 _m_pcmpgtw(__m64 __m1, __m64 __m2);
+  "_m_pcmpgtw": "_m_pcmpgtw"
+
+  # __inline __m64 _mm_cmpeq_pi32(__m64 __m1, __m64 __m2);
+  "_mm_cmpeq_pi32": "_mm_cmpeq_pi32"
+
+  # __inline __m64 _m_pcmpeqd(__m64 __m1, __m64 __m2);
+  "_m_pcmpeqd": "_m_pcmpeqd"
+
+  # __inline __m64 _mm_cmpgt_pi32(__m64 __m1, __m64 __m2);
+  "_mm_cmpgt_pi32": "_mm_cmpgt_pi32"
+
+  # __inline __m64 _m_pcmpgtd(__m64 __m1, __m64 __m2);
+  "_m_pcmpgtd": "_m_pcmpgtd"
+
+  # __inline __m64 _mm_setzero_si64(void);
+  "_mm_setzero_si64": "_mm_setzero_si64"
+
+  # __inline __m64 _mm_set_pi32(int __i1, int __i0);
+  "_mm_set_pi32": "_mm_set_pi32"
+
+  # __inline __m64 _mm_set_pi16(short __w3, short __w2, short __w1, short __w0);
+  "_mm_set_pi16": "_mm_set_pi16"
+
+  # __inline __m64 _mm_set_pi8(char __b7, char __b6, char __b5, char __b4, char __b3, char __b2, char __b1, char __b0);
+  "_mm_set_pi8": "_mm_set_pi8"
+
+  # __inline __m64 _mm_setr_pi32(int __i0, int __i1);
+  "_mm_setr_pi32": "_mm_setr_pi32"
+
+  # __inline __m64 _mm_setr_pi16(short __w0, short __w1, short __w2, short __w3);
+  "_mm_setr_pi16": "_mm_setr_pi16"
+
+  # __inline __m64 _mm_setr_pi8(char __b0, char __b1, char __b2, char __b3, char __b4, char __b5, char __b6, char __b7);
+  "_mm_setr_pi8": "_mm_setr_pi8"
+
+  # __inline __m64 _mm_set1_pi32(int __i);
+  "_mm_set1_pi32": "_mm_set1_pi32"
+
+  # __inline __m64 _mm_set1_pi16(short __w);
+  "_mm_set1_pi16": "_mm_set1_pi16"
+
+  # __inline __m64 _mm_set1_pi8(char __b);
+  "_mm_set1_pi8": "_mm_set1_pi8"
+
+  # static __inline void * _mm_malloc(size_t __size, size_t __alignment);
+  "_mm_malloc": "_mm_malloc"
+
+  # static __inline void _mm_free(void *__ptr);
+  "_mm_free": "_mm_free"
+
+  # __inline __m128 _mm_undefined_ps(void);
+  "_mm_undefined_ps": "_mm_undefined_ps"
+
+  # __inline __m128 _mm_setzero_ps(void);
+  "_mm_setzero_ps": "_mm_setzero_ps"
+
+  # __inline __m128 _mm_add_ss(__m128 __A, __m128 __B);
+  "_mm_add_ss": "_mm_add_ss"
+
+  # __inline __m128 _mm_sub_ss(__m128 __A, __m128 __B);
+  "_mm_sub_ss": "_mm_sub_ss"
+
+  # __inline __m128 _mm_mul_ss(__m128 __A, __m128 __B);
+  "_mm_mul_ss": "_mm_mul_ss"
+
+  # __inline __m128 _mm_div_ss(__m128 __A, __m128 __B);
+  "_mm_div_ss": "_mm_div_ss"
+
+  # __inline __m128 _mm_sqrt_ss(__m128 __A);
+  "_mm_sqrt_ss": "_mm_sqrt_ss"
+
+  # __inline __m128 _mm_rcp_ss(__m128 __A);
+  "_mm_rcp_ss": "_mm_rcp_ss"
+
+  # __inline __m128 _mm_rsqrt_ss(__m128 __A);
+  "_mm_rsqrt_ss": "_mm_rsqrt_ss"
+
+  # __inline __m128 _mm_min_ss(__m128 __A, __m128 __B);
+  "_mm_min_ss": "_mm_min_ss"
+
+  # __inline __m128 _mm_max_ss(__m128 __A, __m128 __B);
+  "_mm_max_ss": "_mm_max_ss"
+
+  # __inline __m128 _mm_add_ps(__m128 __A, __m128 __B);
+  "_mm_add_ps": "_mm_add_ps"
+
+  # __inline __m128 _mm_sub_ps(__m128 __A, __m128 __B);
+  "_mm_sub_ps": "_mm_sub_ps"
+
+  # __inline __m128 _mm_mul_ps(__m128 __A, __m128 __B);
+  "_mm_mul_ps": "_mm_mul_ps"
+
+  # __inline __m128 _mm_div_ps(__m128 __A, __m128 __B);
+  "_mm_div_ps": "_mm_div_ps"
+
+  # __inline __m128 _mm_sqrt_ps(__m128 __A);
+  "_mm_sqrt_ps": "_mm_sqrt_ps"
+
+  # __inline __m128 _mm_rcp_ps(__m128 __A);
+  "_mm_rcp_ps": "_mm_rcp_ps"
+
+  # __inline __m128 _mm_rsqrt_ps(__m128 __A);
+  "_mm_rsqrt_ps": "_mm_rsqrt_ps"
+
+  # __inline __m128 _mm_min_ps(__m128 __A, __m128 __B);
+  "_mm_min_ps": "_mm_min_ps"
+
+  # __inline __m128 _mm_max_ps(__m128 __A, __m128 __B);
+  "_mm_max_ps": "_mm_max_ps"
+
+  # __inline __m128 _mm_and_ps(__m128 __A, __m128 __B);
+  "_mm_and_ps": "_mm_and_ps"
+
+  # __inline __m128 _mm_andnot_ps(__m128 __A, __m128 __B);
+  "_mm_andnot_ps": "_mm_andnot_ps"
+
+  # __inline __m128 _mm_or_ps(__m128 __A, __m128 __B);
+  "_mm_or_ps": "_mm_or_ps"
+
+  # __inline __m128 _mm_xor_ps(__m128 __A, __m128 __B);
+  "_mm_xor_ps": "_mm_xor_ps"
+
+  # __inline __m128 _mm_cmpeq_ss(__m128 __A, __m128 __B);
+  "_mm_cmpeq_ss": "_mm_cmpeq_ss"
+
+  # __inline __m128 _mm_cmplt_ss(__m128 __A, __m128 __B);
+  "_mm_cmplt_ss": "_mm_cmplt_ss"
+
+  # __inline __m128 _mm_cmple_ss(__m128 __A, __m128 __B);
+  "_mm_cmple_ss": "_mm_cmple_ss"
+
+  # __inline __m128 _mm_cmpgt_ss(__m128 __A, __m128 __B);
+  "_mm_cmpgt_ss": "_mm_cmpgt_ss"
+
+  # __inline __m128 _mm_cmpge_ss(__m128 __A, __m128 __B);
+  "_mm_cmpge_ss": "_mm_cmpge_ss"
+
+  # __inline __m128 _mm_cmpneq_ss(__m128 __A, __m128 __B);
+  "_mm_cmpneq_ss": "_mm_cmpneq_ss"
+
+  # __inline __m128 _mm_cmpnlt_ss(__m128 __A, __m128 __B);
+  "_mm_cmpnlt_ss": "_mm_cmpnlt_ss"
+
+  # __inline __m128 _mm_cmpnle_ss(__m128 __A, __m128 __B);
+  "_mm_cmpnle_ss": "_mm_cmpnle_ss"
+
+  # __inline __m128 _mm_cmpngt_ss(__m128 __A, __m128 __B);
+  "_mm_cmpngt_ss": "_mm_cmpngt_ss"
+
+  # __inline __m128 _mm_cmpnge_ss(__m128 __A, __m128 __B);
+  "_mm_cmpnge_ss": "_mm_cmpnge_ss"
+
+  # __inline __m128 _mm_cmpord_ss(__m128 __A, __m128 __B);
+  "_mm_cmpord_ss": "_mm_cmpord_ss"
+
+  # __inline __m128 _mm_cmpunord_ss(__m128 __A, __m128 __B);
+  "_mm_cmpunord_ss": "_mm_cmpunord_ss"
+
+  # __inline __m128 _mm_cmpeq_ps(__m128 __A, __m128 __B);
+  "_mm_cmpeq_ps": "_mm_cmpeq_ps"
+
+  # __inline __m128 _mm_cmplt_ps(__m128 __A, __m128 __B);
+  "_mm_cmplt_ps": "_mm_cmplt_ps"
+
+  # __inline __m128 _mm_cmple_ps(__m128 __A, __m128 __B);
+  "_mm_cmple_ps": "_mm_cmple_ps"
+
+  # __inline __m128 _mm_cmpgt_ps(__m128 __A, __m128 __B);
+  "_mm_cmpgt_ps": "_mm_cmpgt_ps"
+
+  # __inline __m128 _mm_cmpge_ps(__m128 __A, __m128 __B);
+  "_mm_cmpge_ps": "_mm_cmpge_ps"
+
+  # __inline __m128 _mm_cmpneq_ps(__m128 __A, __m128 __B);
+  "_mm_cmpneq_ps": "_mm_cmpneq_ps"
+
+  # __inline __m128 _mm_cmpnlt_ps(__m128 __A, __m128 __B);
+  "_mm_cmpnlt_ps": "_mm_cmpnlt_ps"
+
+  # __inline __m128 _mm_cmpnle_ps(__m128 __A, __m128 __B);
+  "_mm_cmpnle_ps": "_mm_cmpnle_ps"
+
+  # __inline __m128 _mm_cmpngt_ps(__m128 __A, __m128 __B);
+  "_mm_cmpngt_ps": "_mm_cmpngt_ps"
+
+  # __inline __m128 _mm_cmpnge_ps(__m128 __A, __m128 __B);
+  "_mm_cmpnge_ps": "_mm_cmpnge_ps"
+
+  # __inline __m128 _mm_cmpord_ps(__m128 __A, __m128 __B);
+  "_mm_cmpord_ps": "_mm_cmpord_ps"
+
+  # __inline __m128 _mm_cmpunord_ps(__m128 __A, __m128 __B);
+  "_mm_cmpunord_ps": "_mm_cmpunord_ps"
+
+  # __inline int _mm_comieq_ss(__m128 __A, __m128 __B);
+  "_mm_comieq_ss": "_mm_comieq_ss"
+
+  # __inline int _mm_comilt_ss(__m128 __A, __m128 __B);
+  "_mm_comilt_ss": "_mm_comilt_ss"
+
+  # __inline int _mm_comile_ss(__m128 __A, __m128 __B);
+  "_mm_comile_ss": "_mm_comile_ss"
+
+  # __inline int _mm_comigt_ss(__m128 __A, __m128 __B);
+  "_mm_comigt_ss": "_mm_comigt_ss"
+
+  # __inline int _mm_comige_ss(__m128 __A, __m128 __B);
+  "_mm_comige_ss": "_mm_comige_ss"
+
+  # __inline int _mm_comineq_ss(__m128 __A, __m128 __B);
+  "_mm_comineq_ss": "_mm_comineq_ss"
+
+  # __inline int _mm_ucomieq_ss(__m128 __A, __m128 __B);
+  "_mm_ucomieq_ss": "_mm_ucomieq_ss"
+
+  # __inline int _mm_ucomilt_ss(__m128 __A, __m128 __B);
+  "_mm_ucomilt_ss": "_mm_ucomilt_ss"
+
+  # __inline int _mm_ucomile_ss(__m128 __A, __m128 __B);
+  "_mm_ucomile_ss": "_mm_ucomile_ss"
+
+  # __inline int _mm_ucomigt_ss(__m128 __A, __m128 __B);
+  "_mm_ucomigt_ss": "_mm_ucomigt_ss"
+
+  # __inline int _mm_ucomige_ss(__m128 __A, __m128 __B);
+  "_mm_ucomige_ss": "_mm_ucomige_ss"
+
+  # __inline int _mm_ucomineq_ss(__m128 __A, __m128 __B);
+  "_mm_ucomineq_ss": "_mm_ucomineq_ss"
+
+  # __inline int _mm_cvtss_si32(__m128 __A);
+  "_mm_cvtss_si32": "_mm_cvtss_si32"
+
+  # __inline int _mm_cvt_ss2si(__m128 __A);
+  "_mm_cvt_ss2si": "_mm_cvt_ss2si"
+
+  # __inline long long _mm_cvtss_si64(__m128 __A);
+  "_mm_cvtss_si64": "_mm_cvtss_si64"
+
+  # __inline long long _mm_cvtss_si64x(__m128 __A);
+  "_mm_cvtss_si64x": "_mm_cvtss_si64x"
+
+  # __inline __m64 _mm_cvtps_pi32(__m128 __A);
+  "_mm_cvtps_pi32": "_mm_cvtps_pi32"
+
+  # __inline __m64 _mm_cvt_ps2pi(__m128 __A);
+  "_mm_cvt_ps2pi": "_mm_cvt_ps2pi"
+
+  # __inline int _mm_cvttss_si32(__m128 __A);
+  "_mm_cvttss_si32": "_mm_cvttss_si32"
+
+  # __inline int _mm_cvtt_ss2si(__m128 __A);
+  "_mm_cvtt_ss2si": "_mm_cvtt_ss2si"
+
+  # __inline long long _mm_cvttss_si64(__m128 __A);
+  "_mm_cvttss_si64": "_mm_cvttss_si64"
+
+  # __inline long long _mm_cvttss_si64x(__m128 __A);
+  "_mm_cvttss_si64x": "_mm_cvttss_si64x"
+
+  # __inline __m64 _mm_cvttps_pi32(__m128 __A);
+  "_mm_cvttps_pi32": "_mm_cvttps_pi32"
+
+  # __inline __m64 _mm_cvtt_ps2pi(__m128 __A);
+  "_mm_cvtt_ps2pi": "_mm_cvtt_ps2pi"
+
+  # __inline __m128 _mm_cvtsi32_ss(__m128 __A, int __B);
+  "_mm_cvtsi32_ss": "_mm_cvtsi32_ss"
+
+  # __inline __m128 _mm_cvt_si2ss(__m128 __A, int __B);
+  "_mm_cvt_si2ss": "_mm_cvt_si2ss"
+
+  # __inline __m128 _mm_cvtsi64_ss(__m128 __A, long long __B);
+  "_mm_cvtsi64_ss": "_mm_cvtsi64_ss"
+
+  # __inline __m128 _mm_cvtsi64x_ss(__m128 __A, long long __B);
+  "_mm_cvtsi64x_ss": "_mm_cvtsi64x_ss"
+
+  # __inline __m128 _mm_cvtpi32_ps(__m128 __A, __m64 __B);
+  "_mm_cvtpi32_ps": "_mm_cvtpi32_ps"
+
+  # __inline __m128 _mm_cvt_pi2ps(__m128 __A, __m64 __B);
+  "_mm_cvt_pi2ps": "_mm_cvt_pi2ps"
+
+  # __inline __m128 _mm_cvtpi16_ps(__m64 __A);
+  "_mm_cvtpi16_ps": "_mm_cvtpi16_ps"
+
+  # __inline __m128 _mm_cvtpu16_ps(__m64 __A);
+  "_mm_cvtpu16_ps": "_mm_cvtpu16_ps"
+
+  # __inline __m128 _mm_cvtpi8_ps(__m64 __A);
+  "_mm_cvtpi8_ps": "_mm_cvtpi8_ps"
+
+  # __inline __m128 _mm_cvtpu8_ps(__m64 __A);
+  "_mm_cvtpu8_ps": "_mm_cvtpu8_ps"
+
+  # __inline __m128 _mm_cvtpi32x2_ps(__m64 __A, __m64 __B);
+  "_mm_cvtpi32x2_ps": "_mm_cvtpi32x2_ps"
+
+  # __inline __m64 _mm_cvtps_pi16(__m128 __A);
+  "_mm_cvtps_pi16": "_mm_cvtps_pi16"
+
+  # __inline __m64 _mm_cvtps_pi8(__m128 __A);
+  "_mm_cvtps_pi8": "_mm_cvtps_pi8"
+
+  # __inline __m128 _mm_unpackhi_ps(__m128 __A, __m128 __B);
+  "_mm_unpackhi_ps": "_mm_unpackhi_ps"
+
+  # __inline __m128 _mm_unpacklo_ps(__m128 __A, __m128 __B);
+  "_mm_unpacklo_ps": "_mm_unpacklo_ps"
+
+  # __inline __m128 _mm_loadh_pi(__m128 __A, __m64 const *__P);
+  "_mm_loadh_pi": "_mm_loadh_pi"
+
+  # __inline void _mm_storeh_pi(__m64 *__P, __m128 __A);
+  "_mm_storeh_pi": "_mm_storeh_pi"
+
+  # __inline __m128 _mm_movehl_ps(__m128 __A, __m128 __B);
+  "_mm_movehl_ps": "_mm_movehl_ps"
+
+  # __inline __m128 _mm_movelh_ps(__m128 __A, __m128 __B);
+  "_mm_movelh_ps": "_mm_movelh_ps"
+
+  # __inline __m128 _mm_loadl_pi(__m128 __A, __m64 const *__P);
+  "_mm_loadl_pi": "_mm_loadl_pi"
+
+  # __inline void _mm_storel_pi(__m64 *__P, __m128 __A);
+  "_mm_storel_pi": "_mm_storel_pi"
+
+  # __inline int _mm_movemask_ps(__m128 __A);
+  "_mm_movemask_ps": "_mm_movemask_ps"
+
+  # __inline unsigned int _mm_getcsr(void);
+  "_mm_getcsr": "_mm_getcsr"
+
+  # __inline unsigned int _MM_GET_EXCEPTION_STATE(void);
+  "_MM_GET_EXCEPTION_STATE": "_MM_GET_EXCEPTION_STATE"
+
+  # __inline unsigned int _MM_GET_EXCEPTION_MASK(void);
+  "_MM_GET_EXCEPTION_MASK": "_MM_GET_EXCEPTION_MASK"
+
+  # __inline unsigned int _MM_GET_ROUNDING_MODE(void);
+  "_MM_GET_ROUNDING_MODE": "_MM_GET_ROUNDING_MODE"
+
+  # __inline unsigned int _MM_GET_FLUSH_ZERO_MODE(void);
+  "_MM_GET_FLUSH_ZERO_MODE": "_MM_GET_FLUSH_ZERO_MODE"
+
+  # __inline void _mm_setcsr(unsigned int __I);
+  "_mm_setcsr": "_mm_setcsr"
+
+  # __inline void _MM_SET_EXCEPTION_STATE(unsigned int __mask);
+  "_MM_SET_EXCEPTION_STATE": "_MM_SET_EXCEPTION_STATE"
+
+  # __inline void _MM_SET_EXCEPTION_MASK(unsigned int __mask);
+  "_MM_SET_EXCEPTION_MASK": "_MM_SET_EXCEPTION_MASK"
+
+  # __inline void _MM_SET_ROUNDING_MODE(unsigned int __mode);
+  "_MM_SET_ROUNDING_MODE": "_MM_SET_ROUNDING_MODE"
+
+  # __inline void _MM_SET_FLUSH_ZERO_MODE(unsigned int __mode);
+  "_MM_SET_FLUSH_ZERO_MODE": "_MM_SET_FLUSH_ZERO_MODE"
+
+  # __inline __m128 _mm_set_ss(float __F);
+  "_mm_set_ss": "_mm_set_ss"
+
+  # __inline __m128 _mm_set1_ps(float __F);
+  "_mm_set1_ps": "_mm_set1_ps"
+
+  # __inline __m128 _mm_set_ps1(float __F);
+  "_mm_set_ps1": "_mm_set_ps1"
+
+  # __inline __m128 _mm_load_ss(float const *__P);
+  "_mm_load_ss": "_mm_load_ss"
+
+  # __inline __m128 _mm_load1_ps(float const *__P);
+  "_mm_load1_ps": "_mm_load1_ps"
+
+  # __inline __m128 _mm_load_ps1(float const *__P);
+  "_mm_load_ps1": "_mm_load_ps1"
+
+  # __inline __m128 _mm_load_ps(float const *__P);
+  "_mm_load_ps": "_mm_load_ps"
+
+  # __inline __m128 _mm_loadu_ps(float const *__P);
+  "_mm_loadu_ps": "_mm_loadu_ps"
+
+  # __inline __m128 _mm_loadr_ps(float const *__P);
+  "_mm_loadr_ps": "_mm_loadr_ps"
+
+  # __inline __m128 _mm_set_ps(const float __Z, const float __Y, const float __X, const float __W);
+  "_mm_set_ps": "_mm_set_ps"
+
+  # __inline __m128 _mm_setr_ps(float __Z, float __Y, float __X, float __W);
+  "_mm_setr_ps": "_mm_setr_ps"
+
+  # __inline void _mm_store_ss(float *__P, __m128 __A);
+  "_mm_store_ss": "_mm_store_ss"
+
+  # __inline float _mm_cvtss_f32(__m128 __A);
+  "_mm_cvtss_f32": "_mm_cvtss_f32"
+
+  # __inline void _mm_store_ps(float *__P, __m128 __A);
+  "_mm_store_ps": "_mm_store_ps"
+
+  # __inline void _mm_storeu_ps(float *__P, __m128 __A);
+  "_mm_storeu_ps": "_mm_storeu_ps"
+
+  # __inline void _mm_store1_ps(float *__P, __m128 __A);
+  "_mm_store1_ps": "_mm_store1_ps"
+
+  # __inline void _mm_store_ps1(float *__P, __m128 __A);
+  "_mm_store_ps1": "_mm_store_ps1"
+
+  # __inline void _mm_storer_ps(float *__P, __m128 __A);
+  "_mm_storer_ps": "_mm_storer_ps"
+
+  # __inline __m128 _mm_move_ss(__m128 __A, __m128 __B);
+  "_mm_move_ss": "_mm_move_ss"
+
+  # __inline __m64 _mm_max_pi16(__m64 __A, __m64 __B);
+  "_mm_max_pi16": "_mm_max_pi16"
+
+  # __inline __m64 _m_pmaxsw(__m64 __A, __m64 __B);
+  "_m_pmaxsw": "_m_pmaxsw"
+
+  # __inline __m64 _mm_max_pu8(__m64 __A, __m64 __B);
+  "_mm_max_pu8": "_mm_max_pu8"
+
+  # __inline __m64 _m_pmaxub(__m64 __A, __m64 __B);
+  "_m_pmaxub": "_m_pmaxub"
+
+  # __inline __m64 _mm_min_pi16(__m64 __A, __m64 __B);
+  "_mm_min_pi16": "_mm_min_pi16"
+
+  # __inline __m64 _m_pminsw(__m64 __A, __m64 __B);
+  "_m_pminsw": "_m_pminsw"
+
+  # __inline __m64 _mm_min_pu8(__m64 __A, __m64 __B);
+  "_mm_min_pu8": "_mm_min_pu8"
+
+  # __inline __m64 _m_pminub(__m64 __A, __m64 __B);
+  "_m_pminub": "_m_pminub"
+
+  # __inline int _mm_movemask_pi8(__m64 __A);
+  "_mm_movemask_pi8": "_mm_movemask_pi8"
+
+  # __inline int _m_pmovmskb(__m64 __A);
+  "_m_pmovmskb": "_m_pmovmskb"
+
+  # __inline __m64 _mm_mulhi_pu16(__m64 __A, __m64 __B);
+  "_mm_mulhi_pu16": "_mm_mulhi_pu16"
+
+  # __inline __m64 _m_pmulhuw(__m64 __A, __m64 __B);
+  "_m_pmulhuw": "_m_pmulhuw"
+
+  # __inline void _mm_maskmove_si64(__m64 __A, __m64 __N, char *__P);
+  "_mm_maskmove_si64": "_mm_maskmove_si64"
+
+  # __inline void _m_maskmovq(__m64 __A, __m64 __N, char *__P);
+  "_m_maskmovq": "_m_maskmovq"
+
+  # __inline __m64 _mm_avg_pu8(__m64 __A, __m64 __B);
+  "_mm_avg_pu8": "_mm_avg_pu8"
+
+  # __inline __m64 _m_pavgb(__m64 __A, __m64 __B);
+  "_m_pavgb": "_m_pavgb"
+
+  # __inline __m64 _mm_avg_pu16(__m64 __A, __m64 __B);
+  "_mm_avg_pu16": "_mm_avg_pu16"
+
+  # __inline __m64 _m_pavgw(__m64 __A, __m64 __B);
+  "_m_pavgw": "_m_pavgw"
+
+  # __inline __m64 _mm_sad_pu8(__m64 __A, __m64 __B);
+  "_mm_sad_pu8": "_mm_sad_pu8"
+
+  # __inline __m64 _m_psadbw(__m64 __A, __m64 __B);
+  "_m_psadbw": "_m_psadbw"
+
+  # __inline void _mm_stream_pi(__m64 *__P, __m64 __A);
+  "_mm_stream_pi": "_mm_stream_pi"
+
+  # __inline void _mm_stream_ps(float *__P, __m128 __A);
+  "_mm_stream_ps": "_mm_stream_ps"
+
+  # __inline void _mm_sfence(void);
+  "_mm_sfence": "_mm_sfence"
+
+  # __inline void _mm_pause(void);
+  "_mm_pause": "_mm_pause"
+
+  # __inline __m128d _mm_set_sd(double __F);
+  "_mm_set_sd": "_mm_set_sd"
+
+  # __inline __m128d _mm_set1_pd(double __F);
+  "_mm_set1_pd": "_mm_set1_pd"
+
+  # __inline __m128d _mm_set_pd1(double __F);
+  "_mm_set_pd1": "_mm_set_pd1"
+
+  # __inline __m128d _mm_set_pd(double __W, double __X);
+  "_mm_set_pd": "_mm_set_pd"
+
+  # __inline __m128d _mm_setr_pd(double __W, double __X);
+  "_mm_setr_pd": "_mm_setr_pd"
+
+  # __inline __m128d _mm_undefined_pd(void);
+  "_mm_undefined_pd": "_mm_undefined_pd"
+
+  # __inline __m128d _mm_setzero_pd(void);
+  "_mm_setzero_pd": "_mm_setzero_pd"
+
+  # __inline __m128d _mm_move_sd(__m128d __A, __m128d __B);
+  "_mm_move_sd": "_mm_move_sd"
+
+  # __inline __m128d _mm_load_pd(double const *__P);
+  "_mm_load_pd": "_mm_load_pd"
+
+  # __inline __m128d _mm_loadu_pd(double const *__P);
+  "_mm_loadu_pd": "_mm_loadu_pd"
+
+  # __inline __m128d _mm_load1_pd(double const *__P);
+  "_mm_load1_pd": "_mm_load1_pd"
+
+  # __inline __m128d _mm_load_sd(double const *__P);
+  "_mm_load_sd": "_mm_load_sd"
+
+  # __inline __m128d _mm_load_pd1(double const *__P);
+  "_mm_load_pd1": "_mm_load_pd1"
+
+  # __inline __m128d _mm_loadr_pd(double const *__P);
+  "_mm_loadr_pd": "_mm_loadr_pd"
+
+  # __inline void _mm_store_pd(double *__P, __m128d __A);
+  "_mm_store_pd": "_mm_store_pd"
+
+  # __inline void _mm_storeu_pd(double *__P, __m128d __A);
+  "_mm_storeu_pd": "_mm_storeu_pd"
+
+  # __inline void _mm_store_sd(double *__P, __m128d __A);
+  "_mm_store_sd": "_mm_store_sd"
+
+  # __inline double _mm_cvtsd_f64(__m128d __A);
+  "_mm_cvtsd_f64": "_mm_cvtsd_f64"
+
+  # __inline void _mm_storel_pd(double *__P, __m128d __A);
+  "_mm_storel_pd": "_mm_storel_pd"
+
+  # __inline void _mm_storeh_pd(double *__P, __m128d __A);
+  "_mm_storeh_pd": "_mm_storeh_pd"
+
+  # __inline void _mm_store1_pd(double *__P, __m128d __A);
+  "_mm_store1_pd": "_mm_store1_pd"
+
+  # __inline void _mm_store_pd1(double *__P, __m128d __A);
+  "_mm_store_pd1": "_mm_store_pd1"
+
+  # __inline void _mm_storer_pd(double *__P, __m128d __A);
+  "_mm_storer_pd": "_mm_storer_pd"
+
+  # __inline int _mm_cvtsi128_si32(__m128i __A);
+  "_mm_cvtsi128_si32": "_mm_cvtsi128_si32"
+
+  # __inline long long _mm_cvtsi128_si64(__m128i __A);
+  "_mm_cvtsi128_si64": "_mm_cvtsi128_si64"
+
+  # __inline long long _mm_cvtsi128_si64x(__m128i __A);
+  "_mm_cvtsi128_si64x": "_mm_cvtsi128_si64x"
+
+  # __inline __m128d _mm_add_pd(__m128d __A, __m128d __B);
+  "_mm_add_pd": "_mm_add_pd"
+
+  # __inline __m128d _mm_add_sd(__m128d __A, __m128d __B);
+  "_mm_add_sd": "_mm_add_sd"
+
+  # __inline __m128d _mm_sub_pd(__m128d __A, __m128d __B);
+  "_mm_sub_pd": "_mm_sub_pd"
+
+  # __inline __m128d _mm_sub_sd(__m128d __A, __m128d __B);
+  "_mm_sub_sd": "_mm_sub_sd"
+
+  # __inline __m128d _mm_mul_pd(__m128d __A, __m128d __B);
+  "_mm_mul_pd": "_mm_mul_pd"
+
+  # __inline __m128d _mm_mul_sd(__m128d __A, __m128d __B);
+  "_mm_mul_sd": "_mm_mul_sd"
+
+  # __inline __m128d _mm_div_pd(__m128d __A, __m128d __B);
+  "_mm_div_pd": "_mm_div_pd"
+
+  # __inline __m128d _mm_div_sd(__m128d __A, __m128d __B);
+  "_mm_div_sd": "_mm_div_sd"
+
+  # __inline __m128d _mm_sqrt_pd(__m128d __A);
+  "_mm_sqrt_pd": "_mm_sqrt_pd"
+
+  # __inline __m128d _mm_sqrt_sd(__m128d __A, __m128d __B);
+  "_mm_sqrt_sd": "_mm_sqrt_sd"
+
+  # __inline __m128d _mm_min_pd(__m128d __A, __m128d __B);
+  "_mm_min_pd": "_mm_min_pd"
+
+  # __inline __m128d _mm_min_sd(__m128d __A, __m128d __B);
+  "_mm_min_sd": "_mm_min_sd"
+
+  # __inline __m128d _mm_max_pd(__m128d __A, __m128d __B);
+  "_mm_max_pd": "_mm_max_pd"
+
+  # __inline __m128d _mm_max_sd(__m128d __A, __m128d __B);
+  "_mm_max_sd": "_mm_max_sd"
+
+  # __inline __m128d _mm_and_pd(__m128d __A, __m128d __B);
+  "_mm_and_pd": "_mm_and_pd"
+
+  # __inline __m128d _mm_andnot_pd(__m128d __A, __m128d __B);
+  "_mm_andnot_pd": "_mm_andnot_pd"
+
+  # __inline __m128d _mm_or_pd(__m128d __A, __m128d __B);
+  "_mm_or_pd": "_mm_or_pd"
+
+  # __inline __m128d _mm_xor_pd(__m128d __A, __m128d __B);
+  "_mm_xor_pd": "_mm_xor_pd"
+
+  # __inline __m128d _mm_cmpeq_pd(__m128d __A, __m128d __B);
+  "_mm_cmpeq_pd": "_mm_cmpeq_pd"
+
+  # __inline __m128d _mm_cmplt_pd(__m128d __A, __m128d __B);
+  "_mm_cmplt_pd": "_mm_cmplt_pd"
+
+  # __inline __m128d _mm_cmple_pd(__m128d __A, __m128d __B);
+  "_mm_cmple_pd": "_mm_cmple_pd"
+
+  # __inline __m128d _mm_cmpgt_pd(__m128d __A, __m128d __B);
+  "_mm_cmpgt_pd": "_mm_cmpgt_pd"
+
+  # __inline __m128d _mm_cmpge_pd(__m128d __A, __m128d __B);
+  "_mm_cmpge_pd": "_mm_cmpge_pd"
+
+  # __inline __m128d _mm_cmpneq_pd(__m128d __A, __m128d __B);
+  "_mm_cmpneq_pd": "_mm_cmpneq_pd"
+
+  # __inline __m128d _mm_cmpnlt_pd(__m128d __A, __m128d __B);
+  "_mm_cmpnlt_pd": "_mm_cmpnlt_pd"
+
+  # __inline __m128d _mm_cmpnle_pd(__m128d __A, __m128d __B);
+  "_mm_cmpnle_pd": "_mm_cmpnle_pd"
+
+  # __inline __m128d _mm_cmpngt_pd(__m128d __A, __m128d __B);
+  "_mm_cmpngt_pd": "_mm_cmpngt_pd"
+
+  # __inline __m128d _mm_cmpnge_pd(__m128d __A, __m128d __B);
+  "_mm_cmpnge_pd": "_mm_cmpnge_pd"
+
+  # __inline __m128d _mm_cmpord_pd(__m128d __A, __m128d __B);
+  "_mm_cmpord_pd": "_mm_cmpord_pd"
+
+  # __inline __m128d _mm_cmpunord_pd(__m128d __A, __m128d __B);
+  "_mm_cmpunord_pd": "_mm_cmpunord_pd"
+
+  # __inline __m128d _mm_cmpeq_sd(__m128d __A, __m128d __B);
+  "_mm_cmpeq_sd": "_mm_cmpeq_sd"
+
+  # __inline __m128d _mm_cmplt_sd(__m128d __A, __m128d __B);
+  "_mm_cmplt_sd": "_mm_cmplt_sd"
+
+  # __inline __m128d _mm_cmple_sd(__m128d __A, __m128d __B);
+  "_mm_cmple_sd": "_mm_cmple_sd"
+
+  # __inline __m128d _mm_cmpgt_sd(__m128d __A, __m128d __B);
+  "_mm_cmpgt_sd": "_mm_cmpgt_sd"
+
+  # __inline __m128d _mm_cmpge_sd(__m128d __A, __m128d __B);
+  "_mm_cmpge_sd": "_mm_cmpge_sd"
+
+  # __inline __m128d _mm_cmpneq_sd(__m128d __A, __m128d __B);
+  "_mm_cmpneq_sd": "_mm_cmpneq_sd"
+
+  # __inline __m128d _mm_cmpnlt_sd(__m128d __A, __m128d __B);
+  "_mm_cmpnlt_sd": "_mm_cmpnlt_sd"
+
+  # __inline __m128d _mm_cmpnle_sd(__m128d __A, __m128d __B);
+  "_mm_cmpnle_sd": "_mm_cmpnle_sd"
+
+  # __inline __m128d _mm_cmpngt_sd(__m128d __A, __m128d __B);
+  "_mm_cmpngt_sd": "_mm_cmpngt_sd"
+
+  # __inline __m128d _mm_cmpnge_sd(__m128d __A, __m128d __B);
+  "_mm_cmpnge_sd": "_mm_cmpnge_sd"
+
+  # __inline __m128d _mm_cmpord_sd(__m128d __A, __m128d __B);
+  "_mm_cmpord_sd": "_mm_cmpord_sd"
+
+  # __inline __m128d _mm_cmpunord_sd(__m128d __A, __m128d __B);
+  "_mm_cmpunord_sd": "_mm_cmpunord_sd"
+
+  # __inline int _mm_comieq_sd(__m128d __A, __m128d __B);
+  "_mm_comieq_sd": "_mm_comieq_sd"
+
+  # __inline int _mm_comilt_sd(__m128d __A, __m128d __B);
+  "_mm_comilt_sd": "_mm_comilt_sd"
+
+  # __inline int _mm_comile_sd(__m128d __A, __m128d __B);
+  "_mm_comile_sd": "_mm_comile_sd"
+
+  # __inline int _mm_comigt_sd(__m128d __A, __m128d __B);
+  "_mm_comigt_sd": "_mm_comigt_sd"
+
+  # __inline int _mm_comige_sd(__m128d __A, __m128d __B);
+  "_mm_comige_sd": "_mm_comige_sd"
+
+  # __inline int _mm_comineq_sd(__m128d __A, __m128d __B);
+  "_mm_comineq_sd": "_mm_comineq_sd"
+
+  # __inline int _mm_ucomieq_sd(__m128d __A, __m128d __B);
+  "_mm_ucomieq_sd": "_mm_ucomieq_sd"
+
+  # __inline int _mm_ucomilt_sd(__m128d __A, __m128d __B);
+  "_mm_ucomilt_sd": "_mm_ucomilt_sd"
+
+  # __inline int _mm_ucomile_sd(__m128d __A, __m128d __B);
+  "_mm_ucomile_sd": "_mm_ucomile_sd"
+
+  # __inline int _mm_ucomigt_sd(__m128d __A, __m128d __B);
+  "_mm_ucomigt_sd": "_mm_ucomigt_sd"
+
+  # __inline int _mm_ucomige_sd(__m128d __A, __m128d __B);
+  "_mm_ucomige_sd": "_mm_ucomige_sd"
+
+  # __inline int _mm_ucomineq_sd(__m128d __A, __m128d __B);
+  "_mm_ucomineq_sd": "_mm_ucomineq_sd"
+
+  # __inline __m128i _mm_set_epi64x(long long __q1, long long __q0);
+  "_mm_set_epi64x": "_mm_set_epi64x"
+
+  # __inline __m128i _mm_set_epi64(__m64 __q1, __m64 __q0);
+  "_mm_set_epi64": "_mm_set_epi64"
+
+  # __inline __m128i _mm_set_epi32(int __q3, int __q2, int __q1, int __q0);
+  "_mm_set_epi32": "_mm_set_epi32"
+
+  # __inline __m128i _mm_set_epi16(short __q7, short __q6, short __q5, short __q4, short __q3, short __q2, short __q1, short __q0);
+  "_mm_set_epi16": "_mm_set_epi16"
+
+  # __inline __m128i _mm_set_epi8(char __q15, char __q14, char __q13, char __q12, char __q11, char __q10, char __q09, char __q08, char __q07, char __q06, char __q05, char __q04, char __q03, char __q02, char __q01, char __q00);
+  "_mm_set_epi8": "_mm_set_epi8"
+
+  # __inline __m128i _mm_set1_epi64x(long long __A);
+  "_mm_set1_epi64x": "_mm_set1_epi64x"
+
+  # __inline __m128i _mm_set1_epi64(__m64 __A);
+  "_mm_set1_epi64": "_mm_set1_epi64"
+
+  # __inline __m128i _mm_set1_epi32(int __A);
+  "_mm_set1_epi32": "_mm_set1_epi32"
+
+  # __inline __m128i _mm_set1_epi16(short __A);
+  "_mm_set1_epi16": "_mm_set1_epi16"
+
+  # __inline __m128i _mm_set1_epi8(char __A);
+  "_mm_set1_epi8": "_mm_set1_epi8"
+
+  # __inline __m128i _mm_setr_epi64(__m64 __q0, __m64 __q1);
+  "_mm_setr_epi64": "_mm_setr_epi64"
+
+  # __inline __m128i _mm_setr_epi32(int __q0, int __q1, int __q2, int __q3);
+  "_mm_setr_epi32": "_mm_setr_epi32"
+
+  # __inline __m128i _mm_setr_epi16(short __q0, short __q1, short __q2, short __q3, short __q4, short __q5, short __q6, short __q7);
+  "_mm_setr_epi16": "_mm_setr_epi16"
+
+  # __inline __m128i _mm_setr_epi8(char __q00, char __q01, char __q02, char __q03, char __q04, char __q05, char __q06, char __q07, char __q08, char __q09, char __q10, char __q11, char __q12, char __q13, char __q14, char __q15);
+  "_mm_setr_epi8": "_mm_setr_epi8"
+
+  # __inline __m128i _mm_load_si128(__m128i const *__P);
+  "_mm_load_si128": "_mm_load_si128"
+
+  # __inline __m128i _mm_loadu_si128(__m128i_u const *__P);
+  "_mm_loadu_si128": "_mm_loadu_si128"
+
+  # __inline __m128i _mm_loadl_epi64(__m128i_u const *__P);
+  "_mm_loadl_epi64": "_mm_loadl_epi64"
+
+  # __inline __m128i _mm_loadu_si64(void const *__P);
+  "_mm_loadu_si64": "_mm_loadu_si64"
+
+  # __inline void _mm_store_si128(__m128i *__P, __m128i __B);
+  "_mm_store_si128": "_mm_store_si128"
+
+  # __inline void _mm_storeu_si128(__m128i_u *__P, __m128i __B);
+  "_mm_storeu_si128": "_mm_storeu_si128"
+
+  # __inline void _mm_storel_epi64(__m128i_u *__P, __m128i __B);
+  "_mm_storel_epi64": "_mm_storel_epi64"
+
+  # __inline void _mm_storeu_si64(void *__P, __m128i __B);
+  "_mm_storeu_si64": "_mm_storeu_si64"
+
+  # __inline __m64 _mm_movepi64_pi64(__m128i __B);
+  "_mm_movepi64_pi64": "_mm_movepi64_pi64"
+
+  # __inline __m128i _mm_movpi64_epi64(__m64 __A);
+  "_mm_movpi64_epi64": "_mm_movpi64_epi64"
+
+  # __inline __m128i _mm_move_epi64(__m128i __A);
+  "_mm_move_epi64": "_mm_move_epi64"
+
+  # __inline __m128i _mm_undefined_si128(void);
+  "_mm_undefined_si128": "_mm_undefined_si128"
+
+  # __inline __m128i _mm_setzero_si128(void);
+  "_mm_setzero_si128": "_mm_setzero_si128"
+
+  # __inline __m128d _mm_cvtepi32_pd(__m128i __A);
+  "_mm_cvtepi32_pd": "_mm_cvtepi32_pd"
+
+  # __inline __m128 _mm_cvtepi32_ps(__m128i __A);
+  "_mm_cvtepi32_ps": "_mm_cvtepi32_ps"
+
+  # __inline __m128i _mm_cvtpd_epi32(__m128d __A);
+  "_mm_cvtpd_epi32": "_mm_cvtpd_epi32"
+
+  # __inline __m64 _mm_cvtpd_pi32(__m128d __A);
+  "_mm_cvtpd_pi32": "_mm_cvtpd_pi32"
+
+  # __inline __m128 _mm_cvtpd_ps(__m128d __A);
+  "_mm_cvtpd_ps": "_mm_cvtpd_ps"
+
+  # __inline __m128i _mm_cvttpd_epi32(__m128d __A);
+  "_mm_cvttpd_epi32": "_mm_cvttpd_epi32"
+
+  # __inline __m64 _mm_cvttpd_pi32(__m128d __A);
+  "_mm_cvttpd_pi32": "_mm_cvttpd_pi32"
+
+  # __inline __m128d _mm_cvtpi32_pd(__m64 __A);
+  "_mm_cvtpi32_pd": "_mm_cvtpi32_pd"
+
+  # __inline __m128i _mm_cvtps_epi32(__m128 __A);
+  "_mm_cvtps_epi32": "_mm_cvtps_epi32"
+
+  # __inline __m128i _mm_cvttps_epi32(__m128 __A);
+  "_mm_cvttps_epi32": "_mm_cvttps_epi32"
+
+  # __inline __m128d _mm_cvtps_pd(__m128 __A);
+  "_mm_cvtps_pd": "_mm_cvtps_pd"
+
+  # __inline int _mm_cvtsd_si32(__m128d __A);
+  "_mm_cvtsd_si32": "_mm_cvtsd_si32"
+
+  # __inline long long _mm_cvtsd_si64(__m128d __A);
+  "_mm_cvtsd_si64": "_mm_cvtsd_si64"
+
+  # __inline long long _mm_cvtsd_si64x(__m128d __A);
+  "_mm_cvtsd_si64x": "_mm_cvtsd_si64x"
+
+  # __inline int _mm_cvttsd_si32(__m128d __A);
+  "_mm_cvttsd_si32": "_mm_cvttsd_si32"
+
+  # __inline long long _mm_cvttsd_si64(__m128d __A);
+  "_mm_cvttsd_si64": "_mm_cvttsd_si64"
+
+  # __inline long long _mm_cvttsd_si64x(__m128d __A);
+  "_mm_cvttsd_si64x": "_mm_cvttsd_si64x"
+
+  # __inline __m128 _mm_cvtsd_ss(__m128 __A, __m128d __B);
+  "_mm_cvtsd_ss": "_mm_cvtsd_ss"
+
+  # __inline __m128d _mm_cvtsi32_sd(__m128d __A, int __B);
+  "_mm_cvtsi32_sd": "_mm_cvtsi32_sd"
+
+  # __inline __m128d _mm_cvtsi64_sd(__m128d __A, long long __B);
+  "_mm_cvtsi64_sd": "_mm_cvtsi64_sd"
+
+  # __inline __m128d _mm_cvtsi64x_sd(__m128d __A, long long __B);
+  "_mm_cvtsi64x_sd": "_mm_cvtsi64x_sd"
+
+  # __inline __m128d _mm_cvtss_sd(__m128d __A, __m128 __B);
+  "_mm_cvtss_sd": "_mm_cvtss_sd"
+
+  # __inline __m128d _mm_unpackhi_pd(__m128d __A, __m128d __B);
+  "_mm_unpackhi_pd": "_mm_unpackhi_pd"
+
+  # __inline __m128d _mm_unpacklo_pd(__m128d __A, __m128d __B);
+  "_mm_unpacklo_pd": "_mm_unpacklo_pd"
+
+  # __inline __m128d _mm_loadh_pd(__m128d __A, double const *__B);
+  "_mm_loadh_pd": "_mm_loadh_pd"
+
+  # __inline __m128d _mm_loadl_pd(__m128d __A, double const *__B);
+  "_mm_loadl_pd": "_mm_loadl_pd"
+
+  # __inline int _mm_movemask_pd(__m128d __A);
+  "_mm_movemask_pd": "_mm_movemask_pd"
+
+  # __inline __m128i _mm_packs_epi16(__m128i __A, __m128i __B);
+  "_mm_packs_epi16": "_mm_packs_epi16"
+
+  # __inline __m128i _mm_packs_epi32(__m128i __A, __m128i __B);
+  "_mm_packs_epi32": "_mm_packs_epi32"
+
+  # __inline __m128i _mm_packus_epi16(__m128i __A, __m128i __B);
+  "_mm_packus_epi16": "_mm_packus_epi16"
+
+  # __inline __m128i _mm_unpackhi_epi8(__m128i __A, __m128i __B);
+  "_mm_unpackhi_epi8": "_mm_unpackhi_epi8"
+
+  # __inline __m128i _mm_unpackhi_epi16(__m128i __A, __m128i __B);
+  "_mm_unpackhi_epi16": "_mm_unpackhi_epi16"
+
+  # __inline __m128i _mm_unpackhi_epi32(__m128i __A, __m128i __B);
+  "_mm_unpackhi_epi32": "_mm_unpackhi_epi32"
+
+  # __inline __m128i _mm_unpackhi_epi64(__m128i __A, __m128i __B);
+  "_mm_unpackhi_epi64": "_mm_unpackhi_epi64"
+
+  # __inline __m128i _mm_unpacklo_epi8(__m128i __A, __m128i __B);
+  "_mm_unpacklo_epi8": "_mm_unpacklo_epi8"
+
+  # __inline __m128i _mm_unpacklo_epi16(__m128i __A, __m128i __B);
+  "_mm_unpacklo_epi16": "_mm_unpacklo_epi16"
+
+  # __inline __m128i _mm_unpacklo_epi32(__m128i __A, __m128i __B);
+  "_mm_unpacklo_epi32": "_mm_unpacklo_epi32"
+
+  # __inline __m128i _mm_unpacklo_epi64(__m128i __A, __m128i __B);
+  "_mm_unpacklo_epi64": "_mm_unpacklo_epi64"
+
+  # __inline __m128i _mm_add_epi8(__m128i __A, __m128i __B);
+  "_mm_add_epi8": "_mm_add_epi8"
+
+  # __inline __m128i _mm_add_epi16(__m128i __A, __m128i __B);
+  "_mm_add_epi16": "_mm_add_epi16"
+
+  # __inline __m128i _mm_add_epi32(__m128i __A, __m128i __B);
+  "_mm_add_epi32": "_mm_add_epi32"
+
+  # __inline __m128i _mm_add_epi64(__m128i __A, __m128i __B);
+  "_mm_add_epi64": "_mm_add_epi64"
+
+  # __inline __m128i _mm_adds_epi8(__m128i __A, __m128i __B);
+  "_mm_adds_epi8": "_mm_adds_epi8"
+
+  # __inline __m128i _mm_adds_epi16(__m128i __A, __m128i __B);
+  "_mm_adds_epi16": "_mm_adds_epi16"
+
+  # __inline __m128i _mm_adds_epu8(__m128i __A, __m128i __B);
+  "_mm_adds_epu8": "_mm_adds_epu8"
+
+  # __inline __m128i _mm_adds_epu16(__m128i __A, __m128i __B);
+  "_mm_adds_epu16": "_mm_adds_epu16"
+
+  # __inline __m128i _mm_sub_epi8(__m128i __A, __m128i __B);
+  "_mm_sub_epi8": "_mm_sub_epi8"
+
+  # __inline __m128i _mm_sub_epi16(__m128i __A, __m128i __B);
+  "_mm_sub_epi16": "_mm_sub_epi16"
+
+  # __inline __m128i _mm_sub_epi32(__m128i __A, __m128i __B);
+  "_mm_sub_epi32": "_mm_sub_epi32"
+
+  # __inline __m128i _mm_sub_epi64(__m128i __A, __m128i __B);
+  "_mm_sub_epi64": "_mm_sub_epi64"
+
+  # __inline __m128i _mm_subs_epi8(__m128i __A, __m128i __B);
+  "_mm_subs_epi8": "_mm_subs_epi8"
+
+  # __inline __m128i _mm_subs_epi16(__m128i __A, __m128i __B);
+  "_mm_subs_epi16": "_mm_subs_epi16"
+
+  # __inline __m128i _mm_subs_epu8(__m128i __A, __m128i __B);
+  "_mm_subs_epu8": "_mm_subs_epu8"
+
+  # __inline __m128i _mm_subs_epu16(__m128i __A, __m128i __B);
+  "_mm_subs_epu16": "_mm_subs_epu16"
+
+  # __inline __m128i _mm_madd_epi16(__m128i __A, __m128i __B);
+  "_mm_madd_epi16": "_mm_madd_epi16"
+
+  # __inline __m128i _mm_mulhi_epi16(__m128i __A, __m128i __B);
+  "_mm_mulhi_epi16": "_mm_mulhi_epi16"
+
+  # __inline __m128i _mm_mullo_epi16(__m128i __A, __m128i __B);
+  "_mm_mullo_epi16": "_mm_mullo_epi16"
+
+  # __inline __m64 _mm_mul_su32(__m64 __A, __m64 __B);
+  "_mm_mul_su32": "_mm_mul_su32"
+
+  # __inline __m128i _mm_mul_epu32(__m128i __A, __m128i __B);
+  "_mm_mul_epu32": "_mm_mul_epu32"
+
+  # __inline __m128i _mm_slli_epi16(__m128i __A, int __B);
+  "_mm_slli_epi16": "_mm_slli_epi16"
+
+  # __inline __m128i _mm_slli_epi32(__m128i __A, int __B);
+  "_mm_slli_epi32": "_mm_slli_epi32"
+
+  # __inline __m128i _mm_slli_epi64(__m128i __A, int __B);
+  "_mm_slli_epi64": "_mm_slli_epi64"
+
+  # __inline __m128i _mm_srai_epi16(__m128i __A, int __B);
+  "_mm_srai_epi16": "_mm_srai_epi16"
+
+  # __inline __m128i _mm_srai_epi32(__m128i __A, int __B);
+  "_mm_srai_epi32": "_mm_srai_epi32"
+
+  # __inline __m128i _mm_srli_epi16(__m128i __A, int __B);
+  "_mm_srli_epi16": "_mm_srli_epi16"
+
+  # __inline __m128i _mm_srli_epi32(__m128i __A, int __B);
+  "_mm_srli_epi32": "_mm_srli_epi32"
+
+  # __inline __m128i _mm_srli_epi64(__m128i __A, int __B);
+  "_mm_srli_epi64": "_mm_srli_epi64"
+
+  # __inline __m128i _mm_sll_epi16(__m128i __A, __m128i __B);
+  "_mm_sll_epi16": "_mm_sll_epi16"
+
+  # __inline __m128i _mm_sll_epi32(__m128i __A, __m128i __B);
+  "_mm_sll_epi32": "_mm_sll_epi32"
+
+  # __inline __m128i _mm_sll_epi64(__m128i __A, __m128i __B);
+  "_mm_sll_epi64": "_mm_sll_epi64"
+
+  # __inline __m128i _mm_sra_epi16(__m128i __A, __m128i __B);
+  "_mm_sra_epi16": "_mm_sra_epi16"
+
+  # __inline __m128i _mm_sra_epi32(__m128i __A, __m128i __B);
+  "_mm_sra_epi32": "_mm_sra_epi32"
+
+  # __inline __m128i _mm_srl_epi16(__m128i __A, __m128i __B);
+  "_mm_srl_epi16": "_mm_srl_epi16"
+
+  # __inline __m128i _mm_srl_epi32(__m128i __A, __m128i __B);
+  "_mm_srl_epi32": "_mm_srl_epi32"
+
+  # __inline __m128i _mm_srl_epi64(__m128i __A, __m128i __B);
+  "_mm_srl_epi64": "_mm_srl_epi64"
+
+  # __inline __m128i _mm_and_si128(__m128i __A, __m128i __B);
+  "_mm_and_si128": "_mm_and_si128"
+
+  # __inline __m128i _mm_andnot_si128(__m128i __A, __m128i __B);
+  "_mm_andnot_si128": "_mm_andnot_si128"
+
+  # __inline __m128i _mm_or_si128(__m128i __A, __m128i __B);
+  "_mm_or_si128": "_mm_or_si128"
+
+  # __inline __m128i _mm_xor_si128(__m128i __A, __m128i __B);
+  "_mm_xor_si128": "_mm_xor_si128"
+
+  # __inline __m128i _mm_cmpeq_epi8(__m128i __A, __m128i __B);
+  "_mm_cmpeq_epi8": "_mm_cmpeq_epi8"
+
+  # __inline __m128i _mm_cmpeq_epi16(__m128i __A, __m128i __B);
+  "_mm_cmpeq_epi16": "_mm_cmpeq_epi16"
+
+  # __inline __m128i _mm_cmpeq_epi32(__m128i __A, __m128i __B);
+  "_mm_cmpeq_epi32": "_mm_cmpeq_epi32"
+
+  # __inline __m128i _mm_cmplt_epi8(__m128i __A, __m128i __B);
+  "_mm_cmplt_epi8": "_mm_cmplt_epi8"
+
+  # __inline __m128i _mm_cmplt_epi16(__m128i __A, __m128i __B);
+  "_mm_cmplt_epi16": "_mm_cmplt_epi16"
+
+  # __inline __m128i _mm_cmplt_epi32(__m128i __A, __m128i __B);
+  "_mm_cmplt_epi32": "_mm_cmplt_epi32"
+
+  # __inline __m128i _mm_cmpgt_epi8(__m128i __A, __m128i __B);
+  "_mm_cmpgt_epi8": "_mm_cmpgt_epi8"
+
+  # __inline __m128i _mm_cmpgt_epi16(__m128i __A, __m128i __B);
+  "_mm_cmpgt_epi16": "_mm_cmpgt_epi16"
+
+  # __inline __m128i _mm_cmpgt_epi32(__m128i __A, __m128i __B);
+  "_mm_cmpgt_epi32": "_mm_cmpgt_epi32"
+
+  # __inline __m128i _mm_max_epi16(__m128i __A, __m128i __B);
+  "_mm_max_epi16": "_mm_max_epi16"
+
+  # __inline __m128i _mm_max_epu8(__m128i __A, __m128i __B);
+  "_mm_max_epu8": "_mm_max_epu8"
+
+  # __inline __m128i _mm_min_epi16(__m128i __A, __m128i __B);
+  "_mm_min_epi16": "_mm_min_epi16"
+
+  # __inline __m128i _mm_min_epu8(__m128i __A, __m128i __B);
+  "_mm_min_epu8": "_mm_min_epu8"
+
+  # __inline int _mm_movemask_epi8(__m128i __A);
+  "_mm_movemask_epi8": "_mm_movemask_epi8"
+
+  # __inline __m128i _mm_mulhi_epu16(__m128i __A, __m128i __B);
+  "_mm_mulhi_epu16": "_mm_mulhi_epu16"
+
+  # __inline void _mm_maskmoveu_si128(__m128i __A, __m128i __B, char *__C);
+  "_mm_maskmoveu_si128": "_mm_maskmoveu_si128"
+
+  # __inline __m128i _mm_avg_epu8(__m128i __A, __m128i __B);
+  "_mm_avg_epu8": "_mm_avg_epu8"
+
+  # __inline __m128i _mm_avg_epu16(__m128i __A, __m128i __B);
+  "_mm_avg_epu16": "_mm_avg_epu16"
+
+  # __inline __m128i _mm_sad_epu8(__m128i __A, __m128i __B);
+  "_mm_sad_epu8": "_mm_sad_epu8"
+
+  # __inline void _mm_stream_si32(int *__A, int __B);
+  "_mm_stream_si32": "_mm_stream_si32"
+
+  # __inline void _mm_stream_si64(long long int *__A, long long int __B);
+  "_mm_stream_si64": "_mm_stream_si64"
+
+  # __inline void _mm_stream_si128(__m128i *__A, __m128i __B);
+  "_mm_stream_si128": "_mm_stream_si128"
+
+  # __inline void _mm_stream_pd(double *__A, __m128d __B);
+  "_mm_stream_pd": "_mm_stream_pd"
+
+  # __inline void _mm_clflush(void const *__A);
+  "_mm_clflush": "_mm_clflush"
+
+  # __inline void _mm_lfence(void);
+  "_mm_lfence": "_mm_lfence"
+
+  # __inline void _mm_mfence(void);
+  "_mm_mfence": "_mm_mfence"
+
+  # __inline __m128i _mm_cvtsi32_si128(int __A);
+  "_mm_cvtsi32_si128": "_mm_cvtsi32_si128"
+
+  # __inline __m128i _mm_cvtsi64_si128(long long __A);
+  "_mm_cvtsi64_si128": "_mm_cvtsi64_si128"
+
+  # __inline __m128i _mm_cvtsi64x_si128(long long __A);
+  "_mm_cvtsi64x_si128": "_mm_cvtsi64x_si128"
+
+  # __inline __m128 _mm_castpd_ps(__m128d __A);
+  "_mm_castpd_ps": "_mm_castpd_ps"
+
+  # __inline __m128i _mm_castpd_si128(__m128d __A);
+  "_mm_castpd_si128": "_mm_castpd_si128"
+
+  # __inline __m128d _mm_castps_pd(__m128 __A);
+  "_mm_castps_pd": "_mm_castps_pd"
+
+  # __inline __m128i _mm_castps_si128(__m128 __A);
+  "_mm_castps_si128": "_mm_castps_si128"
+
+  # __inline __m128 _mm_castsi128_ps(__m128i __A);
+  "_mm_castsi128_ps": "_mm_castsi128_ps"
+
+  # __inline __m128d _mm_castsi128_pd(__m128i __A);
+  "_mm_castsi128_pd": "_mm_castsi128_pd"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH_mult64to128(xxhu64 lhs, xxhu64 rhs);
+  "XXH_mult64to128": "XXH_mult64to128"
+
+  # static xxhu64 XXH3_mul128_fold64(xxhu64 lhs, xxhu64 rhs);
+  "XXH3_mul128_fold64": "XXH3_mul128_fold64"
+
+  # static xxhu64 XXH_xorshift64(xxhu64 v64, int shift);
+  "XXH_xorshift64": "XXH_xorshift64"
+
+  # static XXH64_hash_t XXH3_avalanche(xxhu64 h64);
+  "XXH3_avalanche": "XXH3_avalanche"
+
+  # static XXH64_hash_t XXH3_rrmxmx(xxhu64 h64, xxhu64 len);
+  "XXH3_rrmxmx": "XXH3_rrmxmx"
+
+  # static XXH64_hash_t XXH3_len_1to3_64b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_1to3_64b": "XXH3_len_1to3_64b"
+
+  # static XXH64_hash_t XXH3_len_4to8_64b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_4to8_64b": "XXH3_len_4to8_64b"
+
+  # static XXH64_hash_t XXH3_len_9to16_64b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_9to16_64b": "XXH3_len_9to16_64b"
+
+  # static XXH64_hash_t XXH3_len_0to16_64b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_0to16_64b": "XXH3_len_0to16_64b"
+
+  # static xxhu64 XXH3_mix16B(const xxhu8 *input, const xxhu8 *secret, xxhu64 seed64);
+  "XXH3_mix16B": "XXH3_mix16B"
+
+  # static XXH64_hash_t XXH3_len_17to128_64b(const xxhu8 *input, size_t len, const xxhu8 *secret, size_t secretSize, XXH64_hash_t seed);
+  "XXH3_len_17to128_64b": "XXH3_len_17to128_64b"
+
+  # static XXH64_hash_t XXH3_len_129to240_64b(const xxhu8 *input, size_t len, const xxhu8 *secret, size_t secretSize, XXH64_hash_t seed);
+  "XXH3_len_129to240_64b": "XXH3_len_129to240_64b"
+
+  # static void XXH_writeLE64(void *dst, xxhu64 v64);
+  "XXH_writeLE64": "XXH_writeLE64"
+
+  # static void XXH3_accumulate_512_sse2(void *acc, const void *input, const void *secret);
+  "XXH3_accumulate_512_sse2": "XXH3_accumulate_512_sse2"
+
+  # static void XXH3_accumulate_sse2(xxhu64 *acc, const xxhu8 *input, const xxhu8 *secret, size_t nbStripes);
+  "XXH3_accumulate_sse2": "XXH3_accumulate_sse2"
+
+  # static void XXH3_scrambleAcc_sse2(void *acc, const void *secret);
+  "XXH3_scrambleAcc_sse2": "XXH3_scrambleAcc_sse2"
+
+  # static void XXH3_initCustomSecret_sse2(void *customSecret, xxhu64 seed64);
+  "XXH3_initCustomSecret_sse2": "XXH3_initCustomSecret_sse2"
+
+  # static xxhu64 XXH_mult32to64_add64(xxhu64 lhs, xxhu64 rhs, xxhu64 acc);
+  "XXH_mult32to64_add64": "XXH_mult32to64_add64"
+
+  # static void XXH3_scalarRound(void *acc, void const *input, void const *secret, size_t lane);
+  "XXH3_scalarRound": "XXH3_scalarRound"
+
+  # static void XXH3_accumulate_512_scalar(void *acc, const void *input, const void *secret);
+  "XXH3_accumulate_512_scalar": "XXH3_accumulate_512_scalar"
+
+  # static void XXH3_accumulate_scalar(xxhu64 *acc, const xxhu8 *input, const xxhu8 *secret, size_t nbStripes);
+  "XXH3_accumulate_scalar": "XXH3_accumulate_scalar"
+
+  # static void XXH3_scalarScrambleRound(void *acc, void const *secret, size_t lane);
+  "XXH3_scalarScrambleRound": "XXH3_scalarScrambleRound"
+
+  # static void XXH3_scrambleAcc_scalar(void *acc, const void *secret);
+  "XXH3_scrambleAcc_scalar": "XXH3_scrambleAcc_scalar"
+
+  # static void XXH3_initCustomSecret_scalar(void *customSecret, xxhu64 seed64);
+  "XXH3_initCustomSecret_scalar": "XXH3_initCustomSecret_scalar"
+
+  # static void XXH3_hashLong_internal_loop(xxhu64 *acc, const xxhu8 *input, size_t len, const xxhu8 *secret, size_t secretSize, XXH3_f_accumulate f_acc, XXH3_f_scrambleAcc f_scramble);
+  "XXH3_hashLong_internal_loop": "XXH3_hashLong_loop"
+
+  # static xxhu64 XXH3_mix2Accs(const xxhu64 *acc, const xxhu8 *secret);
+  "XXH3_mix2Accs": "XXH3_mix2Accs"
+
+  # static XXH64_hash_t XXH3_mergeAccs(const xxhu64 *acc, const xxhu8 *secret, xxhu64 start);
+  "XXH3_mergeAccs": "XXH3_mergeAccs"
+
+  # static XXH64_hash_t XXH3_hashLong_64b_internal(const void *input, size_t len, const void *secret, size_t secretSize, XXH3_f_accumulate f_acc, XXH3_f_scrambleAcc f_scramble);
+  "XXH3_hashLong_64b_internal": "XXH3_hashLong_64b_internal"
+
+  # static XXH64_hash_t XXH3_hashLong_64b_withSecret(const void *input, size_t len, XXH64_hash_t seed64, const xxhu8 *secret, size_t secretLen);
+  "XXH3_hashLong_64b_withSecret": "XXH3_hashLong_64b_withSecret"
+
+  # static XXH64_hash_t XXH3_hashLong_64b_default(const void *input, size_t len, XXH64_hash_t seed64, const xxhu8 *secret, size_t secretLen);
+  "XXH3_hashLong_64b_default": "XXH3_hashLong_64b_default"
+
+  # static XXH64_hash_t XXH3_hashLong_64b_withSeed_internal(const void *input, size_t len, XXH64_hash_t seed, XXH3_f_accumulate f_acc, XXH3_f_scrambleAcc f_scramble, XXH3_f_initCustomSecret f_initSec);
+  "XXH3_hashLong_64b_withSeed_internal": "XXH3_hashLong_64b_withSeed_internal"
+
+  # static XXH64_hash_t XXH3_hashLong_64b_withSeed(const void *input, size_t len, XXH64_hash_t seed, const xxhu8 *secret, size_t secretLen);
+  "XXH3_hashLong_64b_withSeed": "XXH3_hashLong_64b_withSeed"
+
+  # static XXH64_hash_t XXH3_64bits_internal(const void *input, size_t len, XXH64_hash_t seed64, const void *secret, size_t secretLen, XXH3_hashLong64_f f_hashLong);
+  "XXH3_64bits_internal": "XXH3_64bits_internal"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH3_64bits(const void *input, size_t length);
+  "XXH_INLINE_XXH3_64bits": "XXH_INLINE_XXH3_64bits"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH3_64bits_withSecret(const void *input, size_t length, const void *secret, size_t secretSize);
+  "XXH_INLINE_XXH3_64bits_withSecret": "XXH_INLINE_XXH3_64bits_withSecret"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH3_64bits_withSeed(const void *input, size_t length, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_64bits_withSeed": "XXH_INLINE_XXH3_64bits_withSeed"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH3_64bits_withSecretandSeed(const void *input, size_t length, const void *secret, size_t secretSize, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_64bits_withSecretandSeed": "XXH_INLINE_XXH3_64bits_withSecretandSeed"
+
+  # static void * XXH_alignedMalloc(size_t s, size_t align);
+  "XXH_alignedMalloc": "XXH_alignedMalloc"
+
+  # static void XXH_alignedFree(void *p);
+  "XXH_alignedFree": "XXH_alignedFree"
+
+  # static __inline XXH_NAMESPACEXXH3_state_t * XXH_INLINE_XXH3_createState(void);
+  "XXH_INLINE_XXH3_createState": "XXH_INLINE_XXH3_createState"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_freeState(XXH_NAMESPACEXXH3_state_t *statePtr);
+  "XXH_INLINE_XXH3_freeState": "XXH_INLINE_XXH3_freeState"
+
+  # static __inline void XXH_INLINE_XXH3_copyState(XXH_NAMESPACEXXH3_state_t *dststate, const XXH_NAMESPACEXXH3_state_t *srcstate);
+  "XXH_INLINE_XXH3_copyState": "XXH_INLINE_XXH3_copyState"
+
+  # static void XXH3_reset_internal(XXH_NAMESPACEXXH3_state_t *statePtr, XXH64_hash_t seed, const void *secret, size_t secretSize);
+  "XXH3_reset_internal": "XXH3_reset_internal"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_64bits_reset(XXH_NAMESPACEXXH3_state_t *statePtr);
+  "XXH_INLINE_XXH3_64bits_reset": "XXH_INLINE_XXH3_64bits_reset"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_64bits_reset_withSecret(XXH_NAMESPACEXXH3_state_t *statePtr, const void *secret, size_t secretSize);
+  "XXH_INLINE_XXH3_64bits_reset_withSecret": "XXH_INLINE_XXH3_64bits_reset_withSecret"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_64bits_reset_withSeed(XXH_NAMESPACEXXH3_state_t *statePtr, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_64bits_reset_withSeed": "XXH_INLINE_XXH3_64bits_reset_withSeed"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_64bits_reset_withSecretandSeed(XXH_NAMESPACEXXH3_state_t *statePtr, const void *secret, size_t secretSize, XXH64_hash_t seed64);
+  "XXH_INLINE_XXH3_64bits_reset_withSecretandSeed": "XXH_INLINE_XXH3_64bits_reset_withSecretandSeed"
+
+  # static const xxhu8 * XXH3_consumeStripes(xxhu64 *acc, size_t *nbStripesSoFarPtr, size_t nbStripesPerBlock, const xxhu8 *input, size_t nbStripes, const xxhu8 *secret, size_t secretLimit, XXH3_f_accumulate f_acc, XXH3_f_scrambleAcc f_scramble);
+  "XXH3_consumeStripes": "XXH3_consumeStripes"
+
+  # static XXH_NAMESPACEXXH_errorcode XXH3_update(XXH_NAMESPACEXXH3_state_t *const state, const xxhu8 *input, size_t len, XXH3_f_accumulate f_acc, XXH3_f_scrambleAcc f_scramble);
+  "XXH3_update": "XXH3_update"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_64bits_update(XXH_NAMESPACEXXH3_state_t *state, const void *input, size_t len);
+  "XXH_INLINE_XXH3_64bits_update": "XXH_INLINE_XXH3_64bits_update"
+
+  # static void XXH3_digest_long(XXH64_hash_t *acc, const XXH_NAMESPACEXXH3_state_t *state, const unsigned char *secret);
+  "XXH3_digest_long": "XXH3_digest_long"
+
+  # static __inline XXH64_hash_t XXH_INLINE_XXH3_64bits_digest(const XXH_NAMESPACEXXH3_state_t *state);
+  "XXH_INLINE_XXH3_64bits_digest": "XXH_INLINE_XXH3_64bits_digest"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_len_1to3_128b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_1to3_128b": "XXH3_len_1to3_128b"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_len_4to8_128b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_4to8_128b": "XXH3_len_4to8_128b"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_len_9to16_128b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_9to16_128b": "XXH3_len_9to16_128b"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_len_0to16_128b(const xxhu8 *input, size_t len, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH3_len_0to16_128b": "XXH3_len_0to16_128b"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH128_mix32B(XXH_NAMESPACEXXH128_hash_t acc, const xxhu8 *input1, const xxhu8 *input2, const xxhu8 *secret, XXH64_hash_t seed);
+  "XXH128_mix32B": "XXH128_mix32B"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_len_17to128_128b(const xxhu8 *input, size_t len, const xxhu8 *secret, size_t secretSize, XXH64_hash_t seed);
+  "XXH3_len_17to128_128b": "XXH3_len_17to128_128b"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_len_129to240_128b(const xxhu8 *input, size_t len, const xxhu8 *secret, size_t secretSize, XXH64_hash_t seed);
+  "XXH3_len_129to240_128b": "XXH3_len_129to240_128b"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_hashLong_128b_internal(const void *input, size_t len, const xxhu8 *secret, size_t secretSize, XXH3_f_accumulate f_acc, XXH3_f_scrambleAcc f_scramble);
+  "XXH3_hashLong_128b_internal": "XXH3_hashLong_128b_internal"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_hashLong_128b_default(const void *input, size_t len, XXH64_hash_t seed64, const void *secret, size_t secretLen);
+  "XXH3_hashLong_128b_default": "XXH3_hashLong_128b_default"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_hashLong_128b_withSecret(const void *input, size_t len, XXH64_hash_t seed64, const void *secret, size_t secretLen);
+  "XXH3_hashLong_128b_withSecret": "XXH3_hashLong_128b_withSecret"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_hashLong_128b_withSeed_internal(const void *input, size_t len, XXH64_hash_t seed64, XXH3_f_accumulate f_acc, XXH3_f_scrambleAcc f_scramble, XXH3_f_initCustomSecret f_initSec);
+  "XXH3_hashLong_128b_withSeed_internal": "XXH3_hashLong_128b_withSeed_internal"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_hashLong_128b_withSeed(const void *input, size_t len, XXH64_hash_t seed64, const void *secret, size_t secretLen);
+  "XXH3_hashLong_128b_withSeed": "XXH3_hashLong_128b_withSeed"
+
+  # static XXH_NAMESPACEXXH128_hash_t XXH3_128bits_internal(const void *input, size_t len, XXH64_hash_t seed64, const void *secret, size_t secretLen, XXH3_hashLong128_f f_hl128);
+  "XXH3_128bits_internal": "XXH3_128bits_internal"
+
+  # static __inline XXH_NAMESPACEXXH128_hash_t XXH_INLINE_XXH3_128bits(const void *input, size_t len);
+  "XXH_INLINE_XXH3_128bits": "XXH_INLINE_XXH3_128bits"
+
+  # static __inline XXH_NAMESPACEXXH128_hash_t XXH_INLINE_XXH3_128bits_withSecret(const void *input, size_t len, const void *secret, size_t secretSize);
+  "XXH_INLINE_XXH3_128bits_withSecret": "XXH_INLINE_XXH3_128bits_withSecret"
+
+  # static __inline XXH_NAMESPACEXXH128_hash_t XXH_INLINE_XXH3_128bits_withSeed(const void *input, size_t len, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_128bits_withSeed": "XXH_INLINE_XXH3_128bits_withSeed"
+
+  # static __inline XXH_NAMESPACEXXH128_hash_t XXH_INLINE_XXH3_128bits_withSecretandSeed(const void *input, size_t len, const void *secret, size_t secretSize, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_128bits_withSecretandSeed": "XXH_INLINE_XXH3_128bits_withSecretandSeed"
+
+  # static __inline XXH_NAMESPACEXXH128_hash_t XXH_INLINE_XXH128(const void *input, size_t len, XXH64_hash_t seed);
+  "XXH_INLINE_XXH128": "XXH_INLINE_XXH128"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_128bits_reset(XXH_NAMESPACEXXH3_state_t *statePtr);
+  "XXH_INLINE_XXH3_128bits_reset": "XXH_INLINE_XXH3_128bits_reset"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_128bits_reset_withSecret(XXH_NAMESPACEXXH3_state_t *statePtr, const void *secret, size_t secretSize);
+  "XXH_INLINE_XXH3_128bits_reset_withSecret": "XXH_INLINE_XXH3_128bits_reset_withSecret"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_128bits_reset_withSeed(XXH_NAMESPACEXXH3_state_t *statePtr, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_128bits_reset_withSeed": "XXH_INLINE_XXH3_128bits_reset_withSeed"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_128bits_reset_withSecretandSeed(XXH_NAMESPACEXXH3_state_t *statePtr, const void *secret, size_t secretSize, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_128bits_reset_withSecretandSeed": "XXH_INLINE_XXH3_128bits_reset_withSecretandSeed"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_128bits_update(XXH_NAMESPACEXXH3_state_t *state, const void *input, size_t len);
+  "XXH_INLINE_XXH3_128bits_update": "XXH_INLINE_XXH3_128bits_update"
+
+  # static __inline XXH_NAMESPACEXXH128_hash_t XXH_INLINE_XXH3_128bits_digest(const XXH_NAMESPACEXXH3_state_t *state);
+  "XXH_INLINE_XXH3_128bits_digest": "XXH_INLINE_XXH3_128bits_digest"
+
+  # static __inline int XXH_INLINE_XXH128_isEqual(XXH_NAMESPACEXXH128_hash_t h1, XXH_NAMESPACEXXH128_hash_t h2);
+  "XXH_INLINE_XXH128_isEqual": "XXH_INLINE_XXH128_isEqual"
+
+  # static __inline int XXH_INLINE_XXH128_cmp(const void *h1281, const void *h1282);
+  "XXH_INLINE_XXH128_cmp": "XXH_INLINE_XXH128_cmp"
+
+  # static __inline void XXH_INLINE_XXH128_canonicalFromHash(XXH_NAMESPACEXXH128_canonical_t *dst, XXH_NAMESPACEXXH128_hash_t hash);
+  "XXH_INLINE_XXH128_canonicalFromHash": "XXH_INLINE_XXH128_canonicalFromHash"
+
+  # static __inline XXH_NAMESPACEXXH128_hash_t XXH_INLINE_XXH128_hashFromCanonical(const XXH_NAMESPACEXXH128_canonical_t *src);
+  "XXH_INLINE_XXH128_hashFromCanonical": "XXH_INLINE_XXH128_hashFromCanonical"
+
+  # static void XXH3_combine16(void *dst, XXH_NAMESPACEXXH128_hash_t h128);
+  "XXH3_combine16": "XXH3_combine16"
+
+  # static __inline XXH_NAMESPACEXXH_errorcode XXH_INLINE_XXH3_generateSecret(void *secretBuffer, size_t secretSize, const void *customSeed, size_t customSeedSize);
+  "XXH_INLINE_XXH3_generateSecret": "XXH_INLINE_XXH3_generateSecret"
+
+  # static __inline void XXH_INLINE_XXH3_generateSecret_fromSeed(void *secretBuffer, XXH64_hash_t seed);
+  "XXH_INLINE_XXH3_generateSecret_fromSeed": "XXH_INLINE_XXH3_generateSecret_fromSeed"
+
+  # static _Bool bl_object_isstdfile(ObjFile *file);
+  "bl_object_isstdfile": "bl_object_isstdfile"
+
+  # static void bl_state_addmodule(VMState *vm, ObjModule *module);
+  "bl_state_addmodule": "bl_state_addmodule"
+
+  # static Object * bl_mem_gcprotect(VMState *vm, Object *object);
+  "bl_mem_gcprotect": "bl_mem_gcprotect"
+
+  # static void bl_mem_gcclearprotect(VMState *vm);
+  "bl_mem_gcclearprotect": "bl_mem_gcclearprotect"
+
+  # int bl_util_utf8numbytes(int value);
+  "bl_util_utf8numbytes": "bl_util_utf8numbytes"
+
+  # char * bl_util_utf8encode(unsigned int code);
+  "bl_util_utf8encode": "bl_util_utf8encode"
+
+  # int bl_util_utf8decodenumbytes(uint8_t byte);
+  "bl_util_utf8decodenumbytes": "bl_util_utf8decodenumbytes"
+
+  # int bl_util_utf8decode(const uint8_t *bytes, uint32_t length);
+  "bl_util_utf8decode": "bl_util_utf8decode"
+
+  # char * bl_util_appendstring(char *old, char *newstr);
+  "bl_util_appendstring": "bl_util_appendstring"
+
+  # int bl_util_utf8length(char *s);
+  "bl_util_utf8length": "bl_util_utf8length"
+
+  # char * bl_util_utf8index(char *s, int pos);
+  "bl_util_utf8index": "bl_util_utf8index"
+
+  # void bl_util_utf8slice(char *s, int *start, int *end);
+  "bl_util_utf8slice": "bl_util_utf8slice"
+
+  # char * bl_util_readfile(const char *path);
+  "bl_util_readfile": "bl_util_readfile"
+
+  # char * bl_util_getexepath(void);
+  "bl_util_getexepath": "bl_util_getexepath"
+
+  # char * bl_util_getexedir(void);
+  "bl_util_getexedir": "bl_util_getexedir"
+
+  # char * bl_util_mergepaths(char *a, char *b);
+  "bl_util_mergepaths": "bl_util_mergepaths"
+
+  # _Bool bl_util_fileexists(char *filepath);
+  "bl_util_fileexists": "bl_util_fileexists"
+
+  # char * bl_util_getbladefilename(char *filename);
+  "bl_util_getbladefilename": "bl_util_getbladefilename"
+
+  # char * bl_util_resolveimportpath(char *modulename, const char *currentfile, _Bool isrelative);
+  "bl_util_resolveimportpath": "bl_util_resolveimportpath"
+
+  # char * bl_util_getrealfilename(char *path);
+  "bl_util_getrealfilename": "bl_util_getrealfilename"
+
+  # static uint32_t bl_util_hashbits(uint64_t hash);
+  "bl_util_hashbits": "bl_util_hashbits"
+
+  # uint32_t bl_util_hashdouble(double value);
+  "bl_util_hashdouble": "bl_util_hashdouble"
+
+  # uint32_t bl_util_hashstring(const char *key, int length);
+  "bl_util_hashstring": "bl_util_hashstring"
+
+  # static uint16_t bl_util_reverseint16(uint16_t arg);
+  "bl_util_reverseint16": "bl_util_reverseint16"
+
+  # static uint32_t bl_util_reverseint32(uint32_t arg);
+  "bl_util_reverseint32": "bl_util_reverseint32"
+
+  # static uint64_t bl_util_reverseint64(uint64_t arg);
+  "bl_util_reverseint64": "bl_util_reverseint64"
+
+  # static void bl_util_copyfloat(int islittleendian, void *dst, float f);
+  "bl_util_copyfloat": "bl_util_copyfloat"
+
+  # static void bl_util_copydouble(int islittleendian, void *dst, double d);
+  "bl_util_copydouble": "bl_util_copydouble"
+
+  # static char * bl_util_ulongtobuffer(char *buf, long num);
+  "bl_util_ulongtobuffer": "bl_util_ulongtobuffer"
+
+  # static float bl_util_parsefloat(int islittleendian, void *src);
+  "bl_util_parsefloat": "bl_util_parsefloat"
+
+  # static double bl_util_parsedouble(int islittleendian, void *src);
+  "bl_util_parsedouble": "bl_util_parsedouble"
+
+  # void bl_mem_free(VMState *vm, void *pointer, size_t sz);
+  "bl_mem_free": "bl_mem_free"
+
+  # void * bl_mem_realloc(VMState *vm, void *pointer, size_t oldsize, size_t newsize);
+  "bl_mem_realloc": "bl_mem_realloc"
+
+  # void * bl_mem_growarray(VMState *vm, void *ptr, size_t tsz, size_t oldcount, size_t newcount);
+  "bl_mem_growarray": "bl_mem_growarray"
+
+  # void bl_mem_markobject(VMState *vm, Object *object);
+  "bl_mem_markobject": "bl_mem_markobject"
+
+  # void bl_mem_markvalue(VMState *vm, Value value);
+  "bl_mem_markvalue": "bl_mem_markvalue"
+
+  # void bl_mem_markarray(VMState *vm, ValArray *array);
+  "bl_mem_markarray": "bl_mem_markarray"
+
+  # void bl_mem_marktable(VMState *vm, HashTable *table);
+  "bl_mem_marktable": "bl_mem_marktable"
+
+  # void bl_mem_blackenobject(VMState *vm, Object *object);
+  "bl_mem_blackenobject": "bl_mem_blackenobject"
+
+  # void bl_mem_freeobject(VMState *vm, Object **pobject);
+  "bl_mem_freeobject": "bl_mem_freeobject"
+
+  # static void bl_mem_markroots(VMState *vm);
+  "bl_mem_markroots": "bl_mem_markroots"
+
+  # static void bl_mem_tracerefs(VMState *vm);
+  "bl_mem_tracerefs": "bl_mem_tracerefs"
+
+  # static void bl_mem_gcsweep(VMState *vm);
+  "bl_mem_gcsweep": "bl_mem_gcsweep"
+
+  # void bl_mem_freegcobjects(VMState *vm);
+  "bl_mem_freegcobjects": "bl_mem_freegcobjects"
+
+  # void bl_mem_collectgarbage(VMState *vm);
+  "bl_mem_collectgarbage": "bl_mem_collectgarbage"
+
+  # static char * number_to_string(VMState *vm, double number);
+  "number_to_string": "number_to_string"
+
+  # static _Bool bl_value_isobjtype(Value v, ObjType t);
+  "bl_value_isobjtype": "bl_value_isobjtype"
+
+  # _Bool bl_value_isstring(Value v);
+  "bl_value_isstring": "bl_value_isstring"
+
+  # _Bool bl_value_isnativefunction(Value v);
+  "bl_value_isnativefunction": "bl_value_isnativefunction"
+
+  # _Bool bl_value_isscriptfunction(Value v);
+  "bl_value_isscriptfunction": "bl_value_isscriptfunction"
+
+  # _Bool bl_value_isclosure(Value v);
+  "bl_value_isclosure": "bl_value_isclosure"
+
+  # _Bool bl_value_isclass(Value v);
+  "bl_value_isclass": "bl_value_isclass"
+
+  # _Bool bl_value_isinstance(Value v);
+  "bl_value_isinstance": "bl_value_isinstance"
+
+  # _Bool bl_value_isboundfunction(Value v);
+  "bl_value_isboundfunction": "bl_value_isboundfunction"
+
+  # _Bool bl_value_isnil(Value v);
+  "bl_value_isnil": "bl_value_isnil"
+
+  # _Bool bl_value_isbool(Value v);
+  "bl_value_isbool": "bl_value_isbool"
+
+  # _Bool bl_value_isnumber(Value v);
+  "bl_value_isnumber": "bl_value_isnumber"
+
+  # _Bool bl_value_isobject(Value v);
+  "bl_value_isobject": "bl_value_isobject"
+
+  # _Bool bl_value_isempty(Value v);
+  "bl_value_isempty": "bl_value_isempty"
+
+  # _Bool bl_value_ismodule(Value v);
+  "bl_value_ismodule": "bl_value_ismodule"
+
+  # _Bool bl_value_ispointer(Value v);
+  "bl_value_ispointer": "bl_value_ispointer"
+
+  # _Bool bl_value_isbytes(Value v);
+  "bl_value_isbytes": "bl_value_isbytes"
+
+  # _Bool bl_value_isarray(Value v);
+  "bl_value_isarray": "bl_value_isarray"
+
+  # _Bool bl_value_isdict(Value v);
+  "bl_value_isdict": "bl_value_isdict"
+
+  # _Bool bl_value_isfile(Value v);
+  "bl_value_isfile": "bl_value_isfile"
+
+  # _Bool bl_value_isrange(Value v);
+  "bl_value_isrange": "bl_value_isrange"
+
+  # static void bl_value_doprintvalue(Value value, _Bool fixstring);
+  "bl_value_doprintvalue": "bl_value_doprintvalue"
+
+  # void bl_value_printvalue(Value value);
+  "bl_value_printvalue": "bl_value_printvalue"
+
+  # void bl_value_echovalue(Value value);
+  "bl_value_echovalue": "bl_value_echovalue"
+
+  # char * bl_value_tostring(VMState *vm, Value value);
+  "bl_value_tostring": "bl_value_tostring"
+
+  # const char * bl_value_typename(Value value);
+  "bl_value_typename": "bl_value_typename"
+
+  # _Bool bl_value_valuesequal(Value a, Value b);
+  "bl_value_valuesequal": "bl_value_valuesequal"
+
+  # static uint32_t bl_object_hashobject(Object *object);
+  "bl_object_hashobject": "bl_object_hashobject"
+
+  # uint32_t bl_value_hashvalue(Value value);
+  "bl_value_hashvalue": "bl_value_hashvalue"
+
+  # static Value bl_value_findmaxvalue(Value a, Value b);
+  "bl_value_findmaxvalue": "bl_value_findmaxvalue"
+
+  # void bl_value_sortbubblesort(Value *values, int count);
+  "bl_value_sortbubblesort": "bl_value_sortbubblesort"
+
+  # _Bool bl_value_isfalse(Value value);
+  "bl_value_isfalse": "bl_value_isfalse"
+
+  # Value bl_value_copyvalue(VMState *vm, Value value);
+  "bl_value_copyvalue": "bl_value_copyvalue"
+
+  # _Bool bl_value_returnvalue(VMState *vm, Value *args, Value val, _Bool b);
+  "bl_value_returnvalue": "bl_value_returnvalue"
+
+  # _Bool bl_value_returnempty(VMState *vm, Value *args);
+  "bl_value_returnempty": "bl_value_returnempty"
+
+  # _Bool bl_value_returnnil(VMState *vm, Value *args);
+  "bl_value_returnnil": "bl_value_returnnil"
+
+  # void bl_hashtable_reset(HashTable *table);
+  "bl_hashtable_reset": "bl_hashtable_reset"
+
+  # void bl_hashtable_init(HashTable *table);
+  "bl_hashtable_init": "bl_hashtable_init"
+
+  # void bl_hashtable_free(VMState *vm, HashTable *table);
+  "bl_hashtable_free": "bl_hashtable_free"
+
+  # void bl_hashtable_cleanfree(VMState *vm, HashTable *table);
+  "bl_hashtable_cleanfree": "bl_hashtable_cleanfree"
+
+  # static HashEntry * bl_hashtable_findentry(HashEntry *entries, int capacity, Value key);
+  "bl_hashtable_findentry": "bl_hashtable_findentry"
+
+  # _Bool bl_hashtable_get(HashTable *table, Value key, Value *value);
+  "bl_hashtable_get": "bl_hashtable_get"
+
+  # static void bl_hashtable_adjustcap(VMState *vm, HashTable *table, int capacity);
+  "bl_hashtable_adjustcap": "bl_hashtable_adjustcap"
+
+  # _Bool bl_hashtable_set(VMState *vm, HashTable *table, Value key, Value value);
+  "bl_hashtable_set": "bl_hashtable_set"
+
+  # _Bool bl_hashtable_delete(HashTable *table, Value key);
+  "bl_hashtable_delete": "bl_hashtable_delete"
+
+  # void bl_hashtable_addall(VMState *vm, HashTable *from, HashTable *to);
+  "bl_hashtable_addall": "bl_hashtable_addall"
+
+  # void bl_hashtable_copy(VMState *vm, HashTable *from, HashTable *to);
+  "bl_hashtable_copy": "bl_hashtable_copy"
+
+  # ObjString * bl_hashtable_findstring(HashTable *table, const char *chars, int length, uint32_t hash);
+  "bl_hashtable_findstring": "bl_hashtable_findstring"
+
+  # Value bl_hashtable_findkey(HashTable *table, Value value);
+  "bl_hashtable_findkey": "bl_hashtable_findkey"
+
+  # void bl_hashtable_print(HashTable *table);
+  "bl_hashtable_print": "bl_hashtable_print"
+
+  # void bl_hashtable_removewhites(VMState *vm, HashTable *table);
+  "bl_hashtable_removewhites": "bl_hashtable_removewhites"
+
+  # void bl_blob_init(BinaryBlob *blob);
+  "bl_blob_init": "bl_blob_init"
+
+  # void bl_blob_write(VMState *vm, BinaryBlob *blob, uint8_t byte, int line);
+  "bl_blob_write": "bl_blob_write"
+
+  # void bl_blob_free(VMState *vm, BinaryBlob *blob);
+  "bl_blob_free": "bl_blob_free"
+
+  # int bl_blob_addconst(VMState *vm, BinaryBlob *blob, Value value);
+  "bl_blob_addconst": "bl_blob_addconst"
+
+  # uint32_t bl_helper_objstringisregex(ObjString *string);
+  "bl_helper_objstringisregex": "bl_helper_objstringisregex"
+
+  # char * bl_helper_objstringremregexdelim(VMState *vm, ObjString *string);
+  "bl_helper_objstringremregexdelim": "bl_helper_objstringremregexdelim"
+
+  # void bl_valarray_init(ValArray *array);
+  "bl_valarray_init": "bl_valarray_init"
+
+  # void bl_bytearray_init(VMState *vm, ByteArray *array, int length);
+  "bl_bytearray_init": "bl_bytearray_init"
+
+  # void bl_valarray_push(VMState *vm, ValArray *array, Value value);
+  "bl_valarray_push": "bl_valarray_push"
+
+  # void bl_valarray_insert(VMState *vm, ValArray *array, Value value, int index);
+  "bl_valarray_insert": "bl_valarray_insert"
+
+  # void bl_valarray_free(VMState *vm, ValArray *array);
+  "bl_valarray_free": "bl_valarray_free"
+
+  # void bl_bytearray_free(VMState *vm, ByteArray *array);
+  "bl_bytearray_free": "bl_bytearray_free"
+
+  # void bl_array_push(VMState *vm, ObjArray *list, Value value);
+  "bl_array_push": "bl_array_push"
+
+  # ObjArray * bl_array_copy(VMState *vm, ObjArray *list, int start, int length);
+  "bl_array_copy": "bl_array_copy"
+
+  # void bl_dict_addentry(VMState *vm, ObjDict *dict, Value key, Value value);
+  "bl_dict_addentry": "bl_dict_addentry"
+
+  # _Bool bl_dict_getentry(ObjDict *dict, Value key, Value *value);
+  "bl_dict_getentry": "bl_dict_getentry"
+
+  # _Bool bl_dict_setentry(VMState *vm, ObjDict *dict, Value key, Value value);
+  "bl_dict_setentry": "bl_dict_setentry"
+
+  # Object * bl_object_allocobject(VMState *vm, size_t size, ObjType type);
+  "bl_object_allocobject": "bl_object_allocobject"
+
+  # ObjPointer * bl_dict_makeptr(VMState *vm, void *pointer);
+  "bl_dict_makeptr": "bl_dict_makeptr"
+
+  # ObjDict * bl_object_makedict(VMState *vm);
+  "bl_object_makedict": "bl_object_makedict"
+
+  # ObjArray * bl_object_makelist(VMState *vm);
+  "bl_object_makelist": "bl_object_makelist"
+
+  # ObjModule * bl_object_makemodule(VMState *vm, char *name, char *file);
+  "bl_object_makemodule": "bl_object_makemodule"
+
+  # ObjSwitch * bl_object_makeswitch(VMState *vm);
+  "bl_object_makeswitch": "bl_object_makeswitch"
+
+  # ObjBytes * bl_object_makebytes(VMState *vm, int length);
+  "bl_object_makebytes": "bl_object_makebytes"
+
+  # ObjRange * bl_object_makerange(VMState *vm, int lower, int upper);
+  "bl_object_makerange": "bl_object_makerange"
+
+  # ObjFile * bl_object_makefile(VMState *vm, ObjString *path, ObjString *mode);
+  "bl_object_makefile": "bl_object_makefile"
+
+  # ObjBoundMethod * bl_object_makeboundmethod(VMState *vm, Value receiver, ObjClosure *method);
+  "bl_object_makeboundmethod": "bl_object_makeboundmethod"
+
+  # ObjClass * bl_object_makeclass(VMState *vm, ObjString *name);
+  "bl_object_makeclass": "bl_object_makeclass"
+
+  # ObjFunction * bl_object_makescriptfunction(VMState *vm, ObjModule *module, FuncType type);
+  "bl_object_makescriptfunction": "bl_object_makescriptfunction"
+
+  # ObjInstance * bl_object_makeinstance(VMState *vm, ObjClass *klass);
+  "bl_object_makeinstance": "bl_object_makeinstance"
+
+  # ObjNativeFunction * bl_object_makenativefunction(VMState *vm, NativeCallbackFunc function, const char *name);
+  "bl_object_makenativefunction": "bl_object_makenativefunction"
+
+  # ObjClosure * bl_object_makeclosure(VMState *vm, ObjFunction *function);
+  "bl_object_makeclosure": "bl_object_makeclosure"
+
+  # ObjInstance * bl_object_makeexception(VMState *vm, ObjString *message);
+  "bl_object_makeexception": "bl_object_makeexception"
+
+  # ObjString * bl_string_fromallocated(VMState *vm, char *chars, int length, uint32_t hash);
+  "bl_string_fromallocated": "bl_string_fromallocated"
+
+  # ObjString * bl_string_takestring(VMState *vm, char *chars, int length);
+  "bl_string_takestring": "bl_string_takestring"
+
+  # ObjString * bl_string_copystring(VMState *vm, const char *chars, int length);
+  "bl_string_copystring": "bl_string_copystring"
+
+  # ObjUpvalue * bl_object_makeupvalue(VMState *vm, Value *slot);
+  "bl_object_makeupvalue": "bl_object_makeupvalue"
+
+  # static void bl_writer_printfunction(ObjFunction *func);
+  "bl_writer_printfunction": "bl_writer_printfunction"
+
+  # static void bl_writer_printlist(ObjArray *list);
+  "bl_writer_printlist": "bl_writer_printlist"
+
+  # static void bl_writer_printbytes(ObjBytes *bytes);
+  "bl_writer_printbytes": "bl_writer_printbytes"
+
+  # static void bl_writer_printdict(ObjDict *dict);
+  "bl_writer_printdict": "bl_writer_printdict"
+
+  # static void bl_writer_printfile(ObjFile *file);
+  "bl_writer_printfile": "bl_writer_printfile"
+
+  # void bl_writer_printobject(Value value, _Bool fixstring);
+  "bl_writer_printobject": "bl_writer_printobject"
+
+  # ObjBytes * bl_bytes_copybytes(VMState *vm, unsigned char *b, int length);
+  "bl_bytes_copybytes": "bl_bytes_copybytes"
+
+  # ObjBytes * bl_bytes_takebytes(VMState *vm, unsigned char *b, int length);
+  "bl_bytes_takebytes": "bl_bytes_takebytes"
+
+  # static char * bl_writer_functiontostring(ObjFunction *func);
+  "bl_writer_functiontostring": "bl_writer_functiontostring"
+
+  # static char * bl_writer_listtostring(VMState *vm, ValArray *array);
+  "bl_writer_listtostring": "bl_writer_listtostring"
+
+  # static char * bl_writer_bytestostring(VMState *vm, ByteArray *array);
+  "bl_writer_bytestostring": "bl_writer_bytestostring"
+
+  # static char * bl_writer_dicttostring(VMState *vm, ObjDict *dict);
+  "bl_writer_dicttostring": "bl_writer_dicttostring"
+
+  # char * bl_writer_objecttostring(VMState *vm, Value value);
+  "bl_writer_objecttostring": "bl_writer_objecttostring"
+
+  # const char * bl_object_gettype(Object *object);
+  "bl_object_gettype": "bl_object_gettype"
+
+  # _Bool bl_vmdo_dictgetindex(VMState *vm, ObjDict *dict, _Bool willassign);
+  "bl_vmdo_dictgetindex": "bl_vmdo_dictgetindex"
+
+  # void bl_vmdo_dictsetindex(VMState *vm, ObjDict *dict, Value index, Value value);
+  "bl_vmdo_dictsetindex": "bl_vmdo_dictsetindex"
+
+  # _Bool objfn_list_length(VMState *vm, int argcount, Value *args);
+  "objfn_list_length": "objfn_list_length"
+
+  # _Bool objfn_list_append(VMState *vm, int argcount, Value *args);
+  "objfn_list_append": "objfn_list_append"
+
+  # _Bool objfn_list_clear(VMState *vm, int argcount, Value *args);
+  "objfn_list_clear": "objfn_list_clear"
+
+  # _Bool objfn_list_clone(VMState *vm, int argcount, Value *args);
+  "objfn_list_clone": "objfn_list_clone"
+
+  # _Bool objfn_list_count(VMState *vm, int argcount, Value *args);
+  "objfn_list_count": "objfn_list_count"
+
+  # _Bool objfn_list_extend(VMState *vm, int argcount, Value *args);
+  "objfn_list_extend": "objfn_list_extend"
+
+  # _Bool objfn_list_indexof(VMState *vm, int argcount, Value *args);
+  "objfn_list_indexof": "objfn_list_indexof"
+
+  # _Bool objfn_list_insert(VMState *vm, int argcount, Value *args);
+  "objfn_list_insert": "objfn_list_insert"
+
+  # _Bool objfn_list_pop(VMState *vm, int argcount, Value *args);
+  "objfn_list_pop": "objfn_list_pop"
+
+  # _Bool objfn_list_shift(VMState *vm, int argcount, Value *args);
+  "objfn_list_shift": "objfn_list_shift"
+
+  # _Bool objfn_list_removeat(VMState *vm, int argcount, Value *args);
+  "objfn_list_removeat": "objfn_list_removeat"
+
+  # _Bool objfn_list_remove(VMState *vm, int argcount, Value *args);
+  "objfn_list_remove": "objfn_list_remove"
+
+  # _Bool objfn_list_reverse(VMState *vm, int argcount, Value *args);
+  "objfn_list_reverse": "objfn_list_reverse"
+
+  # _Bool objfn_list_sort(VMState *vm, int argcount, Value *args);
+  "objfn_list_sort": "objfn_list_sort"
+
+  # _Bool objfn_list_contains(VMState *vm, int argcount, Value *args);
+  "objfn_list_contains": "objfn_list_contains"
+
+  # _Bool objfn_list_delete(VMState *vm, int argcount, Value *args);
+  "objfn_list_delete": "objfn_list_delete"
+
+  # _Bool objfn_list_first(VMState *vm, int argcount, Value *args);
+  "objfn_list_first": "objfn_list_first"
+
+  # _Bool objfn_list_last(VMState *vm, int argcount, Value *args);
+  "objfn_list_last": "objfn_list_last"
+
+  # _Bool objfn_list_isempty(VMState *vm, int argcount, Value *args);
+  "objfn_list_isempty": "objfn_list_isempty"
+
+  # _Bool objfn_list_take(VMState *vm, int argcount, Value *args);
+  "objfn_list_take": "objfn_list_take"
+
+  # _Bool objfn_list_get(VMState *vm, int argcount, Value *args);
+  "objfn_list_get": "objfn_list_get"
+
+  # _Bool objfn_list_compact(VMState *vm, int argcount, Value *args);
+  "objfn_list_compact": "objfn_list_compact"
+
+  # _Bool objfn_list_unique(VMState *vm, int argcount, Value *args);
+  "objfn_list_unique": "objfn_list_unique"
+
+  # _Bool objfn_list_zip(VMState *vm, int argcount, Value *args);
+  "objfn_list_zip": "objfn_list_zip"
+
+  # _Bool objfn_list_todict(VMState *vm, int argcount, Value *args);
+  "objfn_list_todict": "objfn_list_todict"
+
+  # _Bool objfn_list_iter(VMState *vm, int argcount, Value *args);
+  "objfn_list_iter": "objfn_list_iter"
+
+  # _Bool objfn_list_itern(VMState *vm, int argcount, Value *args);
+  "objfn_list_itern": "objfn_list_itern"
+
+  # _Bool objfn_string_length(VMState *vm, int argcount, Value *args);
+  "objfn_string_length": "objfn_string_length"
+
+  # _Bool objfn_string_upper(VMState *vm, int argcount, Value *args);
+  "objfn_string_upper": "objfn_string_upper"
+
+  # _Bool objfn_string_lower(VMState *vm, int argcount, Value *args);
+  "objfn_string_lower": "objfn_string_lower"
+
+  # _Bool objfn_string_isalpha(VMState *vm, int argcount, Value *args);
+  "objfn_string_isalpha": "objfn_string_isalpha"
+
+  # _Bool objfn_string_isalnum(VMState *vm, int argcount, Value *args);
+  "objfn_string_isalnum": "objfn_string_isalnum"
+
+  # _Bool objfn_string_isnumber(VMState *vm, int argcount, Value *args);
+  "objfn_string_isnumber": "objfn_string_isnumber"
+
+  # _Bool objfn_string_islower(VMState *vm, int argcount, Value *args);
+  "objfn_string_islower": "objfn_string_islower"
+
+  # _Bool objfn_string_isupper(VMState *vm, int argcount, Value *args);
+  "objfn_string_isupper": "objfn_string_isupper"
+
+  # _Bool objfn_string_isspace(VMState *vm, int argcount, Value *args);
+  "objfn_string_isspace": "objfn_string_isspace"
+
+  # _Bool objfn_string_trim(VMState *vm, int argcount, Value *args);
+  "objfn_string_trim": "objfn_string_trim"
+
+  # _Bool objfn_string_ltrim(VMState *vm, int argcount, Value *args);
+  "objfn_string_ltrim": "objfn_string_ltrim"
+
+  # _Bool objfn_string_rtrim(VMState *vm, int argcount, Value *args);
+  "objfn_string_rtrim": "objfn_string_rtrim"
+
+  # _Bool objfn_string_join(VMState *vm, int argcount, Value *args);
+  "objfn_string_join": "objfn_string_join"
+
+  # _Bool objfn_string_split(VMState *vm, int argcount, Value *args);
+  "objfn_string_split": "objfn_string_split"
+
+  # _Bool objfn_string_indexof(VMState *vm, int argcount, Value *args);
+  "objfn_string_indexof": "objfn_string_indexof"
+
+  # _Bool objfn_string_startswith(VMState *vm, int argcount, Value *args);
+  "objfn_string_startswith": "objfn_string_startswith"
+
+  # _Bool objfn_string_endswith(VMState *vm, int argcount, Value *args);
+  "objfn_string_endswith": "objfn_string_endswith"
+
+  # _Bool objfn_string_count(VMState *vm, int argcount, Value *args);
+  "objfn_string_count": "objfn_string_count"
+
+  # _Bool objfn_string_tonumber(VMState *vm, int argcount, Value *args);
+  "objfn_string_tonumber": "objfn_string_tonumber"
+
+  # _Bool objfn_string_ascii(VMState *vm, int argcount, Value *args);
+  "objfn_string_ascii": "objfn_string_ascii"
+
+  # _Bool objfn_string_tolist(VMState *vm, int argcount, Value *args);
+  "objfn_string_tolist": "objfn_string_tolist"
+
+  # _Bool objfn_string_lpad(VMState *vm, int argcount, Value *args);
+  "objfn_string_lpad": "objfn_string_lpad"
+
+  # _Bool objfn_string_rpad(VMState *vm, int argcount, Value *args);
+  "objfn_string_rpad": "objfn_string_rpad"
+
+  # _Bool objfn_string_match(VMState *vm, int argcount, Value *args);
+  "objfn_string_match": "objfn_string_match"
+
+  # _Bool objfn_string_matches(VMState *vm, int argcount, Value *args);
+  "objfn_string_matches": "objfn_string_matches"
+
+  # _Bool objfn_string_replace(VMState *vm, int argcount, Value *args);
+  "objfn_string_replace": "objfn_string_replace"
+
+  # _Bool objfn_string_tobytes(VMState *vm, int argcount, Value *args);
+  "objfn_string_tobytes": "objfn_string_tobytes"
+
+  # _Bool objfn_string_iter(VMState *vm, int argcount, Value *args);
+  "objfn_string_iter": "objfn_string_iter"
+
+  # _Bool objfn_string_itern(VMState *vm, int argcount, Value *args);
+  "objfn_string_itern": "objfn_string_itern"
+
+  # _Bool cfn_bytes(VMState *vm, int argcount, Value *args);
+  "cfn_bytes": "cfn_bytes"
+
+  # _Bool objfn_bytes_length(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_length": "objfn_bytes_length"
+
+  # _Bool objfn_bytes_append(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_append": "objfn_bytes_append"
+
+  # _Bool objfn_bytes_clone(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_clone": "objfn_bytes_clone"
+
+  # _Bool objfn_bytes_extend(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_extend": "objfn_bytes_extend"
+
+  # _Bool objfn_bytes_pop(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_pop": "objfn_bytes_pop"
+
+  # _Bool objfn_bytes_remove(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_remove": "objfn_bytes_remove"
+
+  # _Bool objfn_bytes_reverse(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_reverse": "objfn_bytes_reverse"
+
+  # _Bool objfn_bytes_split(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_split": "objfn_bytes_split"
+
+  # _Bool objfn_bytes_first(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_first": "objfn_bytes_first"
+
+  # _Bool objfn_bytes_last(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_last": "objfn_bytes_last"
+
+  # _Bool objfn_bytes_get(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_get": "objfn_bytes_get"
+
+  # _Bool objfn_bytes_isalpha(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_isalpha": "objfn_bytes_isalpha"
+
+  # _Bool objfn_bytes_isalnum(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_isalnum": "objfn_bytes_isalnum"
+
+  # _Bool objfn_bytes_isnumber(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_isnumber": "objfn_bytes_isnumber"
+
+  # _Bool objfn_bytes_islower(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_islower": "objfn_bytes_islower"
+
+  # _Bool objfn_bytes_isupper(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_isupper": "objfn_bytes_isupper"
+
+  # _Bool objfn_bytes_isspace(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_isspace": "objfn_bytes_isspace"
+
+  # _Bool objfn_bytes_dispose(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_dispose": "objfn_bytes_dispose"
+
+  # _Bool objfn_bytes_tolist(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_tolist": "objfn_bytes_tolist"
+
+  # _Bool objfn_bytes_tostring(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_tostring": "objfn_bytes_tostring"
+
+  # _Bool objfn_bytes_iter(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_iter": "objfn_bytes_iter"
+
+  # _Bool objfn_bytes_itern(VMState *vm, int argcount, Value *args);
+  "objfn_bytes_itern": "objfn_bytes_itern"
+
+  # _Bool objfn_dict_length(VMState *vm, int argcount, Value *args);
+  "objfn_dict_length": "objfn_dict_length"
+
+  # _Bool objfn_dict_add(VMState *vm, int argcount, Value *args);
+  "objfn_dict_add": "objfn_dict_add"
+
+  # _Bool objfn_dict_set(VMState *vm, int argcount, Value *args);
+  "objfn_dict_set": "objfn_dict_set"
+
+  # _Bool objfn_dict_clear(VMState *vm, int argcount, Value *args);
+  "objfn_dict_clear": "objfn_dict_clear"
+
+  # _Bool objfn_dict_clone(VMState *vm, int argcount, Value *args);
+  "objfn_dict_clone": "objfn_dict_clone"
+
+  # _Bool objfn_dict_compact(VMState *vm, int argcount, Value *args);
+  "objfn_dict_compact": "objfn_dict_compact"
+
+  # _Bool objfn_dict_contains(VMState *vm, int argcount, Value *args);
+  "objfn_dict_contains": "objfn_dict_contains"
+
+  # _Bool objfn_dict_extend(VMState *vm, int argcount, Value *args);
+  "objfn_dict_extend": "objfn_dict_extend"
+
+  # _Bool objfn_dict_get(VMState *vm, int argcount, Value *args);
+  "objfn_dict_get": "objfn_dict_get"
+
+  # _Bool objfn_dict_keys(VMState *vm, int argcount, Value *args);
+  "objfn_dict_keys": "objfn_dict_keys"
+
+  # _Bool objfn_dict_values(VMState *vm, int argcount, Value *args);
+  "objfn_dict_values": "objfn_dict_values"
+
+  # _Bool objfn_dict_remove(VMState *vm, int argcount, Value *args);
+  "objfn_dict_remove": "objfn_dict_remove"
+
+  # _Bool objfn_dict_isempty(VMState *vm, int argcount, Value *args);
+  "objfn_dict_isempty": "objfn_dict_isempty"
+
+  # _Bool objfn_dict_findkey(VMState *vm, int argcount, Value *args);
+  "objfn_dict_findkey": "objfn_dict_findkey"
+
+  # _Bool objfn_dict_tolist(VMState *vm, int argcount, Value *args);
+  "objfn_dict_tolist": "objfn_dict_tolist"
+
+  # _Bool objfn_dict_iter(VMState *vm, int argcount, Value *args);
+  "objfn_dict_iter": "objfn_dict_iter"
+
+  # _Bool objfn_dict_itern(VMState *vm, int argcount, Value *args);
+  "objfn_dict_itern": "objfn_dict_itern"
+
+  # void bl_scanner_init(AstScanner *s, const char *source);
+  "bl_scanner_init": "bl_scanner_init"
+
+  # _Bool bl_scanner_isatend(AstScanner *s);
+  "bl_scanner_isatend": "bl_scanner_isatend"
+
+  # static AstToken bl_scanner_maketoken(AstScanner *s, TokType type);
+  "bl_scanner_maketoken": "bl_scanner_maketoken"
+
+  # static AstToken bl_scanner_makeerrortoken(AstScanner *s, const char *message, ...);
+  "bl_scanner_makeerrortoken": "bl_scanner_makeerrortoken"
+
+  # static _Bool bl_scanutil_isdigit(char c);
+  "bl_scanutil_isdigit": "bl_scanutil_isdigit"
+
+  # static _Bool bl_scanutil_isbinary(char c);
+  "bl_scanutil_isbinary": "bl_scanutil_isbinary"
+
+  # static _Bool bl_scanutil_isalpha(char c);
+  "bl_scanutil_isalpha": "bl_scanutil_isalpha"
+
+  # static _Bool bl_scanutil_isoctal(char c);
+  "bl_scanutil_isoctal": "bl_scanutil_isoctal"
+
+  # static _Bool bl_scanutil_ishexadecimal(char c);
+  "bl_scanutil_ishexadecimal": "bl_scanutil_ishexadecimal"
+
+  # static char bl_scanner_advance(AstScanner *s);
+  "bl_scanner_advance": "bl_scanner_advance"
+
+  # static _Bool bl_scanner_match(AstScanner *s, char expected);
+  "bl_scanner_match": "bl_scanner_match"
+
+  # static char bl_scanner_current(AstScanner *s);
+  "bl_scanner_current": "bl_scanner_current"
+
+  # static char bl_scanner_previous(AstScanner *s);
+  "bl_scanner_previous": "bl_scanner_previous"
+
+  # static char bl_scanner_next(AstScanner *s);
+  "bl_scanner_next": "bl_scanner_next"
+
+  # AstToken bl_scanner_skipblockcomments(AstScanner *s);
+  "bl_scanner_skipblockcomments": "bl_scanner_skipblockcomments"
+
+  # AstToken bl_scanner_skipwhitespace(AstScanner *s);
+  "bl_scanner_skipwhitespace": "bl_scanner_skipwhitespace"
+
+  # static AstToken bl_scanner_scanstring(AstScanner *s, char quote);
+  "bl_scanner_scanstring": "bl_scanner_scanstring"
+
+  # static AstToken bl_scanner_scannumber(AstScanner *s);
+  "bl_scanner_scannumber": "bl_scanner_scannumber"
+
+  # static TokType bl_scanner_scanidenttype(AstScanner *s);
+  "bl_scanner_scanidenttype": "bl_scanner_scanidenttype"
+
+  # static AstToken bl_scanner_scanidentifier(AstScanner *s);
+  "bl_scanner_scanidentifier": "bl_scanner_scanidentifier"
+
+  # static AstToken bl_scanner_decorator(AstScanner *s);
+  "bl_scanner_decorator": "bl_scanner_decorator"
+
+  # AstToken bl_scanner_scantoken(AstScanner *s);
+  "bl_scanner_scantoken": "bl_scanner_scantoken"
+
+  # static BinaryBlob * bl_parser_currentblob(AstParser *p);
+  "bl_parser_currentblob": "bl_parser_currentblob"
+
+  # static void bl_parser_errorat(AstParser *p, AstToken *t, const char *message, va_list args);
+  "bl_parser_errorat": "bl_parser_errorat"
+
+  # static void bl_parser_raiseerror(AstParser *p, const char *message, ...);
+  "bl_parser_raiseerror": "bl_parser_raiseerror"
+
+  # static void bl_parser_raiseerroratcurrent(AstParser *p, const char *message, ...);
+  "bl_parser_raiseerroratcurrent": "bl_parser_raiseerroratcurrent"
+
+  # static void bl_parser_advance(AstParser *p);
+  "bl_parser_advance": "bl_parser_advance"
+
+  # static void bl_parser_consume(AstParser *p, TokType t, const char *message);
+  "bl_parser_consume": "bl_parser_consume"
+
+  # static void bl_parser_consumeor(AstParser *p, const char *message, const TokType ts[], int count);
+  "bl_parser_consumeor": "bl_parser_consumeor"
+
+  # static _Bool bl_parser_checknumber(AstParser *p);
+  "bl_parser_checknumber": "bl_parser_checknumber"
+
+  # static _Bool bl_parser_check(AstParser *p, TokType t);
+  "bl_parser_check": "bl_parser_check"
+
+  # static _Bool bl_parser_match(AstParser *p, TokType t);
+  "bl_parser_match": "bl_parser_match"
+
+  # static void bl_parser_consumestmtend(AstParser *p);
+  "bl_parser_consumestmtend": "bl_parser_consumestmtend"
+
+  # static void bl_parser_ignorespace(AstParser *p);
+  "bl_parser_ignorespace": "bl_parser_ignorespace"
+
+  # static int bl_parser_getcodeargscount(const uint8_t *bytecode, const Value *constants, int ip);
+  "bl_parser_getcodeargscount": "bl_parser_getcodeargscount"
+
+  # static void bl_parser_emitbyte(AstParser *p, uint8_t byte);
+  "bl_parser_emitbyte": "bl_parser_emitbyte"
+
+  # static void bl_parser_emitshort(AstParser *p, uint16_t byte);
+  "bl_parser_emitshort": "bl_parser_emitshort"
+
+  # static void bl_parser_emitbytes(AstParser *p, uint8_t byte, uint8_t byte2);
+  "bl_parser_emitbytes": "bl_parser_emitbytes"
+
+  # static void bl_parser_emitbyte_and_short(AstParser *p, uint8_t byte, uint16_t byte2);
+  "bl_parser_emitbyte_and_short": "bl_parser_emitbyte_and_short"
+
+  # static void bl_parser_emitloop(AstParser *p, int loopstart);
+  "bl_parser_emitloop": "bl_parser_emitloop"
+
+  # static void bl_parser_emitreturn(AstParser *p);
+  "bl_parser_emitreturn": "bl_parser_emitreturn"
+
+  # static int bl_parser_makeconstant(AstParser *p, Value value);
+  "bl_parser_makeconstant": "bl_parser_makeconstant"
+
+  # static void bl_parser_emitconstant(AstParser *p, Value value);
+  "bl_parser_emitconstant": "bl_parser_emitconstant"
+
+  # static int bl_parser_emitjump(AstParser *p, uint8_t instruction);
+  "bl_parser_emitjump": "bl_parser_emitjump"
+
+  # static int bl_parser_emitswitch(AstParser *p);
+  "bl_parser_emitswitch": "bl_parser_emitswitch"
+
+  # static int bl_parser_emittry(AstParser *p);
+  "bl_parser_emittry": "bl_parser_emittry"
+
+  # static void bl_parser_patchswitch(AstParser *p, int offset, int constant);
+  "bl_parser_patchswitch": "bl_parser_patchswitch"
+
+  # static void bl_parser_patchtry(AstParser *p, int offset, int type, int address, int finally);
+  "bl_parser_patchtry": "bl_parser_patchtry"
+
+  # static void bl_parser_patchjump(AstParser *p, int offset);
+  "bl_parser_patchjump": "bl_parser_patchjump"
+
+  # static void bl_compiler_init(AstParser *p, AstCompiler *compiler, FuncType type);
+  "bl_compiler_init": "bl_compiler_init"
+
+  # static int bl_parser_identconst(AstParser *p, AstToken *name);
+  "bl_parser_identconst": "bl_parser_identconst"
+
+  # static _Bool bl_parser_identsequal(AstToken *a, AstToken *b);
+  "bl_parser_identsequal": "bl_parser_identsequal"
+
+  # static int bl_compiler_resolvelocal(AstParser *p, AstCompiler *compiler, AstToken *name);
+  "bl_compiler_resolvelocal": "bl_compiler_resolvelocal"
+
+  # static int bl_compiler_addupvalue(AstParser *p, AstCompiler *compiler, uint16_t index, _Bool islocal);
+  "bl_compiler_addupvalue": "bl_compiler_addupvalue"
+
+  # static int bl_compiler_resolveupvalue(AstParser *p, AstCompiler *compiler, AstToken *name);
+  "bl_compiler_resolveupvalue": "bl_compiler_resolveupvalue"
+
+  # static int bl_parser_addlocal(AstParser *p, AstToken name);
+  "bl_parser_addlocal": "bl_parser_addlocal"
+
+  # static void bl_parser_declvar(AstParser *p);
+  "bl_parser_declvar": "bl_parser_declvar"
+
+  # static int bl_parser_parsevar(AstParser *p, const char *message);
+  "bl_parser_parsevar": "bl_parser_parsevar"
+
+  # static void bl_parser_markinit(AstParser *p);
+  "bl_parser_markinit": "bl_parser_markinit"
+
+  # static void bl_parser_defvar(AstParser *p, int global);
+  "bl_parser_defvar": "bl_parser_defvar"
+
+  # static AstToken bl_parser_synthtoken(const char *name);
+  "bl_parser_synthtoken": "bl_parser_synthtoken"
+
+  # static ObjFunction * bl_compiler_end(AstParser *p);
+  "bl_compiler_end": "bl_compiler_end"
+
+  # static void bl_parser_beginscope(AstParser *p);
+  "bl_parser_beginscope": "bl_parser_beginscope"
+
+  # static void bl_parser_endscope(AstParser *p);
+  "bl_parser_endscope": "bl_parser_endscope"
+
+  # static void bl_parser_discardlocal(AstParser *p, int depth);
+  "bl_parser_discardlocal": "bl_parser_discardlocal"
+
+  # static void bl_parser_endloop(AstParser *p);
+  "bl_parser_endloop": "bl_parser_endloop"
+
+  # static void bl_parser_rulebinary(AstParser *p, AstToken previous, _Bool canassign);
+  "bl_parser_rulebinary": "bl_parser_rulebinary"
+
+  # static uint8_t bl_parser_parsearglist(AstParser *p);
+  "bl_parser_parsearglist": "bl_parser_parsearglist"
+
+  # static void bl_parser_rulecall(AstParser *p, AstToken previous, _Bool canassign);
+  "bl_parser_rulecall": "bl_parser_rulecall"
+
+  # static void bl_parser_ruleliteral(AstParser *p, _Bool canassign);
+  "bl_parser_ruleliteral": "bl_parser_ruleliteral"
+
+  # static void bl_parser_parseassign(AstParser *p, uint8_t realop, uint8_t getop, uint8_t setop, int arg);
+  "bl_parser_parseassign": "bl_parser_parseassign"
+
+  # static void bl_parser_doassign(AstParser *p, uint8_t getop, uint8_t setop, int arg, _Bool canassign);
+  "bl_parser_doassign": "bl_parser_doassign"
+
+  # static void bl_parser_ruledot(AstParser *p, AstToken previous, _Bool canassign);
+  "bl_parser_ruledot": "bl_parser_ruledot"
+
+  # static void bl_parser_namedvar(AstParser *p, AstToken name, _Bool canassign);
+  "bl_parser_namedvar": "bl_parser_namedvar"
+
+  # static void bl_parser_rulelist(AstParser *p, _Bool canassign);
+  "bl_parser_rulelist": "bl_parser_rulelist"
+
+  # static void bl_parser_ruledict(AstParser *p, _Bool canassign);
+  "bl_parser_ruledict": "bl_parser_ruledict"
+
+  # static void bl_parser_ruleindexing(AstParser *p, AstToken previous, _Bool canassign);
+  "bl_parser_ruleindexing": "bl_parser_ruleindexing"
+
+  # static void bl_parser_rulevariable(AstParser *p, _Bool canassign);
+  "bl_parser_rulevariable": "bl_parser_rulevariable"
+
+  # static void bl_parser_ruleself(AstParser *p, _Bool canassign);
+  "bl_parser_ruleself": "bl_parser_ruleself"
+
+  # static void bl_parser_ruleparent(AstParser *p, _Bool canassign);
+  "bl_parser_ruleparent": "bl_parser_ruleparent"
+
+  # static void bl_parser_rulegrouping(AstParser *p, _Bool canassign);
+  "bl_parser_rulegrouping": "bl_parser_rulegrouping"
+
+  # static Value bl_parser_compilenumber(AstParser *p);
+  "bl_parser_compilenumber": "bl_parser_compilenumber"
+
+  # static void bl_parser_rulenumber(AstParser *p, _Bool canassign);
+  "bl_parser_rulenumber": "bl_parser_rulenumber"
+
+  # static int bl_parser_readhexdigit(char c);
+  "bl_parser_readhexdigit": "bl_parser_readhexdigit"
+
+  # static int bl_parser_readhexescape(AstParser *p, char *str, int index, int count);
+  "bl_parser_readhexescape": "bl_parser_readhexescape"
+
+  # static int bl_parser_readunicodeescape(AstParser *p, char *string, char *realstring, int numberbytes, int realindex, int index);
+  "bl_parser_readunicodeescape": "bl_parser_readunicodeescape"
+
+  # static char * bl_parser_compilestring(AstParser *p, int *length);
+  "bl_parser_compilestring": "bl_parser_compilestring"
+
+  # static void bl_parser_rulestring(AstParser *p, _Bool canassign);
+  "bl_parser_rulestring": "bl_parser_rulestring"
+
+  # static void bl_parser_rulestrinterpol(AstParser *p, _Bool canassign);
+  "bl_parser_rulestrinterpol": "bl_parser_rulestrinterpol"
+
+  # static void bl_parser_ruleunary(AstParser *p, _Bool canassign);
+  "bl_parser_ruleunary": "bl_parser_ruleunary"
+
+  # static void bl_parser_ruleand(AstParser *p, AstToken previous, _Bool canassign);
+  "bl_parser_ruleand": "bl_parser_ruleand"
+
+  # static void bl_parser_ruleor(AstParser *p, AstToken previous, _Bool canassign);
+  "bl_parser_ruleor": "bl_parser_ruleor"
+
+  # static void bl_parser_ruleconditional(AstParser *p, AstToken previous, _Bool canassign);
+  "bl_parser_ruleconditional": "bl_parser_ruleconditional"
+
+  # static void bl_parser_ruleanon(AstParser *p, _Bool canassign);
+  "bl_parser_ruleanon": "bl_parser_ruleanon"
+
+  # static void bl_parser_doparseprecedence(AstParser *p, AstPrecedence precedence);
+  "bl_parser_doparseprecedence": "bl_parser_doparseprecedence"
+
+  # static void bl_parser_parseprecedence(AstParser *p, AstPrecedence precedence);
+  "bl_parser_parseprecedence": "bl_parser_parseprecedence"
+
+  # static void bl_parser_parseprecedencenoadvance(AstParser *p, AstPrecedence precedence);
+  "bl_parser_parseprecedencenoadvance": "bl_parser_parseprecnoadvance"
+
+  # static AstRule * bl_parser_getrule(TokType type);
+  "bl_parser_getrule": "bl_parser_getrule"
+
+  # static void bl_parser_parseexpr(AstParser *p);
+  "bl_parser_parseexpr": "bl_parser_parseexpr"
+
+  # static void bl_parser_parseblock(AstParser *p);
+  "bl_parser_parseblock": "bl_parser_parseblock"
+
+  # static void bl_parser_parsefunctionargs(AstParser *p);
+  "bl_parser_parsefunctionargs": "bl_parser_parsefunctionargs"
+
+  # static void bl_parser_parsefunctionbody(AstParser *p, AstCompiler *compiler);
+  "bl_parser_parsefunctionbody": "bl_parser_parsefunctionbody"
+
+  # static void bl_parser_parsefunction(AstParser *p, FuncType type);
+  "bl_parser_parsefunction": "bl_parser_parsefunction"
+
+  # static void bl_parser_parsemethod(AstParser *p, AstToken classname, _Bool isstatic);
+  "bl_parser_parsemethod": "bl_parser_parsemethod"
+
+  # static void bl_parser_parsefield(AstParser *p, _Bool isstatic);
+  "bl_parser_parsefield": "bl_parser_parsefield"
+
+  # static void bl_parser_parsefunctiondeclaration(AstParser *p);
+  "bl_parser_parsefunctiondeclaration": "bl_parser_parsefunctiondecl"
+
+  # static void bl_parser_parseclassdeclaration(AstParser *p);
+  "bl_parser_parseclassdeclaration": "bl_parser_parseclassdecl"
+
+  # static void compile_var_declaration(AstParser *p, _Bool isinitializer);
+  "compile_var_declaration": "bl_parser_compilevardecl"
+
+  # static void var_declaration(AstParser *p);
+  "var_declaration": "bl_parser_parsevardecl"
+
+  # static void expression_statement(AstParser *p, _Bool isinitializer, _Bool semi);
+  "expression_statement": "bl_parser_parseexprstmt"
+
+  # static void forloop_statement(AstParser *p);
+  "forloop_statement": "bl_parser_parseforloopstmt"
+
+  # static void foreach_statement(AstParser *p);
+  "foreach_statement": "bl_parser_parseforeachstmt"
+
+  # static void using_statement(AstParser *p);
+  "using_statement": "bl_parser_parseusingstmt"
+
+  # static void if_statement(AstParser *p);
+  "if_statement": "bl_parser_parseifstmt"
+
+  # static void echo_statement(AstParser *p);
+  "echo_statement": "bl_parser_parseechostmt"
+
+  # static void die_statement(AstParser *p);
+  "die_statement": "bl_parser_parsediestmt"
+
+  # static void parse_specific_import(AstParser *p, char *modulename, int importconstant, _Bool wasrenamed, _Bool isnative);
+  "parse_specific_import": "bl_parser_parsespecificimport"
+
+  # static void import_statement(AstParser *p);
+  "import_statement": "bl_parser_parseimportstmt"
+
+  # static void assert_statement(AstParser *p);
+  "assert_statement": "bl_parser_parseassertstmt"
+
+  # static void try_statement(AstParser *p);
+  "try_statement": "bl_parser_parsetrystmt"
+
+  # static void return_statement(AstParser *p);
+  "return_statement": "bl_parser_parsereturnstmt"
+
+  # static void while_statement(AstParser *p);
+  "while_statement": "bl_parser_parsewhilestmt"
+
+  # static void do_while_statement(AstParser *p);
+  "do_while_statement": "bl_parser_parsedowhilestmt"
+
+  # static void continue_statement(AstParser *p);
+  "continue_statement": "bl_parser_parsecontinuestmt"
+
+  # static void break_statement(AstParser *p);
+  "break_statement": "bl_parser_parsebreakstmt"
+
+  # static void synchronize(AstParser *p);
+  "synchronize": "bl_parser_synchronize"
+
+  # static void declaration(AstParser *p);
+  "declaration": "bl_parser_parsedeclaration"
+
+  # static void bl_parser_parsestmt(AstParser *p);
+  "bl_parser_parsestmt": "bl_parser_parsestmt"
+
+  # ObjFunction * bl_compiler_compilesource(VMState *vm, ObjModule *module, const char *source, BinaryBlob *blob);
+  "bl_compiler_compilesource": "bl_compiler_compilesource"
+
+  # void mark_compiler_roots(VMState *vm);
+  "mark_compiler_roots": "bl_parser_markcompilerroots"
+
+  # void disassemble_blob(BinaryBlob *blob, const char *name);
+  "disassemble_blob": "bl_blob_disassembleitem"
+
+  # int simple_instruction(const char *name, int offset);
+  "simple_instruction": "bl_blob_disaspriminst"
+
+  # int constant_instruction(const char *name, BinaryBlob *blob, int offset);
+  "constant_instruction": "bl_blob_disasconstinst"
+
+  # int short_instruction(const char *name, BinaryBlob *blob, int offset);
+  "short_instruction": "bl_blob_disasshortinst"
+
+  # static int byte_instruction(const char *name, BinaryBlob *blob, int offset);
+  "byte_instruction": "bl_blob_disasbyteinst"
+
+  # static int jump_instruction(const char *name, int sign, BinaryBlob *blob, int offset);
+  "jump_instruction": "bl_blob_disasjumpinst"
+
+  # static int try_instruction(const char *name, BinaryBlob *blob, int offset);
+  "try_instruction": "bl_blob_disastryinst"
+
+  # static int invoke_instruction(const char *name, BinaryBlob *blob, int offset);
+  "invoke_instruction": "bl_blob_disasinvokeinst"
+
+  # int disassemble_instruction(BinaryBlob *blob, int offset);
+  "disassemble_instruction": "bl_blob_disassembleinst"
+
+  # static int file_close(ObjFile *file);
+  "file_close": "file_close"
+
+  # static void file_open(ObjFile *file);
+  "file_open": "file_open"
+
+  # _Bool cfn_file(VMState *vm, int argcount, Value *args);
+  "cfn_file": "cfn_file"
+
+  # _Bool objfn_file_exists(VMState *vm, int argcount, Value *args);
+  "objfn_file_exists": "objfn_file_exists"
+
+  # _Bool objfn_file_close(VMState *vm, int argcount, Value *args);
+  "objfn_file_close": "objfn_file_close"
+
+  # _Bool objfn_file_open(VMState *vm, int argcount, Value *args);
+  "objfn_file_open": "objfn_file_open"
+
+  # _Bool objfn_file_isopen(VMState *vm, int argcount, Value *args);
+  "objfn_file_isopen": "objfn_file_isopen"
+
+  # _Bool objfn_file_isclosed(VMState *vm, int argcount, Value *args);
+  "objfn_file_isclosed": "objfn_file_isclosed"
+
+  # _Bool objfn_file_read(VMState *vm, int argcount, Value *args);
+  "objfn_file_read": "objfn_file_read"
+
+  # _Bool objfn_file_gets(VMState *vm, int argcount, Value *args);
+  "objfn_file_gets": "objfn_file_gets"
+
+  # _Bool objfn_file_write(VMState *vm, int argcount, Value *args);
+  "objfn_file_write": "objfn_file_write"
+
+  # _Bool objfn_file_puts(VMState *vm, int argcount, Value *args);
+  "objfn_file_puts": "objfn_file_puts"
+
+  # _Bool objfn_file_number(VMState *vm, int argcount, Value *args);
+  "objfn_file_number": "objfn_file_number"
+
+  # _Bool objfn_file_istty(VMState *vm, int argcount, Value *args);
+  "objfn_file_istty": "objfn_file_istty"
+
+  # _Bool objfn_file_flush(VMState *vm, int argcount, Value *args);
+  "objfn_file_flush": "objfn_file_flush"
+
+  # _Bool objfn_file_stats(VMState *vm, int argcount, Value *args);
+  "objfn_file_stats": "objfn_file_stats"
+
+  # _Bool objfn_file_symlink(VMState *vm, int argcount, Value *args);
+  "objfn_file_symlink": "objfn_file_symlink"
+
+  # _Bool objfn_file_delete(VMState *vm, int argcount, Value *args);
+  "objfn_file_delete": "objfn_file_delete"
+
+  # _Bool objfn_file_rename(VMState *vm, int argcount, Value *args);
+  "objfn_file_rename": "objfn_file_rename"
+
+  # _Bool objfn_file_path(VMState *vm, int argcount, Value *args);
+  "objfn_file_path": "objfn_file_path"
+
+  # _Bool objfn_file_mode(VMState *vm, int argcount, Value *args);
+  "objfn_file_mode": "objfn_file_mode"
+
+  # _Bool objfn_file_name(VMState *vm, int argcount, Value *args);
+  "objfn_file_name": "objfn_file_name"
+
+  # _Bool objfn_file_abspath(VMState *vm, int argcount, Value *args);
+  "objfn_file_abspath": "objfn_file_abspath"
+
+  # _Bool objfn_file_copy(VMState *vm, int argcount, Value *args);
+  "objfn_file_copy": "objfn_file_copy"
+
+  # _Bool objfn_file_truncate(VMState *vm, int argcount, Value *args);
+  "objfn_file_truncate": "objfn_file_truncate"
+
+  # _Bool objfn_file_chmod(VMState *vm, int argcount, Value *args);
+  "objfn_file_chmod": "objfn_file_chmod"
+
+  # _Bool objfn_file_settimes(VMState *vm, int argcount, Value *args);
+  "objfn_file_settimes": "objfn_file_settimes"
+
+  # _Bool objfn_file_seek(VMState *vm, int argcount, Value *args);
+  "objfn_file_seek": "objfn_file_seek"
+
+  # _Bool objfn_file_tell(VMState *vm, int argcount, Value *args);
+  "objfn_file_tell": "objfn_file_tell"
+
+  # _Bool load_module(VMState *vm, ModInitFunc init_fn, char *importname, char *source, void *handle);
+  "load_module": "load_module"
+
+  # void add_native_module(VMState *vm, ObjModule *module, const char *as);
+  "add_native_module": "add_native_module"
+
+  # void bind_user_modules(VMState *vm, char *pkgroot);
+  "bind_user_modules": "bind_user_modules"
+
+  # void bind_native_modules(VMState *vm);
+  "bind_native_modules": "bind_native_modules"
+
+  # char * load_user_module(VMState *vm, const char *path, char *name);
+  "load_user_module": "load_user_module"
+
+  # void close_dl_module(void *handle);
+  "close_dl_module": "close_dl_module"
+
+  # static ObjString * bin_to_string(VMState *vm, long n);
+  "bin_to_string": "bin_to_string"
+
+  # static ObjString * number_to_oct(VMState *vm, long long n, _Bool numeric);
+  "number_to_oct": "number_to_oct"
+
+  # static ObjString * number_to_hex(VMState *vm, long long n, _Bool numeric);
+  "number_to_hex": "number_to_hex"
+
+  # _Bool cfn_time(VMState *vm, int argcount, Value *args);
+  "cfn_time": "cfn_time"
+
+  # _Bool cfn_microtime(VMState *vm, int argcount, Value *args);
+  "cfn_microtime": "cfn_microtime"
+
+  # _Bool cfn_id(VMState *vm, int argcount, Value *args);
+  "cfn_id": "cfn_id"
+
+  # _Bool cfn_hasprop(VMState *vm, int argcount, Value *args);
+  "cfn_hasprop": "cfn_hasprop"
+
+  # _Bool cfn_getprop(VMState *vm, int argcount, Value *args);
+  "cfn_getprop": "cfn_getprop"
+
+  # _Bool cfn_setprop(VMState *vm, int argcount, Value *args);
+  "cfn_setprop": "cfn_setprop"
+
+  # _Bool cfn_delprop(VMState *vm, int argcount, Value *args);
+  "cfn_delprop": "cfn_delprop"
+
+  # _Bool cfn_max(VMState *vm, int argcount, Value *args);
+  "cfn_max": "cfn_max"
+
+  # _Bool cfn_min(VMState *vm, int argcount, Value *args);
+  "cfn_min": "cfn_min"
+
+  # _Bool cfn_sum(VMState *vm, int argcount, Value *args);
+  "cfn_sum": "cfn_sum"
+
+  # _Bool cfn_abs(VMState *vm, int argcount, Value *args);
+  "cfn_abs": "cfn_abs"
+
+  # _Bool cfn_int(VMState *vm, int argcount, Value *args);
+  "cfn_int": "cfn_int"
+
+  # _Bool cfn_bin(VMState *vm, int argcount, Value *args);
+  "cfn_bin": "cfn_bin"
+
+  # _Bool cfn_oct(VMState *vm, int argcount, Value *args);
+  "cfn_oct": "cfn_oct"
+
+  # _Bool cfn_hex(VMState *vm, int argcount, Value *args);
+  "cfn_hex": "cfn_hex"
+
+  # _Bool cfn_tobool(VMState *vm, int argcount, Value *args);
+  "cfn_tobool": "cfn_tobool"
+
+  # _Bool cfn_tostring(VMState *vm, int argcount, Value *args);
+  "cfn_tostring": "cfn_tostring"
+
+  # _Bool cfn_tonumber(VMState *vm, int argcount, Value *args);
+  "cfn_tonumber": "cfn_tonumber"
+
+  # _Bool cfn_toint(VMState *vm, int argcount, Value *args);
+  "cfn_toint": "cfn_toint"
+
+  # _Bool cfn_tolist(VMState *vm, int argcount, Value *args);
+  "cfn_tolist": "cfn_tolist"
+
+  # _Bool cfn_todict(VMState *vm, int argcount, Value *args);
+  "cfn_todict": "cfn_todict"
+
+  # _Bool cfn_chr(VMState *vm, int argcount, Value *args);
+  "cfn_chr": "cfn_chr"
+
+  # _Bool cfn_ord(VMState *vm, int argcount, Value *args);
+  "cfn_ord": "cfn_ord"
+
+  # _Bool cfn_rand(VMState *vm, int argcount, Value *args);
+  "cfn_rand": "cfn_rand"
+
+  # _Bool cfn_typeof(VMState *vm, int argcount, Value *args);
+  "cfn_typeof": "cfn_typeof"
+
+  # _Bool cfn_iscallable(VMState *vm, int argcount, Value *args);
+  "cfn_iscallable": "cfn_iscallable"
+
+  # _Bool cfn_isbool(VMState *vm, int argcount, Value *args);
+  "cfn_isbool": "cfn_isbool"
+
+  # _Bool cfn_isnumber(VMState *vm, int argcount, Value *args);
+  "cfn_isnumber": "cfn_isnumber"
+
+  # _Bool cfn_isint(VMState *vm, int argcount, Value *args);
+  "cfn_isint": "cfn_isint"
+
+  # _Bool cfn_isstring(VMState *vm, int argcount, Value *args);
+  "cfn_isstring": "cfn_isstring"
+
+  # _Bool cfn_isbytes(VMState *vm, int argcount, Value *args);
+  "cfn_isbytes": "cfn_isbytes"
+
+  # _Bool cfn_islist(VMState *vm, int argcount, Value *args);
+  "cfn_islist": "cfn_islist"
+
+  # _Bool cfn_isdict(VMState *vm, int argcount, Value *args);
+  "cfn_isdict": "cfn_isdict"
+
+  # _Bool cfn_isobject(VMState *vm, int argcount, Value *args);
+  "cfn_isobject": "cfn_isobject"
+
+  # _Bool cfn_isfunction(VMState *vm, int argcount, Value *args);
+  "cfn_isfunction": "cfn_isfunction"
+
+  # _Bool cfn_isiterable(VMState *vm, int argcount, Value *args);
+  "cfn_isiterable": "cfn_isiterable"
+
+  # _Bool cfn_isclass(VMState *vm, int argcount, Value *args);
+  "cfn_isclass": "cfn_isclass"
+
+  # _Bool cfn_isfile(VMState *vm, int argcount, Value *args);
+  "cfn_isfile": "cfn_isfile"
+
+  # _Bool cfn_isinstance(VMState *vm, int argcount, Value *args);
+  "cfn_isinstance": "cfn_isinstance"
+
+  # _Bool cfn_instanceof(VMState *vm, int argcount, Value *args);
+  "cfn_instanceof": "cfn_instanceof"
+
+  # _Bool cfn_print(VMState *vm, int argcount, Value *args);
+  "cfn_print": "cfn_print"
+
+  # _Bool objfn_range_lower(VMState *vm, int argcount, Value *args);
+  "objfn_range_lower": "objfn_range_lower"
+
+  # _Bool objfn_range_upper(VMState *vm, int argcount, Value *args);
+  "objfn_range_upper": "objfn_range_upper"
+
+  # _Bool objfn_range_iter(VMState *vm, int argcount, Value *args);
+  "objfn_range_iter": "objfn_range_iter"
+
+  # _Bool objfn_range_itern(VMState *vm, int argcount, Value *args);
+  "objfn_range_itern": "objfn_range_itern"
+
+  # void array_free(void *data);
+  "array_free": "array_free"
+
+  # ObjPointer * new_array(VMState *vm, DynArray *array);
+  "new_array": "new_array"
+
+  # DynArray * bl_object_makedynarrayint16(VMState *vm, int length);
+  "bl_object_makedynarrayint16": "bl_object_makedynarrayint16"
+
+  # _Bool modfn_array_int16array(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16array": "modfn_array_int16array"
+
+  # _Bool modfn_array_int16append(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16append": "modfn_array_int16append"
+
+  # _Bool modfn_array_int16get(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16get": "modfn_array_int16get"
+
+  # _Bool modfn_array_int16reverse(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16reverse": "modfn_array_int16reverse"
+
+  # _Bool modfn_array_int16clone(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16clone": "modfn_array_int16clone"
+
+  # _Bool modfn_array_int16pop(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16pop": "modfn_array_int16pop"
+
+  # _Bool modfn_array_int16tolist(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16tolist": "modfn_array_int16tolist"
+
+  # _Bool modfn_array_int16tobytes(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16tobytes": "modfn_array_int16tobytes"
+
+  # _Bool modfn_array_int16iter_(VMState *vm, int argcount, Value *args);
+  "modfn_array_int16iter_": "modfn_array_int16iter_"
+
+  # DynArray * bl_object_makedynarrayint32(VMState *vm, int length);
+  "bl_object_makedynarrayint32": "bl_object_makedynarrayint32"
+
+  # _Bool modfn_array_int32array(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32array": "modfn_array_int32array"
+
+  # _Bool modfn_array_int32append(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32append": "modfn_array_int32append"
+
+  # _Bool modfn_array_int32get(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32get": "modfn_array_int32get"
+
+  # _Bool modfn_array_int32reverse(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32reverse": "modfn_array_int32reverse"
+
+  # _Bool modfn_array_int32clone(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32clone": "modfn_array_int32clone"
+
+  # _Bool modfn_array_int32pop(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32pop": "modfn_array_int32pop"
+
+  # _Bool modfn_array_int32tolist(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32tolist": "modfn_array_int32tolist"
+
+  # _Bool modfn_array_int32tobytes(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32tobytes": "modfn_array_int32tobytes"
+
+  # _Bool modfn_array_int32iter_(VMState *vm, int argcount, Value *args);
+  "modfn_array_int32iter_": "modfn_array_int32iter_"
+
+  # DynArray * bl_object_makedynarrayint64(VMState *vm, int length);
+  "bl_object_makedynarrayint64": "bl_object_makedynarrayint64"
+
+  # _Bool modfn_array_int64array(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64array": "modfn_array_int64array"
+
+  # _Bool modfn_array_int64append(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64append": "modfn_array_int64append"
+
+  # _Bool modfn_array_int64get(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64get": "modfn_array_int64get"
+
+  # _Bool modfn_array_int64reverse(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64reverse": "modfn_array_int64reverse"
+
+  # _Bool modfn_array_int64clone(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64clone": "modfn_array_int64clone"
+
+  # _Bool modfn_array_int64pop(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64pop": "modfn_array_int64pop"
+
+  # _Bool modfn_array_int64tolist(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64tolist": "modfn_array_int64tolist"
+
+  # _Bool modfn_array_int64tobytes(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64tobytes": "modfn_array_int64tobytes"
+
+  # _Bool modfn_array_int64iter_(VMState *vm, int argcount, Value *args);
+  "modfn_array_int64iter_": "modfn_array_int64iter_"
+
+  # DynArray * bl_object_makedynarrayuint16(VMState *vm, int length);
+  "bl_object_makedynarrayuint16": "bl_object_makedynarrayuint16"
+
+  # _Bool modfn_array_uint16array(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16array": "modfn_array_uint16array"
+
+  # _Bool modfn_array_uint16append(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16append": "modfn_array_uint16append"
+
+  # _Bool modfn_array_uint16get(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16get": "modfn_array_uint16get"
+
+  # _Bool modfn_array_uint16reverse(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16reverse": "modfn_array_uint16reverse"
+
+  # _Bool modfn_array_uint16clone(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16clone": "modfn_array_uint16clone"
+
+  # _Bool modfn_array_uint16pop(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16pop": "modfn_array_uint16pop"
+
+  # _Bool modfn_array_uint16tolist(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16tolist": "modfn_array_uint16tolist"
+
+  # _Bool modfn_array_uint16tobytes(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16tobytes": "modfn_array_uint16tobytes"
+
+  # _Bool modfn_array_uint16iter_(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint16iter_": "modfn_array_uint16iter_"
+
+  # DynArray * bl_object_makedynarrayuint32(VMState *vm, int length);
+  "bl_object_makedynarrayuint32": "bl_object_makedynarrayuint32"
+
+  # _Bool modfn_array_uint32array(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32array": "modfn_array_uint32array"
+
+  # _Bool modfn_array_uint32append(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32append": "modfn_array_uint32append"
+
+  # _Bool modfn_array_uint32get(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32get": "modfn_array_uint32get"
+
+  # _Bool modfn_array_uint32reverse(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32reverse": "modfn_array_uint32reverse"
+
+  # _Bool modfn_array_uint32clone(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32clone": "modfn_array_uint32clone"
+
+  # _Bool modfn_array_uint32pop(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32pop": "modfn_array_uint32pop"
+
+  # _Bool modfn_array_uint32tolist(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32tolist": "modfn_array_uint32tolist"
+
+  # _Bool modfn_array_uint32tobytes(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32tobytes": "modfn_array_uint32tobytes"
+
+  # _Bool modfn_array_uint32iter_(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint32iter_": "modfn_array_uint32iter_"
+
+  # DynArray * bl_object_makedynarrayuint64(VMState *vm, int length);
+  "bl_object_makedynarrayuint64": "bl_object_makedynarrayuint64"
+
+  # _Bool modfn_array_uint64array(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64array": "modfn_array_uint64array"
+
+  # _Bool modfn_array_uint64append(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64append": "modfn_array_uint64append"
+
+  # _Bool modfn_array_uint64get(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64get": "modfn_array_uint64get"
+
+  # _Bool modfn_array_uint64reverse(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64reverse": "modfn_array_uint64reverse"
+
+  # _Bool modfn_array_uint64clone(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64clone": "modfn_array_uint64clone"
+
+  # _Bool modfn_array_uint64pop(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64pop": "modfn_array_uint64pop"
+
+  # _Bool modfn_array_uint64tolist(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64tolist": "modfn_array_uint64tolist"
+
+  # _Bool modfn_array_uint64tobytes(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64tobytes": "modfn_array_uint64tobytes"
+
+  # _Bool modfn_array_uint64iter_(VMState *vm, int argcount, Value *args);
+  "modfn_array_uint64iter_": "modfn_array_uint64iter_"
+
+  # _Bool modfn_array_length(VMState *vm, int argcount, Value *args);
+  "modfn_array_length": "modfn_array_length"
+
+  # _Bool modfn_array_first(VMState *vm, int argcount, Value *args);
+  "modfn_array_first": "modfn_array_first"
+
+  # _Bool modfn_array_last(VMState *vm, int argcount, Value *args);
+  "modfn_array_last": "modfn_array_last"
+
+  # _Bool modfn_array_extend(VMState *vm, int argcount, Value *args);
+  "modfn_array_extend": "modfn_array_extend"
+
+  # _Bool modfn_array_tostring(VMState *vm, int argcount, Value *args);
+  "modfn_array_tostring": "modfn_array_tostring"
+
+  # _Bool modfn_array_itern_(VMState *vm, int argcount, Value *args);
+  "modfn_array_itern_": "modfn_array_itern_"
+
+  # RegModule * bl_modload_array(VMState *vm);
+  "bl_modload_array": "bl_modload_array"
+
+  # _Bool modfn_io_mktime(VMState *vm, int argcount, Value *args);
+  "modfn_io_mktime": "modfn_io_mktime"
+
+  # _Bool modfn_io_localtime(VMState *vm, int argcount, Value *args);
+  "modfn_io_localtime": "modfn_io_localtime"
+
+  # _Bool modfn_io_gmtime(VMState *vm, int argcount, Value *args);
+  "modfn_io_gmtime": "modfn_io_gmtime"
+
+  # RegModule * bl_modload_date(VMState *vm);
+  "bl_modload_date": "bl_modload_date"
+
+  # void disable_raw_mode(void);
+  "disable_raw_mode": "disable_raw_mode"
+
+  # static int bl_util_cbreak(int fd);
+  "bl_util_cbreak": "bl_util_cbreak"
+
+  # int bl_util_getch(void);
+  "bl_util_getch": "bl_util_getch"
+
+  # static int read_line(char line[], int max);
+  "read_line": "read_line"
+
+  # _Bool modfn_io_ttytcgetattr(VMState *vm, int argcount, Value *args);
+  "modfn_io_ttytcgetattr": "modfn_io_ttytcgetattr"
+
+  # _Bool modfn_io_ttytcsetattr(VMState *vm, int argcount, Value *args);
+  "modfn_io_ttytcsetattr": "modfn_io_ttytcsetattr"
+
+  # _Bool modfn_io_ttyexitraw(VMState *vm, int argcount, Value *args);
+  "modfn_io_ttyexitraw": "modfn_io_ttyexitraw"
+
+  # _Bool modfn_io_ttyflush(VMState *vm, int argcount, Value *args);
+  "modfn_io_ttyflush": "modfn_io_ttyflush"
+
+  # _Bool modfn_io_flush(VMState *vm, int argcount, Value *args);
+  "modfn_io_flush": "modfn_io_flush"
+
+  # _Bool modfn_io_getc(VMState *vm, int argcount, Value *args);
+  "modfn_io_getc": "modfn_io_getc"
+
+  # _Bool modfn_io_getch(VMState *vm, int argcount, Value *args);
+  "modfn_io_getch": "modfn_io_getch"
+
+  # _Bool modfn_io_putc(VMState *vm, int argcount, Value *args);
+  "modfn_io_putc": "modfn_io_putc"
+
+  # Value io_module_stdin(VMState *vm);
+  "io_module_stdin": "io_module_stdin"
+
+  # Value io_module_stdout(VMState *vm);
+  "io_module_stdout": "io_module_stdout"
+
+  # Value io_module_stderr(VMState *vm);
+  "io_module_stderr": "io_module_stderr"
+
+  # void modfn_io_unload(VMState *vm);
+  "modfn_io_unload": "modfn_io_unload"
+
+  # RegModule * bl_modload_io(VMState *vm);
+  "bl_modload_io": "bl_modload_io"
+
+  # _Bool modfn_math_sin(VMState *vm, int argcount, Value *args);
+  "modfn_math_sin": "modfn_math_sin"
+
+  # _Bool modfn_math_cos(VMState *vm, int argcount, Value *args);
+  "modfn_math_cos": "modfn_math_cos"
+
+  # _Bool modfn_math_tan(VMState *vm, int argcount, Value *args);
+  "modfn_math_tan": "modfn_math_tan"
+
+  # _Bool modfn_math_sinh(VMState *vm, int argcount, Value *args);
+  "modfn_math_sinh": "modfn_math_sinh"
+
+  # _Bool modfn_math_cosh(VMState *vm, int argcount, Value *args);
+  "modfn_math_cosh": "modfn_math_cosh"
+
+  # _Bool modfn_math_tanh(VMState *vm, int argcount, Value *args);
+  "modfn_math_tanh": "modfn_math_tanh"
+
+  # _Bool modfn_math_asin(VMState *vm, int argcount, Value *args);
+  "modfn_math_asin": "modfn_math_asin"
+
+  # _Bool modfn_math_acos(VMState *vm, int argcount, Value *args);
+  "modfn_math_acos": "modfn_math_acos"
+
+  # _Bool modfn_math_atan(VMState *vm, int argcount, Value *args);
+  "modfn_math_atan": "modfn_math_atan"
+
+  # _Bool modfn_math_atan2(VMState *vm, int argcount, Value *args);
+  "modfn_math_atan2": "modfn_math_atan2"
+
+  # _Bool modfn_math_asinh(VMState *vm, int argcount, Value *args);
+  "modfn_math_asinh": "modfn_math_asinh"
+
+  # _Bool modfn_math_acosh(VMState *vm, int argcount, Value *args);
+  "modfn_math_acosh": "modfn_math_acosh"
+
+  # _Bool modfn_math_atanh(VMState *vm, int argcount, Value *args);
+  "modfn_math_atanh": "modfn_math_atanh"
+
+  # _Bool modfn_math_exp(VMState *vm, int argcount, Value *args);
+  "modfn_math_exp": "modfn_math_exp"
+
+  # _Bool modfn_math_expm1(VMState *vm, int argcount, Value *args);
+  "modfn_math_expm1": "modfn_math_expm1"
+
+  # _Bool modfn_math_ceil(VMState *vm, int argcount, Value *args);
+  "modfn_math_ceil": "modfn_math_ceil"
+
+  # _Bool modfn_math_round(VMState *vm, int argcount, Value *args);
+  "modfn_math_round": "modfn_math_round"
+
+  # _Bool modfn_math_log(VMState *vm, int argcount, Value *args);
+  "modfn_math_log": "modfn_math_log"
+
+  # _Bool modfn_math_log10(VMState *vm, int argcount, Value *args);
+  "modfn_math_log10": "modfn_math_log10"
+
+  # _Bool modfn_math_log2(VMState *vm, int argcount, Value *args);
+  "modfn_math_log2": "modfn_math_log2"
+
+  # _Bool modfn_math_log1p(VMState *vm, int argcount, Value *args);
+  "modfn_math_log1p": "modfn_math_log1p"
+
+  # _Bool modfn_math_floor(VMState *vm, int argcount, Value *args);
+  "modfn_math_floor": "modfn_math_floor"
+
+  # RegModule * bl_modload_math(VMState *vm);
+  "bl_modload_math": "bl_modload_math"
+
+  # _Bool modfn_os_exec(VMState *vm, int argcount, Value *args);
+  "modfn_os_exec": "modfn_os_exec"
+
+  # _Bool modfn_os_info(VMState *vm, int argcount, Value *args);
+  "modfn_os_info": "modfn_os_info"
+
+  # _Bool modfn_os_sleep(VMState *vm, int argcount, Value *args);
+  "modfn_os_sleep": "modfn_os_sleep"
+
+  # Value get_os_platform(VMState *vm);
+  "get_os_platform": "get_os_platform"
+
+  # Value get_blade_os_args(VMState *vm);
+  "get_blade_os_args": "get_blade_os_args"
+
+  # Value get_blade_os_path_separator(VMState *vm);
+  "get_blade_os_path_separator": "get_blade_os_path_separator"
+
+  # _Bool modfn_os_getenv(VMState *vm, int argcount, Value *args);
+  "modfn_os_getenv": "modfn_os_getenv"
+
+  # _Bool modfn_os_setenv(VMState *vm, int argcount, Value *args);
+  "modfn_os_setenv": "modfn_os_setenv"
+
+  # _Bool modfn_os_createdir(VMState *vm, int argcount, Value *args);
+  "modfn_os_createdir": "modfn_os_createdir"
+
+  # _Bool modfn_os_readdir(VMState *vm, int argcount, Value *args);
+  "modfn_os_readdir": "modfn_os_readdir"
+
+  # static int remove_directory(char *path, int pathlength, _Bool recursive);
+  "remove_directory": "remove_directory"
+
+  # _Bool modfn_os_removedir(VMState *vm, int argcount, Value *args);
+  "modfn_os_removedir": "modfn_os_removedir"
+
+  # _Bool modfn_os_chmod(VMState *vm, int argcount, Value *args);
+  "modfn_os_chmod": "modfn_os_chmod"
+
+  # _Bool modfn_os_isdir(VMState *vm, int argcount, Value *args);
+  "modfn_os_isdir": "modfn_os_isdir"
+
+  # _Bool modfn_os_exit(VMState *vm, int argcount, Value *args);
+  "modfn_os_exit": "modfn_os_exit"
+
+  # _Bool modfn_os_cwd(VMState *vm, int argcount, Value *args);
+  "modfn_os_cwd": "modfn_os_cwd"
+
+  # _Bool modfn_os_realpath(VMState *vm, int argcount, Value *args);
+  "modfn_os_realpath": "modfn_os_realpath"
+
+  # _Bool modfn_os_chdir(VMState *vm, int argcount, Value *args);
+  "modfn_os_chdir": "modfn_os_chdir"
+
+  # _Bool modfn_os_exists(VMState *vm, int argcount, Value *args);
+  "modfn_os_exists": "modfn_os_exists"
+
+  # _Bool modfn_os_dirname(VMState *vm, int argcount, Value *args);
+  "modfn_os_dirname": "modfn_os_dirname"
+
+  # _Bool modfn_os_basename(VMState *vm, int argcount, Value *args);
+  "modfn_os_basename": "modfn_os_basename"
+
+  # Value modfield_os_dtunknown(VMState *vm);
+  "modfield_os_dtunknown": "modfield_os_dtunknown"
+
+  # Value modfield_os_dtreg(VMState *vm);
+  "modfield_os_dtreg": "modfield_os_dtreg"
+
+  # Value modfield_os_dtdir(VMState *vm);
+  "modfield_os_dtdir": "modfield_os_dtdir"
+
+  # Value modfield_os_dtfifo(VMState *vm);
+  "modfield_os_dtfifo": "modfield_os_dtfifo"
+
+  # Value modfield_os_dtsock(VMState *vm);
+  "modfield_os_dtsock": "modfield_os_dtsock"
+
+  # Value modfield_os_dtchr(VMState *vm);
+  "modfield_os_dtchr": "modfield_os_dtchr"
+
+  # Value modfield_os_dtblk(VMState *vm);
+  "modfield_os_dtblk": "modfield_os_dtblk"
+
+  # Value modfield_os_dtlnk(VMState *vm);
+  "modfield_os_dtlnk": "modfield_os_dtlnk"
+
+  # Value modfield_os_dtwht(VMState *vm);
+  "modfield_os_dtwht": "modfield_os_dtwht"
+
+  # void __os_module_preloader(VMState *vm);
+  "__os_module_preloader": "__os_module_preloader"
+
+  # RegModule * bl_modload_os(VMState *vm);
+  "bl_modload_os": "bl_modload_os"
+
+  # Value modfield_process_cpucount(VMState *vm);
+  "modfield_process_cpucount": "modfield_process_cpucount"
+
+  # void b__free_shared_memory(void *data);
+  "b__free_shared_memory": "b__free_shared_memory"
+
+  # _Bool modfn_process_process(VMState *vm, int argcount, Value *args);
+  "modfn_process_process": "modfn_process_process"
+
+  # _Bool modfn_process_create(VMState *vm, int argcount, Value *args);
+  "modfn_process_create": "modfn_process_create"
+
+  # _Bool modfn_process_isalive(VMState *vm, int argcount, Value *args);
+  "modfn_process_isalive": "modfn_process_isalive"
+
+  # _Bool modfn_process_kill(VMState *vm, int argcount, Value *args);
+  "modfn_process_kill": "modfn_process_kill"
+
+  # _Bool modfn_process_wait(VMState *vm, int argcount, Value *args);
+  "modfn_process_wait": "modfn_process_wait"
+
+  # _Bool modfn_process_id(VMState *vm, int argcount, Value *args);
+  "modfn_process_id": "modfn_process_id"
+
+  # _Bool modfn_process_newshared(VMState *vm, int argcount, Value *args);
+  "modfn_process_newshared": "modfn_process_newshared"
+
+  # _Bool modfn_process_sharedwrite(VMState *vm, int argcount, Value *args);
+  "modfn_process_sharedwrite": "modfn_process_sharedwrite"
+
+  # _Bool modfn_process_sharedread(VMState *vm, int argcount, Value *args);
+  "modfn_process_sharedread": "modfn_process_sharedread"
+
+  # _Bool modfn_process_sharedlock(VMState *vm, int argcount, Value *args);
+  "modfn_process_sharedlock": "modfn_process_sharedlock"
+
+  # _Bool modfn_process_sharedunlock(VMState *vm, int argcount, Value *args);
+  "modfn_process_sharedunlock": "modfn_process_sharedunlock"
+
+  # RegModule * bl_modload_process(VMState *vm);
+  "bl_modload_process": "bl_modload_process"
+
+  # _Bool modfn_reflect_hasprop(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_hasprop": "modfn_reflect_hasprop"
+
+  # _Bool modfn_reflect_getprop(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_getprop": "modfn_reflect_getprop"
+
+  # _Bool modfn_reflect_setprop(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_setprop": "modfn_reflect_setprop"
+
+  # _Bool modfn_reflect_delprop(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_delprop": "modfn_reflect_delprop"
+
+  # _Bool modfn_reflect_hasmethod(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_hasmethod": "modfn_reflect_hasmethod"
+
+  # _Bool modfn_reflect_getmethod(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_getmethod": "modfn_reflect_getmethod"
+
+  # _Bool modfn_reflect_callmethod(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_callmethod": "modfn_reflect_callmethod"
+
+  # _Bool modfn_reflect_bindmethod(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_bindmethod": "modfn_reflect_bindmethod"
+
+  # _Bool modfn_reflect_getboundmethod(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_getboundmethod": "modfn_reflect_getboundmethod"
+
+  # _Bool modfn_reflect_gettype(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_gettype": "modfn_reflect_gettype"
+
+  # _Bool modfn_reflect_isptr(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_isptr": "modfn_reflect_isptr"
+
+  # _Bool modfn_reflect_getfunctionmetadata(VMState *vm, int argcount, Value *args);
+  "modfn_reflect_getfunctionmetadata": "modfn_reflect_getfunctionmetadata"
+
+  # RegModule * bl_modload_reflect(VMState *vm);
+  "bl_modload_reflect": "bl_modload_reflect"
+
+  # static long to_long(VMState *vm, Value value);
+  "to_long": "to_long"
+
+  # static double to_double(VMState *vm, Value value);
+  "to_double": "to_double"
+
+  # static void do_pack(VMState *vm, Value val, size_t size, const int *map, unsigned char *output);
+  "do_pack": "do_pack"
+
+  # _Bool modfn_struct_pack(VMState *vm, int argcount, Value *args);
+  "modfn_struct_pack": "modfn_struct_pack"
+
+  # _Bool modfn_struct_unpack(VMState *vm, int argcount, Value *args);
+  "modfn_struct_unpack": "modfn_struct_unpack"
+
+  # void modfn_struct_modulepreloader(VMState *vm);
+  "modfn_struct_modulepreloader": "modfn_struct_modulepreloader"
+
+  # RegModule * bl_modload_struct(VMState *vm);
+  "bl_modload_struct": "bl_modload_struct"
+
+  # static void bl_vm_resetstack(VMState *vm);
+  "bl_vm_resetstack": "bl_vm_resetstack"
+
+  # static Value bl_vm_getstacktrace(VMState *vm);
+  "bl_vm_getstacktrace": "bl_vm_getstacktrace"
+
+  # _Bool bl_vm_propagateexception(VMState *vm, _Bool isassert);
+  "bl_vm_propagateexception": "bl_vm_propagateexception"
+
+  # _Bool bl_vm_pushexceptionhandler(VMState *vm, ObjClass *type, int address, int finallyaddress);
+  "bl_vm_pushexceptionhandler": "bl_vm_pushexceptionhandler"
+
+  # _Bool bl_vm_throwexception(VMState *vm, _Bool isassert, const char *format, ...);
+  "bl_vm_throwexception": "bl_vm_throwexception"
+
+  # static void bl_vm_initexceptions(VMState *vm, ObjModule *module);
+  "bl_vm_initexceptions": "bl_vm_initexceptions"
+
+  # void bl_vm_runtimeerror(VMState *vm, const char *format, ...);
+  "bl_vm_runtimeerror": "bl_vm_runtimeerror"
+
+  # void bl_vm_pushvalue(VMState *vm, Value value);
+  "bl_vm_pushvalue": "bl_vm_pushvalue"
+
+  # Value bl_vm_popvalue(VMState *vm);
+  "bl_vm_popvalue": "bl_vm_popvalue"
+
+  # Value bl_vm_popvaluen(VMState *vm, int n);
+  "bl_vm_popvaluen": "bl_vm_popvaluen"
+
+  # Value bl_vm_peekvalue(VMState *vm, int distance);
+  "bl_vm_peekvalue": "bl_vm_peekvalue"
+
+  # static void define_native(VMState *vm, const char *name, NativeCallbackFunc function);
+  "define_native": "define_native"
+
+  # void bl_object_defnativemethod(VMState *vm, HashTable *table, const char *name, NativeCallbackFunc function);
+  "bl_object_defnativemethod": "bl_object_defnativemethod"
+
+  # static void init_builtin_functions(VMState *vm);
+  "init_builtin_functions": "init_builtin_functions"
+
+  # static void init_builtin_methods(VMState *vm);
+  "init_builtin_methods": "init_builtin_methods"
+
+  # void init_vm(VMState *vm);
+  "init_vm": "init_vm"
+
+  # void bl_vm_freevm(VMState *vm);
+  "bl_vm_freevm": "bl_vm_freevm"
+
+  # static _Bool bl_vmdo_docall(VMState *vm, ObjClosure *closure, int argcount);
+  "bl_vmdo_docall": "bl_vmdo_docall"
+
+  # static _Bool bl_vmdo_callnativemethod(VMState *vm, ObjNativeFunction *native, int argcount);
+  "bl_vmdo_callnativemethod": "bl_vmdo_callnativemethod"
+
+  # _Bool bl_vmdo_callvalue(VMState *vm, Value callee, int argcount);
+  "bl_vmdo_callvalue": "bl_vmdo_callvalue"
+
+  # static FuncType bl_value_getmethodtype(Value method);
+  "bl_value_getmethodtype": "bl_value_getmethodtype"
+
+  # _Bool bl_instance_invokefromclass(VMState *vm, ObjClass *klass, ObjString *name, int argcount);
+  "bl_instance_invokefromclass": "bl_instance_invokefromclass"
+
+  # static _Bool bl_instance_invokefromself(VMState *vm, ObjString *name, int argcount);
+  "bl_instance_invokefromself": "bl_instance_invokefromself"
+
+  # static _Bool blade_vm_invokemethod(VMState *vm, ObjString *name, int argcount);
+  "blade_vm_invokemethod": "blade_vm_invokemethod"
+
+  # static _Bool bl_class_bindmethod(VMState *vm, ObjClass *klass, ObjString *name);
+  "bl_class_bindmethod": "bl_class_bindmethod"
+
+  # static ObjUpvalue * bl_vm_captureupvalue(VMState *vm, Value *local);
+  "bl_vm_captureupvalue": "bl_vm_captureupvalue"
+
+  # static void bl_vm_closeupvalues(VMState *vm, const Value *last);
+  "bl_vm_closeupvalues": "bl_vm_closeupvalues"
+
+  # static void bl_vm_classdefmethod(VMState *vm, ObjString *name);
+  "bl_vm_classdefmethod": "bl_vm_classdefmethod"
+
+  # static void bl_vm_classdefproperty(VMState *vm, ObjString *name, _Bool isstatic);
+  "bl_vm_classdefproperty": "bl_vm_classdefproperty"
+
+  # _Bool bl_class_isinstanceof(ObjClass *klass1, char *klass2name);
+  "bl_class_isinstanceof": "bl_class_isinstanceof"
+
+  # static ObjString * bl_vmdo_stringmultiply(VMState *vm, ObjString *str, double number);
+  "bl_vmdo_stringmultiply": "bl_vmdo_stringmultiply"
+
+  # static ObjArray * bl_array_addarray(VMState *vm, ObjArray *a, ObjArray *b);
+  "bl_array_addarray": "bl_array_addarray"
+
+  # static ObjBytes * bl_bytes_addbytes(VMState *vm, ObjBytes *a, ObjBytes *b);
+  "bl_bytes_addbytes": "bl_bytes_addbytes"
+
+  # static void bl_vmdo_listmultiply(VMState *vm, ObjArray *a, ObjArray *newlist, int times);
+  "bl_vmdo_listmultiply": "bl_vmdo_listmultiply"
+
+  # static _Bool bl_vmdo_modulegetindex(VMState *vm, ObjModule *module, _Bool willassign);
+  "bl_vmdo_modulegetindex": "bl_vmdo_modulegetindex"
+
+  # static _Bool bl_vmdo_stringgetindex(VMState *vm, ObjString *string, _Bool willassign);
+  "bl_vmdo_stringgetindex": "bl_vmdo_stringgetindex"
+
+  # static _Bool bl_vmdo_stringgetrangedindex(VMState *vm, ObjString *string, _Bool willassign);
+  "bl_vmdo_stringgetrangedindex": "bl_vmdo_stringgetrangedindex"
+
+  # static _Bool bl_vmdo_bytesgetindex(VMState *vm, ObjBytes *bytes, _Bool willassign);
+  "bl_vmdo_bytesgetindex": "bl_vmdo_bytesgetindex"
+
+  # static _Bool bl_vmdo_bytesgetrangedindex(VMState *vm, ObjBytes *bytes, _Bool willassign);
+  "bl_vmdo_bytesgetrangedindex": "bl_vmdo_bytesgetrangedindex"
+
+  # static _Bool bl_vmdo_listgetindex(VMState *vm, ObjArray *list, _Bool willassign);
+  "bl_vmdo_listgetindex": "bl_vmdo_listgetindex"
+
+  # static _Bool bl_vmdo_listgetrangedindex(VMState *vm, ObjArray *list, _Bool willassign);
+  "bl_vmdo_listgetrangedindex": "bl_vmdo_listgetrangedindex"
+
+  # static void bl_vmdo_modulesetindex(VMState *vm, ObjModule *module, Value index, Value value);
+  "bl_vmdo_modulesetindex": "bl_vmdo_modulesetindex"
+
+  # static _Bool bl_vmdo_listsetindex(VMState *vm, ObjArray *list, Value index, Value value);
+  "bl_vmdo_listsetindex": "bl_vmdo_listsetindex"
+
+  # static _Bool bl_vmdo_bytessetindex(VMState *vm, ObjBytes *bytes, Value index, Value value);
+  "bl_vmdo_bytessetindex": "bl_vmdo_bytessetindex"
+
+  # static _Bool bl_vmdo_concat(VMState *vm);
+  "bl_vmdo_concat": "bl_vmdo_concat"
+
+  # static int bl_util_floordiv(double a, double b);
+  "bl_util_floordiv": "bl_util_floordiv"
+
+  # static double bl_util_modulo(double a, double b);
+  "bl_util_modulo": "bl_util_modulo"
+
+  # static inline uint8_t READ_BYTE(CallFrame *frame);
+  "READ_BYTE": "READ_BYTE"
+
+  # static inline uint16_t READ_SHORT(CallFrame *frame);
+  "READ_SHORT": "READ_SHORT"
+
+  # PtrResult bl_vm_run(VMState *vm);
+  "bl_vm_run": "bl_vm_run"
+
+  # PtrResult bl_vm_interpsource(VMState *vm, ObjModule *module, const char *source);
+  "bl_vm_interpsource": "bl_vm_interpsource"
+
+  # static void repl(VMState *vm);
+  "repl": "repl"
+
+  # static void run_source(VMState *vm, const char *source, const char *filename);
+  "run_source": "run_source"
+
+  # static void run_file(VMState *vm, char *file);
+  "run_file": "run_file"
+
+  # void show_usage(char *argv[], _Bool fail);
+  "show_usage": "show_usage"
+
+  # int main(int argc, char *argv[]);
+  "main": "main"
+

@@ -415,7 +415,8 @@ typedef unsigned int XXH32_hash_t;
     #elif ULONG_MAX == 0xFFFFFFFFUL
 typedef unsigned long XXH32_hash_t;
     #else
-        #error "unsupported platform: need a 32-bit type"
+        //#error "unsupported platform: need a 32-bit type"
+        typedef uint16_t XXH32_hash_t;
     #endif
 #endif
 

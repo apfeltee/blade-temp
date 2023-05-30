@@ -25,11 +25,11 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include "xxhash.h"
+#include "ktre.h"
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
-
 
 #define BLADE_EXTENSION ".b"
 #define BLADE_VERSION_STRING "0.0.74-rc1"
@@ -182,104 +182,103 @@
 */
 #define NORMALIZE(token) #token
 
-
-#define ENFORCE_ARG_COUNT(name, d) \
-    if(argcount != d) \
-    { \
+#define ENFORCE_ARG_COUNT(name, d)                                            \
+    if(argcount != d)                                                         \
+    {                                                                         \
         RETURN_ERROR(#name "() expects %d arguments, %d given", d, argcount); \
     }
 
-#define ENFORCE_MIN_ARG(name, d) \
-    if(argcount < d) \
-    { \
+#define ENFORCE_MIN_ARG(name, d)                                                         \
+    if(argcount < d)                                                                     \
+    {                                                                                    \
         RETURN_ERROR(#name "() expects minimum of %d arguments, %d given", d, argcount); \
     }
 
-#define ENFORCE_ARG_RANGE(name, low, up) \
-    if(argcount < (low) || argcount > (up)) \
-    { \
+#define ENFORCE_ARG_RANGE(name, low, up)                                                           \
+    if(argcount < (low) || argcount > (up))                                                        \
+    {                                                                                              \
         RETURN_ERROR(#name "() expects between %d and %d arguments, %d given", low, up, argcount); \
     }
 
-#define ENFORCE_ARG_TYPE(name, i, type) \
-    if(!type(args[i])) \
-    { \
+#define ENFORCE_ARG_TYPE(name, i, type)                                                                                     \
+    if(!type(args[i]))                                                                                                      \
+    {                                                                                                                       \
         RETURN_ERROR(#name "() expects argument %d as " NORMALIZE(type) ", %s given", (i) + 1, bl_value_typename(args[i])); \
     }
 
-#define EXCLUDE_ARG_TYPE(methodname, arg_type, index) \
-    if(arg_type(args[index])) \
-    { \
+#define EXCLUDE_ARG_TYPE(methodname, arg_type, index)                                                                       \
+    if(arg_type(args[index]))                                                                                               \
+    {                                                                                                                       \
         RETURN_ERROR("invalid type %s() as argument %d in %s()", bl_value_typename(args[index]), (index) + 1, #methodname); \
     }
 
-#define METHOD_OVERRIDE(override, i) \
-    do \
-    { \
-        if(bl_value_isinstance(args[0])) \
-        { \
-            ObjInstance* instance = AS_INSTANCE(args[0]); \
-            if(bl_instance_invokefromclass(vm, instance->klass, copy_string(vm, "@" #override, (i) + 1), 0)) \
-            { \
-                args[-1] = TRUE_VAL; \
-                return false; \
-            } \
-        } \
+#define METHOD_OVERRIDE(override, i)                                                                                  \
+    do                                                                                                                \
+    {                                                                                                                 \
+        if(bl_value_isinstance(args[0]))                                                                              \
+        {                                                                                                             \
+            ObjInstance* instance = AS_INSTANCE(args[0]);                                                             \
+            if(bl_instance_invokefromclass(vm, instance->klass, bl_string_copystring(vm, "@" #override, (i) + 1), 0)) \
+            {                                                                                                         \
+                args[-1] = TRUE_VAL;                                                                                  \
+                return false;                                                                                         \
+            }                                                                                                         \
+        }                                                                                                             \
     } while(0);
 
-#define REGEX_COMPILATION_ERROR(re, errornumber, erroroffset) \
-    if((re) == NULL) \
-    { \
-        PCRE2_UCHAR8 buffer[256]; \
-        pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer)); \
+#define REGEX_COMPILATION_ERROR(re, errornumber, erroroffset)                                               \
+    if((re) == NULL)                                                                                        \
+    {                                                                                                       \
+        PCRE2_UCHAR8 buffer[256];                                                                           \
+        pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));                                     \
         RETURN_ERROR("regular expression compilation failed at offset %d: %s", (int)(erroroffset), buffer); \
     }
 
-#define REGEX_ASSERTION_ERROR(re, matchdata, ovector) \
-    if((ovector)[0] > (ovector)[1]) \
-    { \
+#define REGEX_ASSERTION_ERROR(re, matchdata, ovector)                                      \
+    if((ovector)[0] > (ovector)[1])                                                        \
+    {                                                                                      \
         RETURN_ERROR("match aborted: regular expression used \\K in an assertion %.*s to " \
-                     "set match start after its end.", \
+                     "set match start after its end.",                                     \
                      (int)((ovector)[0] - (ovector)[1]), (char*)(subject + (ovector)[1])); \
-        pcre2_match_data_free(matchdata); \
-        pcre2_code_free(re); \
-        RETURN_EMPTY; \
+        pcre2_match_data_free(matchdata);                                                  \
+        pcre2_code_free(re);                                                               \
+        RETURN_EMPTY;                                                                      \
     }
 
-#define REGEX_ERR(message, result) \
-    do \
-    { \
-        PCRE2_UCHAR error[255]; \
-        if(pcre2_get_error_message(result, error, 255)) \
-        { \
+#define REGEX_ERR(message, result)                                     \
+    do                                                                 \
+    {                                                                  \
+        PCRE2_UCHAR error[255];                                        \
+        if(pcre2_get_error_message(result, error, 255))                \
+        {                                                              \
             RETURN_ERROR("RegexError: (%d) %s", result, (char*)error); \
-        } \
-        RETURN_ERROR("RegexError: %s", message); \
+        }                                                              \
+        RETURN_ERROR("RegexError: %s", message);                       \
     } while(0)
 
 #define REGEX_RC_ERROR() REGEX_ERR("%d", rc);
 
-#define GET_REGEX_COMPILE_OPTIONS(string, regexshowerror) \
-    uint32_t compileoptions = bl_helper_objstringisregex(string); \
-    if((regexshowerror) && (int)compileoptions == -1) \
-    { \
-        RETURN_ERROR("RegexError: Invalid regex"); \
-    } \
-    else if((regexshowerror) && (int)compileoptions > 1000000) \
-    { \
+#define GET_REGEX_COMPILE_OPTIONS(string, regexshowerror)                                             \
+    uint32_t compileoptions = bl_helper_objstringisregex(string);                                     \
+    if((regexshowerror) && (int)compileoptions == -1)                                                 \
+    {                                                                                                 \
+        RETURN_ERROR("RegexError: Invalid regex");                                                    \
+    }                                                                                                 \
+    else if((regexshowerror) && (int)compileoptions > 1000000)                                        \
+    {                                                                                                 \
         RETURN_ERROR("RegexError: invalid modifier '%c' ", (char)abs(1000000 - (int)compileoptions)); \
     }
 
 // NOTE:
-// any call to gc_protect() within a function/block must accompanied by
-// at least one call to gc_clear_protection(vm) before exiting the function/block
+// any call to bl_mem_gcprotect() within a function/block must accompanied by
+// at least one call to bl_mem_gcclearprotect(vm) before exiting the function/block
 // otherwise, expected unexpected behavior
-// NOTE as well that the call to gc_clear_protection(vm) will be automatic for
+// NOTE as well that the call to bl_mem_gcclearprotect(vm) will be automatic for
 // native functions.
 // NOTE as well that METHOD_OBJECT must be retrieved before any call
-// to gc_protect() in a native function.
-#define GC_STRING(o) OBJ_VAL(gc_protect(vm, (Object*)copy_string(vm, (const char*)(o), (int)strlen(o))))
-#define GC_L_STRING(o, l) OBJ_VAL(gc_protect(vm, (Object*)copy_string(vm, (const char*)(o), (l))))
+// to bl_mem_gcprotect() in a native function.
+#define GC_STRING(o) OBJ_VAL(bl_mem_gcprotect(vm, (Object*)bl_string_copystring(vm, (const char*)(o), (int)strlen(o))))
+#define GC_L_STRING(o, l) OBJ_VAL(bl_mem_gcprotect(vm, (Object*)bl_string_copystring(vm, (const char*)(o), (l))))
 
 // promote C values to blade value
 #define EMPTY_VAL ((Value){ VAL_EMPTY, { .number = 0 } })
@@ -299,16 +298,14 @@
 // testing blade value types
 
 #define GROW_CAPACITY(capacity) ((capacity) < 4 ? 4 : (capacity)*2)
-#define GROW_ARRAY(type, pointer, oldcount, newcount) (type*)bl_mem_growarray(vm, pointer, sizeof(type), oldcount, newcount)
+#define GROW_ARRAY(type, sztype, pointer, oldcount, newcount) (type*)bl_mem_growarray(vm, pointer, sztype, oldcount, newcount)
 #define FREE_ARRAY(type, pointer, oldcount) bl_mem_free(vm, pointer, sizeof(type) * (oldcount))
 #define FREE(type, pointer) bl_mem_free(vm, pointer, sizeof(type))
 #define ALLOCATE(type, count) (type*)bl_mem_realloc(vm, NULL, 0, sizeof(type) * (count))
-#define STRING_VAL(val) OBJ_VAL(copy_string(vm, val, (int)strlen(val)))
-#define STRING_L_VAL(val, l) OBJ_VAL(copy_string(vm, val, l))
-#define STRING_TT_VAL(val) OBJ_VAL(take_string(vm, val, (int)strlen(val)))
+#define STRING_VAL(val) OBJ_VAL(bl_string_copystring(vm, val, (int)strlen(val)))
+#define STRING_L_VAL(val, l) OBJ_VAL(bl_string_copystring(vm, val, l))
+#define STRING_TT_VAL(val) OBJ_VAL(bl_string_takestring(vm, val, (int)strlen(val)))
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
-
-
 
 // promote Value to object
 #define AS_STRING(v) ((ObjString*)AS_OBJ(v))
@@ -339,10 +336,10 @@
 
 #define EXIT_VM() return PTR_RUNTIME_ERR
 
-#define runtime_error(...) \
+#define runtime_error(...)                              \
     if(!bl_vm_throwexception(vm, false, ##__VA_ARGS__)) \
-    { \
-        EXIT_VM(); \
+    {                                                   \
+        EXIT_VM();                                      \
     }
 
 enum ValType
@@ -574,6 +571,38 @@ enum TokType
     TOK_EMPTY,
     TOK_UNDEFINED,
 };
+
+enum PtrResult
+{
+    PTR_OK,
+    PTR_COMPILE_ERR,
+    PTR_RUNTIME_ERR,
+};
+
+
+enum AstPrecedence
+{
+    PREC_NONE,
+    PREC_ASSIGNMENT,// =, &=, |=, *=, +=, -=, /=, **=, %=, >>=, <<=, ^=, //=
+    // ~=
+    PREC_CONDITIONAL,// ?:
+    PREC_OR,// or
+    PREC_AND,// and
+    PREC_EQUALITY,// ==, !=
+    PREC_COMPARISON,// <, >, <=, >=
+    PREC_BIT_OR,// |
+    PREC_BIT_XOR,// ^
+    PREC_BIT_AND,// &
+    PREC_SHIFT,// <<, >>
+    PREC_RANGE,// ..
+    PREC_TERM,// +, -
+    PREC_FACTOR,// *, /, %, **, //
+    PREC_UNARY,// !, -, ~, (++, -- this two will now be treated as statements)
+    PREC_CALL,// ., ()
+    PREC_PRIMARY
+};
+
+
 typedef enum OpCode OpCode;
 typedef enum FuncType FuncType;
 typedef enum ObjType ObjType;
@@ -908,13 +937,6 @@ struct VMState
     bool shouldprintbytecode;
 };
 
-enum PtrResult
-{
-    PTR_OK,
-    PTR_COMPILE_ERR,
-    PTR_RUNTIME_ERR,
-};
-
 struct AstToken
 {
     TokType type;
@@ -930,28 +952,6 @@ struct AstScanner
     int line;
     int interpolatingcount;
     int interpolating[MAX_INTERPOLATION_NESTING];
-};
-
-enum AstPrecedence
-{
-    PREC_NONE,
-    PREC_ASSIGNMENT,// =, &=, |=, *=, +=, -=, /=, **=, %=, >>=, <<=, ^=, //=
-    // ~=
-    PREC_CONDITIONAL,// ?:
-    PREC_OR,// or
-    PREC_AND,// and
-    PREC_EQUALITY,// ==, !=
-    PREC_COMPARISON,// <, >, <=, >=
-    PREC_BIT_OR,// |
-    PREC_BIT_XOR,// ^
-    PREC_BIT_AND,// &
-    PREC_SHIFT,// <<, >>
-    PREC_RANGE,// ..
-    PREC_TERM,// +, -
-    PREC_FACTOR,// *, /, %, **, //
-    PREC_UNARY,// !, -, ~, (++, -- this two will now be treated as statements)
-    PREC_CALL,// ., ()
-    PREC_PRIMARY
 };
 
 struct AstLocal
@@ -1042,19 +1042,18 @@ struct BProcessShared
 int __dso_handle;
 #endif
 
-
-static bool is_std_file(ObjFile* file)
+static bool bl_object_isstdfile(ObjFile* file)
 {
     return (file->mode->length == 0);
 }
 
-static void add_module(VMState* vm, ObjModule* module)
+static void bl_state_addmodule(VMState* vm, ObjModule* module)
 {
     size_t len;
     const char* cs;
     cs = module->file;
     len = strlen(cs);
-    bl_hashtable_set(vm, &vm->modules, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
+    bl_hashtable_set(vm, &vm->modules, OBJ_VAL(bl_string_copystring(vm, cs, (int)len)), OBJ_VAL(module));
     if(vm->framecount == 0)
     {
         bl_hashtable_set(vm, &vm->globals, STRING_VAL(module->name), OBJ_VAL(module));
@@ -1062,18 +1061,18 @@ static void add_module(VMState* vm, ObjModule* module)
     else
     {
         cs = module->name;
-        bl_hashtable_set(vm, &vm->frames[vm->framecount - 1].closure->fnptr->module->values, OBJ_VAL(copy_string(vm, cs, (int)len)), OBJ_VAL(module));
+        bl_hashtable_set(vm, &vm->frames[vm->framecount - 1].closure->fnptr->module->values, OBJ_VAL(bl_string_copystring(vm, cs, (int)len)), OBJ_VAL(module));
     }
 }
 
-static Object* gc_protect(VMState* vm, Object* object)
+static Object* bl_mem_gcprotect(VMState* vm, Object* object)
 {
     bl_vm_pushvalue(vm, OBJ_VAL(object));
     vm->gcprotected++;
     return object;
 }
 
-static void gc_clear_protection(VMState* vm)
+static void bl_mem_gcclearprotect(VMState* vm)
 {
     if(vm->gcprotected > 0)
     {
@@ -1173,15 +1172,23 @@ int bl_util_utf8decodenumbytes(uint8_t byte)
     // If the byte starts with 10xxxxx, it's the middle of a UTF-8 sequence, so
     // don't count it at all.
     if((byte & 0xc0) == 0x80)
+    {
         return 0;
+    }
     // The first byte's high bits tell us how many bytes are in the UTF-8
     // sequence.
     if((byte & 0xf8) == 0xf0)
+    {
         return 4;
+    }
     if((byte & 0xf0) == 0xe0)
+    {
         return 3;
+    }
     if((byte & 0xe0) == 0xc0)
+    {
         return 2;
+    }
     return 1;
 }
 
@@ -1189,7 +1196,9 @@ int bl_util_utf8decode(const uint8_t* bytes, uint32_t length)
 {
     // Single byte (i.e. fits in ASCII).
     if(*bytes <= 0x7f)
+    {
         return *bytes;
+    }
     int value;
     uint32_t remainingbytes;
     if((*bytes & 0xe0) == 0xc0)
@@ -1217,14 +1226,18 @@ int bl_util_utf8decode(const uint8_t* bytes, uint32_t length)
     }
     // Don't read past the end of the buffer on truncated UTF-8.
     if(remainingbytes > length - 1)
+    {
         return -1;
+    }
     while(remainingbytes > 0)
     {
         bytes++;
         remainingbytes--;
         // Remaining bytes must be of form 10xxxxxx.
         if((*bytes & 0xc0) != 0x80)
+        {
             return -1;
+        }
         value = value << 6 | (*bytes & 0x3f);
     }
     return value;
@@ -1232,16 +1245,21 @@ int bl_util_utf8decode(const uint8_t* bytes, uint32_t length)
 
 char* bl_util_appendstring(char* old, char* newstr)
 {
+    char* out;
+    size_t oldlen;
+    size_t newlen;
+    size_t outlen;
     // quick exit...
     if(newstr == NULL)
     {
         return old;
     }
     // find the size of the string to allocate
-    const size_t oldlen = strlen(old), newlen = strlen(newstr);
-    const size_t outlen = oldlen + newlen;
+    oldlen = strlen(old);
+    newlen = strlen(newstr);
+    outlen = oldlen + newlen;
     // allocate a pointer to the new string
-    char* out = (char*)realloc((void*)old, outlen + 1);
+    out = (char*)realloc((void*)old, outlen + 1);
     // concat both strings and return
     if(out != NULL)
     {
@@ -1252,13 +1270,16 @@ char* bl_util_appendstring(char* old, char* newstr)
     return old;
 }
 
-
 int bl_util_utf8length(char* s)
 {
     int len = 0;
     for(; *s; ++s)
+    {
         if((*s & 0xC0) != 0x80)
+        {
             ++len;
+        }
+    }
     return len;
 }
 
@@ -1340,17 +1361,22 @@ char* bl_util_getexedir()
 
 char* bl_util_mergepaths(char* a, char* b)
 {
-    char* finalpath = (char*)calloc(1, sizeof(char));
+    int lenb;
+    int lena;
+    char* finalpath;
+    finalpath = (char*)calloc(1, sizeof(char));
+    memset(finalpath, 0, 1);
     // by checking b first, we guarantee that b is neither NULL nor
     // empty by the time we are checking a so that we can return a
     // duplicate of b
-    int lenb = (int)strlen(b);
+    lenb = (int)strlen(b);
     if(b == NULL || lenb == 0)
     {
         free(finalpath);
         return strdup(a);// just in case a is const char*
     }
-    if(a == NULL || strlen(a) == 0)
+    lena = strlen(a);
+    if(a == NULL || lena == 0)
     {
         free(finalpath);
         return strdup(b);// just in case b is const char*
@@ -1405,12 +1431,14 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
         // or a matching package
-        char* vendorindexfile
-        = bl_util_mergepaths(bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+        char* vendorindexfile = bl_util_mergepaths(bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename),
+                                                   LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
         if(bl_util_fileexists(vendorindexfile))
         {
             // stop a core library from importing itself
@@ -1419,7 +1447,9 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
         // then, check in blade's default locations
@@ -1435,7 +1465,9 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
         // check blade libs directory for a matching package...
@@ -1447,7 +1479,9 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
         // check blade vendor directory installed module...
@@ -1460,7 +1494,9 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
         // check blade vendor directory installed package...
@@ -1472,7 +1508,9 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
     }
@@ -1488,7 +1526,9 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
         // or a matching package
@@ -1500,7 +1540,9 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
+                {
                     return path1;
+                }
             }
         }
     }
@@ -1644,6 +1686,7 @@ static float bl_util_parsefloat(int islittleendian, void* src)
         float f;
         uint32_t i;
     } m;
+
     memcpy(&m.i, src, sizeof(float));
 #if IS_BIG_ENDIAN
     if(islittleendian)
@@ -1679,8 +1722,6 @@ static double bl_util_parsedouble(int islittleendian, void* src)
     return m.d;
 }
 
-void bl_mem_collectgarbage(VMState* vm);
-
 void bl_mem_free(VMState* vm, void* pointer, size_t sz)
 {
     vm->bytesallocated -= sz;
@@ -1689,12 +1730,13 @@ void bl_mem_free(VMState* vm, void* pointer, size_t sz)
 
 void* bl_mem_realloc(VMState* vm, void* pointer, size_t oldsize, size_t newsize)
 {
+    void* result;
     vm->bytesallocated += newsize - oldsize;
     if(newsize > oldsize && vm->bytesallocated > vm->nextgc)
     {
         bl_mem_collectgarbage(vm);
     }
-    void* result = realloc(pointer, newsize);
+    result = (void*)realloc(pointer, newsize);
     // just in case reallocation fails... computers ain't infinite!
     if(result == NULL)
     {
@@ -1722,7 +1764,7 @@ void bl_mem_markobject(VMState* vm, Object* object)
     }
     //#if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
     //  printf("%p mark ", (void *)object);
-    //  print_object(OBJ_VAL(object), false);
+    //  bl_writer_printobject(OBJ_VAL(object), false);
     //  printf("\n");
     //#endif
     object->mark = true;
@@ -1743,7 +1785,9 @@ void bl_mem_markobject(VMState* vm, Object* object)
 void bl_mem_markvalue(VMState* vm, Value value)
 {
     if(bl_value_isobject(value))
+    {
         bl_mem_markobject(vm, AS_OBJ(value));
+    }
 }
 
 void bl_mem_markarray(VMState* vm, ValArray* array)
@@ -1771,7 +1815,7 @@ void bl_mem_blackenobject(VMState* vm, Object* object)
 {
     //#if defined(DEBUG_LOG_GC) && DEBUG_LOG_GC
     //  printf("%p blacken ", (void *)object);
-    //  print_object(OBJ_VAL(object), false);
+    //  bl_writer_printobject(OBJ_VAL(object), false);
     //  printf("\n");
     //#endif
     switch(object->type)
@@ -1809,68 +1853,68 @@ void bl_mem_blackenobject(VMState* vm, Object* object)
             break;
         }
         case OBJ_BOUNDFUNCTION:
-            {
-                ObjBoundMethod* bound = (ObjBoundMethod*)object;
-                bl_mem_markvalue(vm, bound->receiver);
-                bl_mem_markobject(vm, (Object*)bound->method);
-            }
-            break;
+        {
+            ObjBoundMethod* bound = (ObjBoundMethod*)object;
+            bl_mem_markvalue(vm, bound->receiver);
+            bl_mem_markobject(vm, (Object*)bound->method);
+        }
+        break;
         case OBJ_CLASS:
+        {
+            ObjClass* klass = (ObjClass*)object;
+            bl_mem_markobject(vm, (Object*)klass->name);
+            bl_mem_marktable(vm, &klass->methods);
+            bl_mem_marktable(vm, &klass->properties);
+            bl_mem_marktable(vm, &klass->staticproperties);
+            bl_mem_markvalue(vm, klass->initializer);
+            if(klass->superclass != NULL)
             {
-                ObjClass* klass = (ObjClass*)object;
-                bl_mem_markobject(vm, (Object*)klass->name);
-                bl_mem_marktable(vm, &klass->methods);
-                bl_mem_marktable(vm, &klass->properties);
-                bl_mem_marktable(vm, &klass->staticproperties);
-                bl_mem_markvalue(vm, klass->initializer);
-                if(klass->superclass != NULL)
-                {
-                    bl_mem_markobject(vm, (Object*)klass->superclass);
-                }
+                bl_mem_markobject(vm, (Object*)klass->superclass);
             }
-            break;
+        }
+        break;
         case OBJ_CLOSURE:
+        {
+            ObjClosure* closure = (ObjClosure*)object;
+            bl_mem_markobject(vm, (Object*)closure->fnptr);
+            for(int i = 0; i < closure->upvaluecount; i++)
             {
-                ObjClosure* closure = (ObjClosure*)object;
-                bl_mem_markobject(vm, (Object*)closure->fnptr);
-                for(int i = 0; i < closure->upvaluecount; i++)
-                {
-                    bl_mem_markobject(vm, (Object*)closure->upvalues[i]);
-                }
+                bl_mem_markobject(vm, (Object*)closure->upvalues[i]);
             }
-            break;
+        }
+        break;
         case OBJ_SCRIPTFUNCTION:
-            {
-                ObjFunction* function = (ObjFunction*)object;
-                bl_mem_markobject(vm, (Object*)function->name);
-                bl_mem_markobject(vm, (Object*)function->module);
-                bl_mem_markarray(vm, &function->blob.constants);
-            }
-            break;
+        {
+            ObjFunction* function = (ObjFunction*)object;
+            bl_mem_markobject(vm, (Object*)function->name);
+            bl_mem_markobject(vm, (Object*)function->module);
+            bl_mem_markarray(vm, &function->blob.constants);
+        }
+        break;
         case OBJ_INSTANCE:
-            {
-                ObjInstance* instance = (ObjInstance*)object;
-                bl_mem_markobject(vm, (Object*)instance->klass);
-                bl_mem_marktable(vm, &instance->properties);
-            }
-            break;
+        {
+            ObjInstance* instance = (ObjInstance*)object;
+            bl_mem_markobject(vm, (Object*)instance->klass);
+            bl_mem_marktable(vm, &instance->properties);
+        }
+        break;
         case OBJ_UP_VALUE:
-            {
-                bl_mem_markvalue(vm, ((ObjUpvalue*)object)->closed);
-            }
-            break;
+        {
+            bl_mem_markvalue(vm, ((ObjUpvalue*)object)->closed);
+        }
+        break;
         case OBJ_BYTES:
         case OBJ_RANGE:
         case OBJ_NATIVEFUNCTION:
         case OBJ_PTR:
-            {
-                bl_mem_markobject(vm, object);
-            }
-            break;
+        {
+            bl_mem_markobject(vm, object);
+        }
+        break;
         case OBJ_STRING:
-            {
-            }
-            break;
+        {
+        }
+        break;
     }
 }
 
@@ -1918,7 +1962,7 @@ void bl_mem_freeobject(VMState* vm, Object** pobject)
         case OBJ_FILE:
         {
             ObjFile* file = (ObjFile*)object;
-            if(file->mode->length != 0 && !is_std_file(file) && file->file != NULL)
+            if(file->mode->length != 0 && !bl_object_isstdfile(file) && file->file != NULL)
             {
                 fclose(file->file);
             }
@@ -2070,7 +2114,7 @@ static void bl_mem_markroots(VMState* vm)
     bl_mem_marktable(vm, &vm->methodsdict);
     bl_mem_marktable(vm, &vm->methodsrange);
     bl_mem_markobject(vm, (Object*)vm->exceptionclass);
-    mark_compiler_roots(vm);
+    bl_parser_markcompilerroots(vm);
 }
 
 static void bl_mem_tracerefs(VMState* vm)
@@ -2165,8 +2209,6 @@ void bl_mem_collectgarbage(VMState* vm)
 #endif
 }
 
-
-
 static char* number_to_string(VMState* vm, double number)
 {
     int length = snprintf(NULL, 0, NUMBER_FORMAT, number);
@@ -2180,7 +2222,6 @@ static char* number_to_string(VMState* vm, double number)
 }
 
 // valuetop
-
 
 static bool bl_value_isobjtype(Value v, ObjType t)
 {
@@ -2303,7 +2344,7 @@ static void bl_value_doprintvalue(Value value, bool fixstring)
             printf(NUMBER_FORMAT, AS_NUMBER(value));
             break;
         case VAL_OBJ:
-            print_object(value, fixstring);
+            bl_writer_printobject(value, fixstring);
             break;
         default:
             break;
@@ -2327,11 +2368,11 @@ char* bl_value_tostring(VMState* vm, Value value)
         case VAL_NIL:
             return "nil";
         case VAL_BOOL:
-            return AS_BOOL(value) ? "true" : "false";
+            return AS_BOOL(value) ? (char*)"true" : (char*)"false";
         case VAL_NUMBER:
             return number_to_string(vm, AS_NUMBER(value));
         case VAL_OBJ:
-            return object_to_string(vm, value);
+            return bl_writer_objecttostring(vm, value);
         default:
             return "";
     }
@@ -2340,23 +2381,37 @@ char* bl_value_tostring(VMState* vm, Value value)
 const char* bl_value_typename(Value value)
 {
     if(bl_value_isempty(value))
+    {
         return "empty";
+    }
     if(bl_value_isnil(value))
+    {
         return "nil";
+    }
     else if(bl_value_isbool(value))
+    {
         return "boolean";
+    }
     else if(bl_value_isnumber(value))
+    {
         return "number";
+    }
     else if(bl_value_isobject(value))
-        return object_type(AS_OBJ(value));
+    {
+        return bl_object_gettype(AS_OBJ(value));
+    }
     else
+    {
         return "unknown";
+    }
 }
 
 bool bl_value_valuesequal(Value a, Value b)
 {
     if(a.type != b.type)
+    {
         return false;
+    }
     switch(a.type)
     {
         case VAL_NIL:
@@ -2432,18 +2487,28 @@ static Value bl_value_findmaxvalue(Value a, Value b)
     else if(bl_value_isbool(a))
     {
         if(bl_value_isnil(b) || (bl_value_isbool(b) && AS_BOOL(b) == false))
+        {
             return a;// only nil, false and false are lower than numbers
+        }
         else
+        {
             return b;
+        }
     }
     else if(bl_value_isnumber(a))
     {
         if(bl_value_isnil(b) || bl_value_isbool(b))
+        {
             return a;
+        }
         else if(bl_value_isnumber(b))
+        {
             return AS_NUMBER(a) >= AS_NUMBER(b) ? a : b;
+        }
         else
+        {
             return b;// every other thing is greater than a number
+        }
     }
     else if(bl_value_isobject(a))
     {
@@ -2528,24 +2593,38 @@ void bl_value_sortbubblesort(Value* values, int count)
 bool bl_value_isfalse(Value value)
 {
     if(bl_value_isbool(value))
+    {
         return bl_value_isbool(value) && !AS_BOOL(value);
+    }
     if(bl_value_isnil(value) || bl_value_isempty(value))
+    {
         return true;
+    }
     // -1 is the number equivalent of false in Blade
     if(bl_value_isnumber(value))
+    {
         return AS_NUMBER(value) < 0;
+    }
     // Non-empty strings are true, empty strings are false.
     if(bl_value_isstring(value))
+    {
         return AS_STRING(value)->length < 1;
+    }
     // Non-empty bytes are true, empty strings are false.
     if(bl_value_isbytes(value))
+    {
         return AS_BYTES(value)->bytes.count < 1;
+    }
     // Non-empty lists are true, empty lists are false.
     if(bl_value_isarray(value))
+    {
         return AS_LIST(value)->items.count == 0;
+    }
     // Non-empty dicts are true, empty dicts are false.
     if(bl_value_isdict(value))
+    {
         return AS_DICT(value)->names.count == 0;
+    }
     // All classes are true
     // All closures are true
     // All bound methods are true
@@ -2553,7 +2632,6 @@ bool bl_value_isfalse(Value value)
     // return.
     return false;
 }
-
 
 Value bl_value_copyvalue(VMState* vm, Value value)
 {
@@ -2564,12 +2642,12 @@ Value bl_value_copyvalue(VMState* vm, Value value)
             case OBJ_STRING:
             {
                 ObjString* string = AS_STRING(value);
-                return OBJ_VAL(copy_string(vm, string->chars, string->length));
+                return OBJ_VAL(bl_string_copystring(vm, string->chars, string->length));
             }
             case OBJ_BYTES:
             {
                 ObjBytes* bytes = AS_BYTES(value);
-                return OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes, bytes->bytes.count));
+                return OBJ_VAL(bl_bytes_copybytes(vm, bytes->bytes.bytes, bytes->bytes.count));
             }
             case OBJ_ARRAY:
             {
@@ -2617,65 +2695,65 @@ bool bl_value_returnnil(VMState* vm, Value* args)
     return bl_value_returnvalue(vm, args, NIL_VAL, true);
 }
 
-#define RETURN_EMPTY \
-    { \
+#define RETURN_EMPTY        \
+    {                       \
         args[-1] = NIL_VAL; \
-        return false; \
+        return false;       \
     }
 
-#define RETURN_ERROR(...) \
-    { \
-        bl_vm_popvaluen(vm, argcount); \
+#define RETURN_ERROR(...)                               \
+    {                                                   \
+        bl_vm_popvaluen(vm, argcount);                  \
         bl_vm_throwexception(vm, false, ##__VA_ARGS__); \
-        args[-1] = FALSE_VAL; \
-        return false; \
+        args[-1] = FALSE_VAL;                           \
+        return false;                                   \
     }
 
-#define RETURN_BOOL(v) \
-    { \
+#define RETURN_BOOL(v)          \
+    {                           \
         args[-1] = BOOL_VAL(v); \
-        return true; \
+        return true;            \
     }
-#define RETURN_TRUE \
-    { \
+#define RETURN_TRUE          \
+    {                        \
         args[-1] = TRUE_VAL; \
-        return true; \
+        return true;         \
     }
-#define RETURN_FALSE \
-    { \
+#define RETURN_FALSE          \
+    {                         \
         args[-1] = FALSE_VAL; \
-        return true; \
+        return true;          \
     }
-#define RETURN_NUMBER(v) \
-    { \
+#define RETURN_NUMBER(v)          \
+    {                             \
         args[-1] = NUMBER_VAL(v); \
-        return true; \
+        return true;              \
     }
-#define RETURN_OBJ(v) \
-    { \
+#define RETURN_OBJ(v)          \
+    {                          \
         args[-1] = OBJ_VAL(v); \
-        return true; \
+        return true;           \
     }
 
-#define RETURN_L_STRING(v, l) \
-    { \
-        args[-1] = OBJ_VAL(copy_string(vm, v, l)); \
-        return true; \
+#define RETURN_L_STRING(v, l)                               \
+    {                                                       \
+        args[-1] = OBJ_VAL(bl_string_copystring(vm, v, l)); \
+        return true;                                        \
     }
-#define RETURN_T_STRING(v, l) \
-    { \
-        args[-1] = OBJ_VAL(take_string(vm, v, l)); \
-        return true; \
+#define RETURN_T_STRING(v, l)                               \
+    {                                                       \
+        args[-1] = OBJ_VAL(bl_string_takestring(vm, v, l)); \
+        return true;                                        \
     }
-#define RETURN_TT_STRING(v) \
-    { \
-        args[-1] = OBJ_VAL(take_string(vm, v, (int)strlen(v))); \
-        return true; \
+#define RETURN_TT_STRING(v)                                              \
+    {                                                                    \
+        args[-1] = OBJ_VAL(bl_string_takestring(vm, v, (int)strlen(v))); \
+        return true;                                                     \
     }
 #define RETURN_VALUE(v) \
-    { \
-        args[-1] = v; \
-        return true; \
+    {                   \
+        args[-1] = v;   \
+        return true;    \
     }
 
 void bl_hashtable_reset(HashTable* table)
@@ -2967,7 +3045,6 @@ void bl_hashtable_print(HashTable* table)
     printf("}>\n");
 }
 
-
 void bl_hashtable_removewhites(VMState* vm, HashTable* table)
 {
     int i;
@@ -2998,8 +3075,8 @@ void bl_blob_write(VMState* vm, BinaryBlob* blob, uint8_t byte, int line)
     {
         int oldcapacity = blob->capacity;
         blob->capacity = GROW_CAPACITY(oldcapacity);
-        blob->code = GROW_ARRAY(uint8_t, blob->code, oldcapacity, blob->capacity);
-        blob->lines = GROW_ARRAY(int, blob->lines, oldcapacity, blob->capacity);
+        blob->code = GROW_ARRAY(uint8_t, sizeof(uint8_t), blob->code, oldcapacity, blob->capacity);
+        blob->lines = GROW_ARRAY(int, sizeof(int), blob->lines, oldcapacity, blob->capacity);
     }
     blob->code[blob->count] = byte;
     blob->lines[blob->count] = line;
@@ -3027,7 +3104,6 @@ int bl_blob_addconst(VMState* vm, BinaryBlob* blob, Value value)
     bl_vm_popvalue(vm);// fixing gc corruption
     return blob->constants.count - 1;
 }
-
 
 /**
  * a Blade regex must always start and end with the same delimiter e.g. /
@@ -3110,29 +3186,35 @@ uint32_t bl_helper_objstringisregex(ObjString* string)
         }
     }
     if(!matchfound)
+    {
         return -1;
+    }
     else
+    {
         return coptions;
+    }
 }
 
 char* bl_helper_objstringremregexdelim(VMState* vm, ObjString* string)
 {
     if(string->length == 0)
+    {
         return string->chars;
+    }
     char start = string->chars[0];
     int i = string->length - 1;
     for(; i > 0; i--)
     {
         if(string->chars[i] == start)
+        {
             break;
+        }
     }
     char* str = ALLOCATE(char, i);
     memcpy(str, string->chars + 1, (size_t)i - 1);
     str[i - 1] = '\0';
     return str;
 }
-
-
 
 void bl_valarray_init(ValArray* array)
 {
@@ -3154,7 +3236,7 @@ void bl_valarray_push(VMState* vm, ValArray* array, Value value)
     {
         int oldcapacity = array->capacity;
         array->capacity = GROW_CAPACITY(oldcapacity);
-        array->values = GROW_ARRAY(Value, array->values, oldcapacity, array->capacity);
+        array->values = GROW_ARRAY(Value, sizeof(Value), array->values, oldcapacity, array->capacity);
     }
     array->values[array->count] = value;
     array->count++;
@@ -3165,13 +3247,13 @@ void bl_valarray_insert(VMState* vm, ValArray* array, Value value, int index)
     if(array->capacity <= index)
     {
         array->capacity = GROW_CAPACITY(index);
-        array->values = GROW_ARRAY(Value, array->values, array->count, array->capacity);
+        array->values = GROW_ARRAY(Value, sizeof(Value), array->values, array->count, array->capacity);
     }
     else if(array->capacity < array->count + 2)
     {
         int capacity = array->capacity;
         array->capacity = GROW_CAPACITY(capacity);
-        array->values = GROW_ARRAY(Value, array->values, capacity, array->capacity);
+        array->values = GROW_ARRAY(Value, sizeof(Value), array->values, capacity, array->capacity);
     }
     if(index <= array->count)
     {
@@ -3198,7 +3280,6 @@ void bl_valarray_free(VMState* vm, ValArray* array)
     bl_valarray_init(array);
 }
 
-
 void bl_bytearray_free(VMState* vm, ByteArray* array)
 {
     if(array && array->count > 0)
@@ -3208,8 +3289,6 @@ void bl_bytearray_free(VMState* vm, ByteArray* array)
         array->bytes = NULL;
     }
 }
-
-
 
 void bl_array_push(VMState* vm, ObjArray* list, Value value)
 {
@@ -3222,7 +3301,7 @@ ObjArray* bl_array_copy(VMState* vm, ObjArray* list, int start, int length)
     ObjArray* nl;
     (void)start;
     (void)length;
-    nl = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    nl = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(i = 0; i < list->items.count; i++)
     {
         bl_array_push(vm, nl, list->items.values[i]);
@@ -3230,12 +3309,10 @@ ObjArray* bl_array_copy(VMState* vm, ObjArray* list, int start, int length)
     return nl;
 }
 
-
-#define ENFORCE_VALID_DICT_KEY(name, index) \
+#define ENFORCE_VALID_DICT_KEY(name, index)          \
     EXCLUDE_ARG_TYPE(name, bl_value_isarray, index); \
-    EXCLUDE_ARG_TYPE(name, bl_value_isdict, index); \
+    EXCLUDE_ARG_TYPE(name, bl_value_isdict, index);  \
     EXCLUDE_ARG_TYPE(name, bl_value_isfile, index);
-
 
 void bl_dict_addentry(VMState* vm, ObjDict* dict, Value key, Value value)
 {
@@ -3288,7 +3365,6 @@ Object* bl_object_allocobject(VMState* vm, size_t size, ObjType type)
     return object;
 }
 
-
 ObjPointer* bl_dict_makeptr(VMState* vm, void* pointer)
 {
     ObjPointer* ptr = (ObjPointer*)bl_object_allocobject(vm, sizeof(ObjPointer), OBJ_PTR);
@@ -3305,7 +3381,6 @@ ObjDict* bl_object_makedict(VMState* vm)
     bl_hashtable_init(&dict->items);
     return dict;
 }
-
 
 ObjArray* bl_object_makelist(VMState* vm)
 {
@@ -3358,7 +3433,6 @@ ObjRange* bl_object_makerange(VMState* vm, int lower, int upper)
     }
     return range;
 }
-
 
 ObjFile* bl_object_makefile(VMState* vm, ObjString* path, ObjString* mode)
 {
@@ -3440,7 +3514,6 @@ ObjClosure* bl_object_makeclosure(VMState* vm, ObjFunction* function)
     return closure;
 }
 
-
 ObjInstance* bl_object_makeexception(VMState* vm, ObjString* message)
 {
     ObjInstance* instance = bl_object_makeinstance(vm, vm->exceptionclass);
@@ -3449,7 +3522,6 @@ ObjInstance* bl_object_makeexception(VMState* vm, ObjString* message)
     bl_vm_popvalue(vm);
     return instance;
 }
-
 
 ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_t hash)
 {
@@ -3466,7 +3538,7 @@ ObjString* bl_string_fromallocated(VMState* vm, char* chars, int length, uint32_
     return string;
 }
 
-ObjString* take_string(VMState* vm, char* chars, int length)
+ObjString* bl_string_takestring(VMState* vm, char* chars, int length)
 {
     uint32_t hash = bl_util_hashstring(chars, length);
     ObjString* interned = bl_hashtable_findstring(&vm->strings, chars, length, hash);
@@ -3478,19 +3550,21 @@ ObjString* take_string(VMState* vm, char* chars, int length)
     return bl_string_fromallocated(vm, chars, length, hash);
 }
 
-ObjString* copy_string(VMState* vm, const char* chars, int length)
+ObjString* bl_string_copystring(VMState* vm, const char* chars, int length)
 {
     uint32_t hash = bl_util_hashstring(chars, length);
     ObjString* interned = bl_hashtable_findstring(&vm->strings, chars, length, hash);
     if(interned != NULL)
+    {
         return interned;
+    }
     char* heapchars = ALLOCATE(char, (size_t)length + 1);
     memcpy(heapchars, chars, length);
     heapchars[length] = '\0';
     return bl_string_fromallocated(vm, heapchars, length, hash);
 }
 
-ObjUpvalue* new_up_value(VMState* vm, Value* slot)
+ObjUpvalue* bl_object_makeupvalue(VMState* vm, Value* slot)
 {
     ObjUpvalue* upvalue = (ObjUpvalue*)bl_object_allocobject(vm, sizeof(ObjUpvalue), OBJ_UP_VALUE);
     upvalue->closed = NIL_VAL;
@@ -3499,7 +3573,7 @@ ObjUpvalue* new_up_value(VMState* vm, Value* slot)
     return upvalue;
 }
 
-static void print_function(ObjFunction* func)
+static void bl_writer_printfunction(ObjFunction* func)
 {
     if(func->name == NULL)
     {
@@ -3511,7 +3585,7 @@ static void print_function(ObjFunction* func)
     }
 }
 
-static void print_list(ObjArray* list)
+static void bl_writer_printlist(ObjArray* list)
 {
     printf("[");
     for(int i = 0; i < list->items.count; i++)
@@ -3525,7 +3599,7 @@ static void print_list(ObjArray* list)
     printf("]");
 }
 
-static void print_bytes(ObjBytes* bytes)
+static void bl_writer_printbytes(ObjBytes* bytes)
 {
     printf("(");
     for(int i = 0; i < bytes->bytes.count; i++)
@@ -3544,7 +3618,7 @@ static void print_bytes(ObjBytes* bytes)
     printf(")");
 }
 
-static void print_dict(ObjDict* dict)
+static void bl_writer_printdict(ObjDict* dict)
 {
     printf("{");
     for(int i = 0; i < dict->names.count; i++)
@@ -3564,12 +3638,12 @@ static void print_dict(ObjDict* dict)
     printf("}");
 }
 
-static void print_file(ObjFile* file)
+static void bl_writer_printfile(ObjFile* file)
 {
     printf("<file at %s in mode %s>", file->path->chars, file->mode->chars);
 }
 
-void print_object(Value value, bool fixstring)
+void bl_writer_printobject(Value value, bool fixstring)
 {
     switch(OBJ_TYPE(value))
     {
@@ -3590,27 +3664,27 @@ void print_object(Value value, bool fixstring)
         }
         case OBJ_FILE:
         {
-            print_file(AS_FILE(value));
+            bl_writer_printfile(AS_FILE(value));
             break;
         }
         case OBJ_DICT:
         {
-            print_dict(AS_DICT(value));
+            bl_writer_printdict(AS_DICT(value));
             break;
         }
         case OBJ_ARRAY:
         {
-            print_list(AS_LIST(value));
+            bl_writer_printlist(AS_LIST(value));
             break;
         }
         case OBJ_BYTES:
         {
-            print_bytes(AS_BYTES(value));
+            bl_writer_printbytes(AS_BYTES(value));
             break;
         }
         case OBJ_BOUNDFUNCTION:
         {
-            print_function(AS_BOUND(value)->method->fnptr);
+            bl_writer_printfunction(AS_BOUND(value)->method->fnptr);
             break;
         }
         case OBJ_MODULE:
@@ -3625,12 +3699,12 @@ void print_object(Value value, bool fixstring)
         }
         case OBJ_CLOSURE:
         {
-            print_function(AS_CLOSURE(value)->fnptr);
+            bl_writer_printfunction(AS_CLOSURE(value)->fnptr);
             break;
         }
         case OBJ_SCRIPTFUNCTION:
         {
-            print_function(AS_FUNCTION(value));
+            bl_writer_printfunction(AS_FUNCTION(value));
             break;
         }
         case OBJ_INSTANCE:
@@ -3667,14 +3741,14 @@ void print_object(Value value, bool fixstring)
     }
 }
 
-ObjBytes* copy_bytes(VMState* vm, unsigned char* b, int length)
+ObjBytes* bl_bytes_copybytes(VMState* vm, unsigned char* b, int length)
 {
     ObjBytes* bytes = bl_object_makebytes(vm, length);
     memcpy(bytes->bytes.bytes, b, length);
     return bytes;
 }
 
-ObjBytes* take_bytes(VMState* vm, unsigned char* b, int length)
+ObjBytes* bl_bytes_takebytes(VMState* vm, unsigned char* b, int length)
 {
     ObjBytes* bytes = (ObjBytes*)bl_object_allocobject(vm, sizeof(ObjBytes), OBJ_BYTES);
     bytes->bytes.count = length;
@@ -3682,7 +3756,7 @@ ObjBytes* take_bytes(VMState* vm, unsigned char* b, int length)
     return bytes;
 }
 
-static char* function_to_string(ObjFunction* func)
+static char* bl_writer_functiontostring(ObjFunction* func)
 {
     if(func->name == NULL)
     {
@@ -3698,12 +3772,15 @@ static char* function_to_string(ObjFunction* func)
     return strdup(func->name->chars);
 }
 
-static char* list_to_string(VMState* vm, ValArray* array)
+static char* bl_writer_listtostring(VMState* vm, ValArray* array)
 {
-    char* str = strdup("[");
-    for(int i = 0; i < array->count; i++)
+    int i;
+    char* str;
+    char* val;
+    str = strdup("[");
+    for(i = 0; i < array->count; i++)
     {
-        char* val = bl_value_tostring(vm, array->values[i]);
+        val = bl_value_tostring(vm, array->values[i]);
         if(val != NULL)
         {
             str = bl_util_appendstring(str, val);
@@ -3718,7 +3795,7 @@ static char* list_to_string(VMState* vm, ValArray* array)
     return str;
 }
 
-static char* bytes_to_string(VMState* vm, ByteArray* array)
+static char* bl_writer_bytestostring(VMState* vm, ByteArray* array)
 {
     char* str = strdup("(");
     for(int i = 0; i < array->count; i++)
@@ -3738,7 +3815,7 @@ static char* bytes_to_string(VMState* vm, ByteArray* array)
     return str;
 }
 
-static char* dict_to_string(VMState* vm, ObjDict* dict)
+static char* bl_writer_dicttostring(VMState* vm, ObjDict* dict)
 {
     char* str = strdup("{");
     for(int i = 0; i < dict->names.count; i++)
@@ -3767,7 +3844,7 @@ static char* dict_to_string(VMState* vm, ObjDict* dict)
     return str;
 }
 
-char* object_to_string(VMState* vm, Value value)
+char* bl_writer_objecttostring(VMState* vm, Value value)
 {
     switch(OBJ_TYPE(value))
     {
@@ -3802,13 +3879,13 @@ char* object_to_string(VMState* vm, Value value)
             return str;
         }
         case OBJ_CLOSURE:
-            return function_to_string(AS_CLOSURE(value)->fnptr);
+            return bl_writer_functiontostring(AS_CLOSURE(value)->fnptr);
         case OBJ_BOUNDFUNCTION:
         {
-            return function_to_string(AS_BOUND(value)->method->fnptr);
+            return bl_writer_functiontostring(AS_BOUND(value)->method->fnptr);
         }
         case OBJ_SCRIPTFUNCTION:
-            return function_to_string(AS_FUNCTION(value));
+            return bl_writer_functiontostring(AS_FUNCTION(value));
         case OBJ_NATIVEFUNCTION:
         {
             const char* format = "<function %s(native)>";
@@ -3847,11 +3924,11 @@ char* object_to_string(VMState* vm, Value value)
         case OBJ_UP_VALUE:
             return strdup("<up-value>");
         case OBJ_BYTES:
-            return bytes_to_string(vm, &AS_BYTES(value)->bytes);
+            return bl_writer_bytestostring(vm, &AS_BYTES(value)->bytes);
         case OBJ_ARRAY:
-            return list_to_string(vm, &AS_LIST(value)->items);
+            return bl_writer_listtostring(vm, &AS_LIST(value)->items);
         case OBJ_DICT:
-            return dict_to_string(vm, AS_DICT(value));
+            return bl_writer_dicttostring(vm, AS_DICT(value));
         case OBJ_FILE:
         {
             ObjFile* file = AS_FILE(value);
@@ -3867,7 +3944,7 @@ char* object_to_string(VMState* vm, Value value)
     return NULL;
 }
 
-const char* object_type(Object* object)
+const char* bl_object_gettype(Object* object)
 {
     switch(object->type)
     {
@@ -3903,7 +3980,6 @@ const char* object_type(Object* object)
             return "unknown";
     }
 }
-
 
 bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool willassign)
 {
@@ -3966,7 +4042,9 @@ bool objfn_list_count(VMState* vm, int argcount, Value* args)
     for(int i = 0; i < list->items.count; i++)
     {
         if(bl_value_valuesequal(list->items.values[i], args[0]))
+        {
             count++;
+        }
     }
     RETURN_NUMBER(count);
 }
@@ -3981,7 +4059,8 @@ bool objfn_list_extend(VMState* vm, int argcount, Value* args)
     {
         bl_array_push(vm, list, list2->items.values[i]);
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_list_indexof(VMState* vm, int argcount, Value* args)
@@ -4005,7 +4084,8 @@ bool objfn_list_insert(VMState* vm, int argcount, Value* args)
     ObjArray* list = AS_LIST(METHOD_OBJECT);
     int index = (int)AS_NUMBER(args[1]);
     bl_valarray_insert(vm, &list->items, args[0], index);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_list_pop(VMState* vm, int argcount, Value* args)
@@ -4038,7 +4118,7 @@ bool objfn_list_shift(VMState* vm, int argcount, Value* args)
     }
     else if(count > 0)
     {
-        ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+        ObjArray* nlist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
         for(int i = 0; i < count; i++)
         {
             bl_array_push(vm, nlist, list->items.values[0]);
@@ -4100,14 +4180,15 @@ bool objfn_list_remove(VMState* vm, int argcount, Value* args)
         }
         list->items.count--;
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_list_reverse(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 0);
     ObjArray* list = AS_LIST(METHOD_OBJECT);
-    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* nlist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     /*// in-place reversal
   int start = 0, end = list->items.count - 1;
   while (start < end) {
@@ -4129,7 +4210,8 @@ bool objfn_list_sort(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(sort, 0);
     ObjArray* list = AS_LIST(METHOD_OBJECT);
     bl_value_sortbubblesort(list->items.values, list->items.count);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_list_contains(VMState* vm, int argcount, Value* args)
@@ -4209,7 +4291,9 @@ bool objfn_list_take(VMState* vm, int argcount, Value* args)
     ObjArray* list = AS_LIST(METHOD_OBJECT);
     int count = AS_NUMBER(args[0]);
     if(count < 0)
+    {
         count = list->items.count + count;
+    }
     if(list->items.count < count)
     {
         RETURN_OBJ(bl_array_copy(vm, list, 0, list->items.count));
@@ -4234,7 +4318,7 @@ bool objfn_list_compact(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(compact, 0);
     ObjArray* list = AS_LIST(METHOD_OBJECT);
-    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* nlist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < list->items.count; i++)
     {
         if(!bl_value_valuesequal(list->items.values[i], NIL_VAL))
@@ -4249,7 +4333,7 @@ bool objfn_list_unique(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(unique, 0);
     ObjArray* list = AS_LIST(METHOD_OBJECT);
-    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* nlist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < list->items.count; i++)
     {
         bool found = false;
@@ -4272,7 +4356,7 @@ bool objfn_list_unique(VMState* vm, int argcount, Value* args)
 bool objfn_list_zip(VMState* vm, int argcount, Value* args)
 {
     ObjArray* list = AS_LIST(METHOD_OBJECT);
-    ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* nlist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     ObjArray** arglist = ALLOCATE(ObjArray*, argcount);
     for(int i = 0; i < argcount; i++)
     {
@@ -4281,7 +4365,7 @@ bool objfn_list_zip(VMState* vm, int argcount, Value* args)
     }
     for(int i = 0; i < list->items.count; i++)
     {
-        ObjArray* alist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+        ObjArray* alist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
         bl_array_push(vm, alist, list->items.values[i]);// item of main list
         for(int j = 0; j < argcount; j++)
         {// item of argument lists
@@ -4302,7 +4386,7 @@ bool objfn_list_zip(VMState* vm, int argcount, Value* args)
 bool objfn_list_todict(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_dict, 0);
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* dict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     ObjArray* list = AS_LIST(METHOD_OBJECT);
     for(int i = 0; i < list->items.count; i++)
     {
@@ -4348,7 +4432,6 @@ bool objfn_list_itern(VMState* vm, int argcount, Value* args)
     return bl_value_returnnil(vm, args);
 }
 
-
 bool objfn_string_length(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(length, 0);
@@ -4361,7 +4444,9 @@ bool objfn_string_upper(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(upper, 0);
     char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
     for(char* p = string; *p; p++)
+    {
         *p = toupper(*p);
+    }
     RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
 }
 
@@ -4370,13 +4455,15 @@ bool objfn_string_lower(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(lower, 0);
     char* string = (char*)strdup(AS_C_STRING(METHOD_OBJECT));
     for(char* p = string; *p; p++)
+    {
         *p = tolower(*p);
+    }
     RETURN_L_STRING(string, AS_STRING(METHOD_OBJECT)->length);
 }
 
 bool objfn_string_isalpha(VMState* vm, int argcount, Value* args)
 {
-    ENFORCE_ARG_COUNT(is_alpha, 0);
+    ENFORCE_ARG_COUNT(bl_scanutil_isalpha, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
     for(int i = 0; i < string->length; i++)
     {
@@ -4485,28 +4572,36 @@ bool objfn_string_trim(VMState* vm, int argcount, Value* args)
     if(trimmer == '\0')
     {
         while(isspace((unsigned char)*string))
+        {
             string++;
+        }
     }
     else
     {
         while(trimmer == *string)
+        {
             string++;
+        }
     }
     if(*string == 0)
     {// All spaces?
-        RETURN_OBJ(copy_string(vm, "", 0));
+        RETURN_OBJ(bl_string_copystring(vm, "", 0));
     }
     // Trim trailing space
     end = string + strlen(string) - 1;
     if(trimmer == '\0')
     {
         while(end > string && isspace((unsigned char)*end))
+        {
             end--;
+        }
     }
     else
     {
         while(end > string && trimmer == *end)
+        {
             end--;
+        }
     }
     // Write new null terminator character
     end[1] = '\0';
@@ -4528,16 +4623,20 @@ bool objfn_string_ltrim(VMState* vm, int argcount, Value* args)
     if(trimmer == '\0')
     {
         while(isspace((unsigned char)*string))
+        {
             string++;
+        }
     }
     else
     {
         while(trimmer == *string)
+        {
             string++;
+        }
     }
     if(*string == 0)
     {// All spaces?
-        RETURN_OBJ(copy_string(vm, "", 0));
+        RETURN_OBJ(bl_string_copystring(vm, "", 0));
     }
     end = string + strlen(string) - 1;
     // Write new null terminator character
@@ -4558,18 +4657,22 @@ bool objfn_string_rtrim(VMState* vm, int argcount, Value* args)
     char* end = NULL;
     if(*string == 0)
     {// All spaces?
-        RETURN_OBJ(copy_string(vm, "", 0));
+        RETURN_OBJ(bl_string_copystring(vm, "", 0));
     }
     end = string + strlen(string) - 1;
     if(trimmer == '\0')
     {
         while(end > string && isspace((unsigned char)*end))
+        {
             end--;
+        }
     }
     else
     {
         while(end > string && trimmer == *end)
+        {
             end--;
+        }
     }
     // Write new null terminator character
     end[1] = '\0';
@@ -4653,7 +4756,7 @@ bool objfn_string_split(VMState* vm, int argcount, Value* args)
     ObjString* delimeter = AS_STRING(args[0]);
     if(object->length == 0 || delimeter->length > object->length)
         RETURN_OBJ(bl_object_makelist(vm));
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     // main work here...
     if(delimeter->length > 0)
     {
@@ -4674,7 +4777,8 @@ bool objfn_string_split(VMState* vm, int argcount, Value* args)
         int length = object->isascii ? object->length : object->utf8length;
         for(int i = 0; i < length; i++)
         {
-            int start = i, end = i + 1;
+            int start = i;
+            int end = i + 1;
             if(!object->isascii)
             {
                 bl_util_utf8slice(object->chars, &start, &end);
@@ -4755,13 +4859,14 @@ bool objfn_string_tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     int length = string->isascii ? string->length : string->utf8length;
     if(length > 0)
     {
         for(int i = 0; i < length; i++)
         {
-            int start = i, end = i + 1;
+            int start = i;
+            int end = i + 1;
             if(!string->isascii)
             {
                 bl_util_utf8slice(string->chars, &start, &end);
@@ -4791,12 +4896,14 @@ bool objfn_string_lpad(VMState* vm, int argcount, Value* args)
     int finalsize = string->length + fillsize;
     int finalutf8size = string->utf8length + fillsize;
     for(int i = 0; i < fillsize; i++)
+    {
         fill[i] = fillchar;
+    }
     char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
     memcpy(str, fill, fillsize);
     memcpy(str + fillsize, string->chars, string->length);
     str[finalsize] = '\0';
-    ObjString* result = take_string(vm, str, finalsize);
+    ObjString* result = bl_string_takestring(vm, str, finalsize);
     result->utf8length = finalutf8size;
     result->length = finalsize;
     RETURN_OBJ(result);
@@ -4821,12 +4928,14 @@ bool objfn_string_rpad(VMState* vm, int argcount, Value* args)
     int finalsize = string->length + fillsize;
     int finalutf8size = string->utf8length + fillsize;
     for(int i = 0; i < fillsize; i++)
+    {
         fill[i] = fillchar;
+    }
     char* str = ALLOCATE(char, (size_t)string->length + (size_t)fillsize + 1);
     memcpy(str, string->chars, string->length);
     memcpy(str + string->length, fill, fillsize);
     str[finalsize] = '\0';
-    ObjString* result = take_string(vm, str, finalsize);
+    ObjString* result = bl_string_takestring(vm, str, finalsize);
     result->utf8length = finalutf8size;
     result->length = finalsize;
     RETURN_OBJ(result);
@@ -4859,7 +4968,10 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
     PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
     pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
     free(realregex);
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    if(!re)
+    {
+        REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    }
     pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
     int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
     if(rc < 0)
@@ -4875,7 +4987,7 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
     }
     PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(matchdata);
     uint32_t namecount;
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* result = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
     for(int i = 0; i < rc; i++)
     {
@@ -4901,9 +5013,11 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
             sprintf(_key, "%*s", keylength, tabptr + 2);
             sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
             while(isspace((unsigned char)*_key))
+            {
                 _key++;
-            bl_dict_setentry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))),
-                           OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
+            }
+            bl_dict_setentry(vm, result, OBJ_VAL(bl_mem_gcprotect(vm, (Object*)bl_string_takestring(vm, _key, keylength))),
+                             OBJ_VAL(bl_mem_gcprotect(vm, (Object*)bl_string_takestring(vm, _val, valuelength))));
             tabptr += nameentrysize;
         }
     }
@@ -4932,7 +5046,8 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
     PCRE2_SIZE erroroffset;
     uint32_t optionbits;
     uint32_t newline;
-    uint32_t namecount, groupcount;
+    uint32_t namecount;
+    uint32_t groupcount;
     uint32_t nameentrysize;
     PCRE2_SPTR nametable;
     PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
@@ -4940,7 +5055,10 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
     PCRE2_SIZE subjectlength = (PCRE2_SIZE)string->length;
     pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions, &errornumber, &erroroffset, NULL);
     free(realregex);
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    if(!re)
+    {
+        REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    }
     pcre2_match_data* matchdata = pcre2_match_data_create_from_pattern(re, NULL);
     int rc = pcre2_match(re, subject, subjectlength, 0, 0, matchdata, NULL);
     if(rc < 0)
@@ -4960,7 +5078,7 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
     REGEX_ASSERTION_ERROR(re, matchdata, ovector);
     (void)pcre2_pattern_info(re, PCRE2_INFO_NAMECOUNT, &namecount);
     (void)pcre2_pattern_info(re, PCRE2_INFO_CAPTURECOUNT, &groupcount);
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* result = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     for(int i = 0; i < rc; i++)
     {
         bl_dict_setentry(vm, result, NUMBER_VAL(0), NIL_VAL);
@@ -4968,7 +5086,7 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
     // add first set of matches to response
     for(int i = 0; i < rc; i++)
     {
-        ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+        ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
         PCRE2_SIZE substringlength = ovector[2 * i + 1] - ovector[2 * i];
         PCRE2_SPTR substringstart = subject + ovector[2 * i];
         bl_array_push(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
@@ -4990,10 +5108,12 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
             sprintf(_key, "%*s", keylength, tabptr + 2);
             sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
             while(isspace((unsigned char)*_key))
+            {
                 _key++;
-            ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
-            bl_array_push(vm, list, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _val, valuelength))));
-            bl_dict_addentry(vm, result, OBJ_VAL(gc_protect(vm, (Object*)take_string(vm, _key, keylength))), OBJ_VAL(list));
+            }
+            ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
+            bl_array_push(vm, list, OBJ_VAL(bl_mem_gcprotect(vm, (Object*)bl_string_takestring(vm, _val, valuelength))));
+            bl_dict_addentry(vm, result, OBJ_VAL(bl_mem_gcprotect(vm, (Object*)bl_string_takestring(vm, _key, keylength))), OBJ_VAL(list));
             tabptr += nameentrysize;
         }
     }
@@ -5010,7 +5130,9 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
         if(ovector[0] == ovector[1])
         {
             if(ovector[0] == subjectlength)
+            {
                 break;
+            }
             options = PCRE2_NOTEMPTY_ATSTART | PCRE2_ANCHORED;
         }
         else
@@ -5030,8 +5152,12 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
                 if(utf8)
                 {
                     for(; startoffset < subjectlength; startoffset++)
+                    {
                         if((subject[startoffset] & 0xc0) != 0x80)
+                        {
                             break;
+                        }
+                    }
                 }
             }
         }
@@ -5039,16 +5165,22 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
         if(rc == PCRE2_ERROR_NOMATCH)
         {
             if(options == 0)
+            {
                 break;
+            }
             ovector[1] = startoffset + 1;
             if(crlfisnewline && startoffset < subjectlength - 1 && subject[startoffset] == '\r' && subject[startoffset + 1] == '\n')
+            {
                 ovector[1] += 1;
+            }
             else if(utf8)
             {
                 while(ovector[1] < subjectlength)
                 {
                     if((subject[ovector[1]] & 0xc0) != 0x80)
+                    {
                         break;
+                    }
                     ovector[1] += 1;
                 }
             }
@@ -5073,7 +5205,7 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
             }
             else
             {
-                ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+                ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
                 bl_array_push(vm, list, GC_L_STRING((char*)substringstart, (int)substringlength));
                 bl_dict_setentry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
             }
@@ -5094,9 +5226,11 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
                 sprintf(_key, "%*s", keylength, tabptr + 2);
                 sprintf(_val, "%*s", valuelength, subject + ovector[2 * n]);
                 while(isspace((unsigned char)*_key))
+                {
                     _key++;
-                ObjString* name = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _key, keylength));
-                ObjString* value = (ObjString*)gc_protect(vm, (Object*)take_string(vm, _val, valuelength));
+                }
+                ObjString* name = (ObjString*)bl_mem_gcprotect(vm, (Object*)bl_string_takestring(vm, _key, keylength));
+                ObjString* value = (ObjString*)bl_mem_gcprotect(vm, (Object*)bl_string_takestring(vm, _val, valuelength));
                 Value nlist;
                 if(bl_dict_getentry(result, OBJ_VAL(name), &nlist))
                 {
@@ -5104,7 +5238,7 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
                 }
                 else
                 {
-                    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+                    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
                     bl_array_push(vm, list, OBJ_VAL(value));
                     bl_dict_setentry(vm, result, OBJ_VAL(name), OBJ_VAL(list));
                 }
@@ -5138,11 +5272,15 @@ bool objfn_string_replace(VMState* vm, int argcount, Value* args)
     PCRE2_SPTR input = (PCRE2_SPTR)string->chars;
     PCRE2_SPTR pattern = (PCRE2_SPTR)realregex;
     PCRE2_SPTR replacement = (PCRE2_SPTR)repsubstr->chars;
-    int result, errornumber;
+    int result;
+    int errornumber;
     PCRE2_SIZE erroroffset;
     pcre2_code* re = pcre2_compile(pattern, PCRE2_ZERO_TERMINATED, compileoptions & PCRE2_MULTILINE, &errornumber, &erroroffset, 0);
     free(realregex);
-    REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    if(!re)
+    {
+        REGEX_COMPILATION_ERROR(re, errornumber, erroroffset);
+    }
     pcre2_match_context* matchcontext = pcre2_match_context_create(0);
     PCRE2_SIZE outputlength = 0;
     result = pcre2_substitute(re, input, PCRE2_ZERO_TERMINATED, 0, PCRE2_SUBSTITUTE_GLOBAL | PCRE2_SUBSTITUTE_OVERFLOW_LENGTH, 0, matchcontext, replacement,
@@ -5158,7 +5296,7 @@ bool objfn_string_replace(VMState* vm, int argcount, Value* args)
     {
         REGEX_ERR("regular expression error at replacement time", result);
     }
-    ObjString* response = take_string(vm, (char*)outputbuffer, (int)outputlength);
+    ObjString* response = bl_string_takestring(vm, (char*)outputbuffer, (int)outputlength);
     pcre2_match_context_free(matchcontext);
     pcre2_code_free(re);
     RETURN_OBJ(response);
@@ -5168,7 +5306,7 @@ bool objfn_string_tobytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(tobytes, 0);
     ObjString* string = AS_STRING(METHOD_OBJECT);
-    RETURN_OBJ(copy_bytes(vm, (unsigned char*)string->chars, string->length));
+    RETURN_OBJ(bl_bytes_copybytes(vm, (unsigned char*)string->chars, string->length));
 }
 
 bool objfn_string_iter(VMState* vm, int argcount, Value* args)
@@ -5180,7 +5318,8 @@ bool objfn_string_iter(VMState* vm, int argcount, Value* args)
     int index = AS_NUMBER(args[0]);
     if(index > -1 && index < length)
     {
-        int start = index, end = index + 1;
+        int start = index;
+        int end = index + 1;
         if(!string->isascii)
         {
             bl_util_utf8slice(string->chars, &start, &end);
@@ -5215,7 +5354,6 @@ bool objfn_string_itern(VMState* vm, int argcount, Value* args)
     return bl_value_returnnil(vm, args);
 }
 
-
 bool cfn_bytes(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(bytes, 1);
@@ -5226,7 +5364,7 @@ bool cfn_bytes(VMState* vm, int argcount, Value* args)
     else if(bl_value_isarray(args[0]))
     {
         ObjArray* list = AS_LIST(args[0]);
-        ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, list->items.count));
+        ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, list->items.count));
         for(int i = 0; i < list->items.count; i++)
         {
             if(bl_value_isnumber(list->items.values[i]))
@@ -5263,9 +5401,10 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
         ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
         int oldcount = bytes->bytes.count;
         bytes->bytes.count++;
-        bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, oldcount, bytes->bytes.count);
+        bytes->bytes.bytes = GROW_ARRAY(unsigned char, sizeof(unsigned char), bytes->bytes.bytes, oldcount, bytes->bytes.count);
         bytes->bytes.bytes[bytes->bytes.count - 1] = (unsigned char)byte;
-        return bl_value_returnempty(vm, args);;
+        return bl_value_returnempty(vm, args);
+        ;
     }
     else if(bl_value_isarray(args[0]))
     {
@@ -5274,7 +5413,8 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
         {
             // append here...
             ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-            bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, (size_t)bytes->bytes.count + (size_t)list->items.count);
+            bytes->bytes.bytes
+            = GROW_ARRAY(unsigned char, sizeof(unsigned char), bytes->bytes.bytes, bytes->bytes.count, (size_t)bytes->bytes.count + (size_t)list->items.count);
             if(bytes->bytes.bytes == NULL)
             {
                 RETURN_ERROR("out of memory");
@@ -5294,7 +5434,8 @@ bool objfn_bytes_append(VMState* vm, int argcount, Value* args)
             }
             bytes->bytes.count += list->items.count;
         }
-        return bl_value_returnempty(vm, args);;
+        return bl_value_returnempty(vm, args);
+        ;
     }
     RETURN_ERROR("bytes can only append a byte or a list of bytes");
 }
@@ -5303,7 +5444,7 @@ bool objfn_bytes_clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, bytes->bytes.count));
+    ObjBytes* nbytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, bytes->bytes.count));
     memcpy(nbytes->bytes.bytes, bytes->bytes.bytes, bytes->bytes.count);
     RETURN_OBJ(nbytes);
 }
@@ -5314,7 +5455,7 @@ bool objfn_bytes_extend(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(extend, 0, bl_value_isbytes);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     ObjBytes* nbytes = AS_BYTES(args[0]);
-    bytes->bytes.bytes = GROW_ARRAY(unsigned char, bytes->bytes.bytes, bytes->bytes.count, bytes->bytes.count + nbytes->bytes.count);
+    bytes->bytes.bytes = GROW_ARRAY(unsigned char, sizeof(unsigned char), bytes->bytes.bytes, bytes->bytes.count, bytes->bytes.count + nbytes->bytes.count);
     if(bytes->bytes.bytes == NULL)
     {
         RETURN_ERROR("out of memory");
@@ -5356,7 +5497,7 @@ bool objfn_bytes_reverse(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(reverse, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjBytes* nbytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, bytes->bytes.count));
+    ObjBytes* nbytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, bytes->bytes.count));
     for(int i = 0; i < bytes->bytes.count; i++)
     {
         nbytes->bytes.bytes[i] = bytes->bytes.bytes[bytes->bytes.count - i - 1];
@@ -5372,7 +5513,7 @@ bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
     ByteArray delimeter = AS_BYTES(args[0])->bytes;
     if(object.count == 0 || delimeter.count > object.count)
         RETURN_OBJ(bl_object_makelist(vm));
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     // main work here...
     if(delimeter.count > 0)
     {
@@ -5382,7 +5523,7 @@ bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
             // match found.
             if(memcmp(object.bytes + i, delimeter.bytes, delimeter.count) == 0 || i == object.count)
             {
-                ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, i - start));
+                ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, i - start));
                 memcpy(bytes->bytes.bytes, object.bytes + start, i - start);
                 bl_array_push(vm, list, OBJ_VAL(bytes));
                 i += delimeter.count - 1;
@@ -5395,7 +5536,7 @@ bool objfn_bytes_split(VMState* vm, int argcount, Value* args)
         int length = object.count;
         for(int i = 0; i < length; i++)
         {
-            ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, 1));
+            ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, 1));
             memcpy(bytes->bytes.bytes, object.bytes + i, 1);
             bl_array_push(vm, list, OBJ_VAL(bytes));
         }
@@ -5431,7 +5572,7 @@ bool objfn_bytes_get(VMState* vm, int argcount, Value* args)
 
 bool objfn_bytes_isalpha(VMState* vm, int argcount, Value* args)
 {
-    ENFORCE_ARG_COUNT(is_alpha, 0);
+    ENFORCE_ARG_COUNT(bl_scanutil_isalpha, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     for(int i = 0; i < bytes->bytes.count; i++)
     {
@@ -5518,14 +5659,15 @@ bool objfn_bytes_dispose(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(dispose, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
     bl_bytearray_free(vm, &bytes->bytes);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_bytes_tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjBytes* bytes = AS_BYTES(METHOD_OBJECT);
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < bytes->bytes.count; i++)
     {
         bl_array_push(vm, list, NUMBER_VAL((double)((int)bytes->bytes.bytes[i])));
@@ -5593,7 +5735,8 @@ bool objfn_dict_add(VMState* vm, int argcount, Value* args)
         RETURN_ERROR("duplicate key %s at add()", bl_value_tostring(vm, args[0]));
     }
     bl_dict_addentry(vm, dict, args[0], args[1]);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_dict_set(VMState* vm, int argcount, Value* args)
@@ -5610,7 +5753,8 @@ bool objfn_dict_set(VMState* vm, int argcount, Value* args)
     {
         bl_dict_setentry(vm, dict, args[0], args[1]);
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
@@ -5619,14 +5763,15 @@ bool objfn_dict_clear(VMState* vm, int argcount, Value* args)
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
     bl_valarray_free(vm, &dict->names);
     bl_hashtable_free(vm, &dict->items);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_dict_clone(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(clone, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* ndict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     bl_hashtable_addall(vm, &dict->items, &ndict->items);
     for(int i = 0; i < dict->names.count; i++)
     {
@@ -5639,7 +5784,7 @@ bool objfn_dict_compact(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(compact, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjDict* ndict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* ndict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
         Value tmpvalue;
@@ -5672,7 +5817,8 @@ bool objfn_dict_extend(VMState* vm, int argcount, Value* args)
         bl_valarray_push(vm, &dict->names, dictcpy->names.values[i]);
     }
     bl_hashtable_addall(vm, &dictcpy->items, &dict->items);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_dict_get(VMState* vm, int argcount, Value* args)
@@ -5699,7 +5845,7 @@ bool objfn_dict_keys(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(keys, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
         bl_array_push(vm, list, dict->names.values[i]);
@@ -5711,7 +5857,7 @@ bool objfn_dict_values(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(values, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
         Value tmpvalue;
@@ -5765,8 +5911,8 @@ bool objfn_dict_tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 0);
     ObjDict* dict = AS_DICT(METHOD_OBJECT);
-    ObjArray* namelist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
-    ObjArray* valuelist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* namelist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* valuelist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < dict->names.count; i++)
     {
         bl_array_push(vm, namelist, dict->names.values[i]);
@@ -5780,7 +5926,7 @@ bool objfn_dict_tolist(VMState* vm, int argcount, Value* args)
             bl_array_push(vm, valuelist, NIL_VAL);
         }
     }
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     bl_array_push(vm, list, OBJ_VAL(namelist));
     bl_array_push(vm, list, OBJ_VAL(valuelist));
     RETURN_OBJ(list);
@@ -5820,9 +5966,6 @@ bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
 
 #undef ENFORCE_VALID_DICT_KEY
 
-
-
-
 void bl_scanner_init(AstScanner* s, const char* source)
 {
     s->current = source;
@@ -5836,7 +5979,7 @@ bool bl_scanner_isatend(AstScanner* s)
     return *s->current == '\0';
 }
 
-static AstToken make_token(AstScanner* s, TokType type)
+static AstToken bl_scanner_maketoken(AstScanner* s, TokType type)
 {
     AstToken t;
     t.type = type;
@@ -5846,7 +5989,7 @@ static AstToken make_token(AstScanner* s, TokType type)
     return t;
 }
 
-static AstToken error_token(AstScanner* s, const char* message, ...)
+static AstToken bl_scanner_makeerrortoken(AstScanner* s, const char* message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -5868,27 +6011,27 @@ static AstToken error_token(AstScanner* s, const char* message, ...)
     return t;
 }
 
-static bool is_digit(char c)
+static bool bl_scanutil_isdigit(char c)
 {
     return c >= '0' && c <= '9';
 }
 
-static bool is_binary(char c)
+static bool bl_scanutil_isbinary(char c)
 {
     return c == '0' || c == '1';
 }
 
-static bool is_alpha(char c)
+static bool bl_scanutil_isalpha(char c)
 {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-static bool is_octal(char c)
+static bool bl_scanutil_isoctal(char c)
 {
     return c >= '0' && c <= '7';
 }
 
-static bool is_hexadecimal(char c)
+static bool bl_scanutil_ishexadecimal(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
@@ -5897,19 +6040,27 @@ static char bl_scanner_advance(AstScanner* s)
 {
     s->current++;
     if(s->current[-1] == '\n')
+    {
         s->line++;
+    }
     return s->current[-1];
 }
 
 static bool bl_scanner_match(AstScanner* s, char expected)
 {
     if(bl_scanner_isatend(s))
+    {
         return false;
+    }
     if(*s->current != expected)
+    {
         return false;
+    }
     s->current++;
     if(s->current[-1] == '\n')
+    {
         s->line++;
+    }
     return true;
 }
 
@@ -5926,7 +6077,9 @@ static char bl_scanner_previous(AstScanner* s)
 static char bl_scanner_next(AstScanner* s)
 {
     if(bl_scanner_isatend(s))
+    {
         return '\0';
+    }
     return s->current[1];
 }
 
@@ -5937,7 +6090,7 @@ AstToken bl_scanner_skipblockcomments(AstScanner* s)
     {
         if(bl_scanner_isatend(s))
         {
-            return error_token(s, "unclosed block comment");
+            return bl_scanner_makeerrortoken(s, "unclosed block comment");
         }
         // internal comment open
         if(bl_scanner_current(s) == '/' && bl_scanner_next(s) == '*')
@@ -5958,7 +6111,7 @@ AstToken bl_scanner_skipblockcomments(AstScanner* s)
         // regular comment body
         bl_scanner_advance(s);
     }
-    return make_token(s, TOK_UNDEFINED);
+    return bl_scanner_maketoken(s, TOK_UNDEFINED);
 }
 
 AstToken bl_scanner_skipwhitespace(AstScanner* s)
@@ -5981,7 +6134,9 @@ AstToken bl_scanner_skipwhitespace(AstScanner* s)
             case '#':
             {// single line comment
                 while(bl_scanner_current(s) != '\n' && !bl_scanner_isatend(s))
+                {
                     bl_scanner_advance(s);
+                }
                 break;
             }
             case '/':
@@ -5998,11 +6153,11 @@ AstToken bl_scanner_skipwhitespace(AstScanner* s)
                 }
                 else
                 {
-                    return make_token(s, TOK_UNDEFINED);
+                    return bl_scanner_maketoken(s, TOK_UNDEFINED);
                 }
                 // exit as soon as we see a non-whitespace...
             default:
-                return make_token(s, TOK_UNDEFINED);
+                return bl_scanner_maketoken(s, TOK_UNDEFINED);
         }
     }
 }
@@ -6018,11 +6173,12 @@ static AstToken bl_scanner_scanstring(AstScanner* s, char quote)
                 s->interpolatingcount++;
                 s->interpolating[s->interpolatingcount] = (int)quote;
                 s->current++;
-                AstToken tkn = make_token(s, TOK_INTERPOLATION);
+                AstToken tkn = bl_scanner_maketoken(s, TOK_INTERPOLATION);
                 s->current++;
                 return tkn;
             }
-            return error_token(s, "maximum interpolation nesting of %d exceeded by %d", MAX_INTERPOLATION_NESTING, MAX_INTERPOLATION_NESTING - s->interpolatingcount + 1);
+            return bl_scanner_makeerrortoken(s, "maximum interpolation nesting of %d exceeded by %d", MAX_INTERPOLATION_NESTING,
+                                             MAX_INTERPOLATION_NESTING - s->interpolatingcount + 1);
         }
         if(bl_scanner_current(s) == '\\' && (bl_scanner_next(s) == quote || bl_scanner_next(s) == '\\'))
         {
@@ -6031,9 +6187,11 @@ static AstToken bl_scanner_scanstring(AstScanner* s, char quote)
         bl_scanner_advance(s);
     }
     if(bl_scanner_isatend(s))
-        return error_token(s, "unterminated string (opening quote not matched)");
+    {
+        return bl_scanner_makeerrortoken(s, "unterminated string (opening quote not matched)");
+    }
     bl_scanner_match(s, quote);// the closing quote
-    return make_token(s, TOK_LITERAL);
+    return bl_scanner_maketoken(s, TOK_LITERAL);
 }
 
 static AstToken bl_scanner_scannumber(AstScanner* s)
@@ -6043,42 +6201,54 @@ static AstToken bl_scanner_scannumber(AstScanner* s)
     {
         if(bl_scanner_match(s, 'b'))
         {// binary number
-            while(is_binary(bl_scanner_current(s)))
+            while(bl_scanutil_isbinary(bl_scanner_current(s)))
+            {
                 bl_scanner_advance(s);
-            return make_token(s, TOK_BINNUMBER);
+            }
+            return bl_scanner_maketoken(s, TOK_BINNUMBER);
         }
         else if(bl_scanner_match(s, 'c'))
         {
-            while(is_octal(bl_scanner_current(s)))
+            while(bl_scanutil_isoctal(bl_scanner_current(s)))
+            {
                 bl_scanner_advance(s);
-            return make_token(s, TOK_OCTNUMBER);
+            }
+            return bl_scanner_maketoken(s, TOK_OCTNUMBER);
         }
         else if(bl_scanner_match(s, 'x'))
         {
-            while(is_hexadecimal(bl_scanner_current(s)))
+            while(bl_scanutil_ishexadecimal(bl_scanner_current(s)))
+            {
                 bl_scanner_advance(s);
-            return make_token(s, TOK_HEXNUMBER);
+            }
+            return bl_scanner_maketoken(s, TOK_HEXNUMBER);
         }
     }
-    while(is_digit(bl_scanner_current(s)))
-        bl_scanner_advance(s);
-    // dots(.) are only valid here when followed by a digit
-    if(bl_scanner_current(s) == '.' && is_digit(bl_scanner_next(s)))
+    while(bl_scanutil_isdigit(bl_scanner_current(s)))
     {
         bl_scanner_advance(s);
-        while(is_digit(bl_scanner_current(s)))
+    }
+    // dots(.) are only valid here when followed by a digit
+    if(bl_scanner_current(s) == '.' && bl_scanutil_isdigit(bl_scanner_next(s)))
+    {
+        bl_scanner_advance(s);
+        while(bl_scanutil_isdigit(bl_scanner_current(s)))
+        {
             bl_scanner_advance(s);
+        }
         // E or e are only valid here when followed by a digit and occurring after a
         // dot
         if((bl_scanner_current(s) == 'e' || bl_scanner_current(s) == 'E') && (bl_scanner_next(s) == '+' || bl_scanner_next(s) == '-'))
         {
             bl_scanner_advance(s);
             bl_scanner_advance(s);
-            while(is_digit(bl_scanner_current(s)))
+            while(bl_scanutil_isdigit(bl_scanner_current(s)))
+            {
                 bl_scanner_advance(s);
+            }
         }
     }
-    return make_token(s, TOK_REGNUMBER);
+    return bl_scanner_maketoken(s, TOK_REGNUMBER);
 }
 
 static TokType bl_scanner_scanidenttype(AstScanner* s)
@@ -6133,7 +6303,7 @@ static TokType bl_scanner_scanidenttype(AstScanner* s)
         ofs = (s->current - s->start);
         if((ofs == (0 + kwlen)) && (memcmp(s->start + 0, kwtext, kwlen) == 0))
         {
-            return keywords[i].tokid;
+            return (TokType)keywords[i].tokid;
         }
     }
     return TOK_IDENTIFIER;
@@ -6141,16 +6311,20 @@ static TokType bl_scanner_scanidenttype(AstScanner* s)
 
 static AstToken bl_scanner_scanidentifier(AstScanner* s)
 {
-    while(is_alpha(bl_scanner_current(s)) || is_digit(bl_scanner_current(s)))
+    while(bl_scanutil_isalpha(bl_scanner_current(s)) || bl_scanutil_isdigit(bl_scanner_current(s)))
+    {
         bl_scanner_advance(s);
-    return make_token(s, bl_scanner_scanidenttype(s));
+    }
+    return bl_scanner_maketoken(s, bl_scanner_scanidenttype(s));
 }
 
 static AstToken bl_scanner_decorator(AstScanner* s)
 {
-    while(is_alpha(bl_scanner_current(s)) || is_digit(bl_scanner_current(s)))
+    while(bl_scanutil_isalpha(bl_scanner_current(s)) || bl_scanutil_isdigit(bl_scanner_current(s)))
+    {
         bl_scanner_advance(s);
-    return make_token(s, TOK_DECORATOR);
+    }
+    return bl_scanner_maketoken(s, TOK_DECORATOR);
 }
 
 AstToken bl_scanner_scantoken(AstScanner* s)
@@ -6162,24 +6336,30 @@ AstToken bl_scanner_scantoken(AstScanner* s)
     }
     s->start = s->current;
     if(bl_scanner_isatend(s))
-        return make_token(s, TOK_EOF);
+    {
+        return bl_scanner_maketoken(s, TOK_EOF);
+    }
     char c = bl_scanner_advance(s);
-    if(is_digit(c))
+    if(bl_scanutil_isdigit(c))
+    {
         return bl_scanner_scannumber(s);
-    else if(is_alpha(c))
+    }
+    else if(bl_scanutil_isalpha(c))
+    {
         return bl_scanner_scanidentifier(s);
+    }
     switch(c)
     {
         case '(':
-            return make_token(s, TOK_LPAREN);
+            return bl_scanner_maketoken(s, TOK_LPAREN);
         case ')':
-            return make_token(s, TOK_RPAREN);
+            return bl_scanner_maketoken(s, TOK_RPAREN);
         case '[':
-            return make_token(s, TOK_LBRACKET);
+            return bl_scanner_maketoken(s, TOK_LBRACKET);
         case ']':
-            return make_token(s, TOK_RBRACKET);
+            return bl_scanner_maketoken(s, TOK_RBRACKET);
         case '{':
-            return make_token(s, TOK_LBRACE);
+            return bl_scanner_maketoken(s, TOK_LBRACE);
         case '}':
             if(s->interpolatingcount > -1)
             {
@@ -6187,100 +6367,112 @@ AstToken bl_scanner_scantoken(AstScanner* s)
                 s->interpolatingcount--;
                 return token;
             }
-            return make_token(s, TOK_RBRACE);
+            return bl_scanner_maketoken(s, TOK_RBRACE);
         case ';':
-            return make_token(s, TOK_SEMICOLON);
+            return bl_scanner_maketoken(s, TOK_SEMICOLON);
         case '\\':
-            return make_token(s, TOK_BACKSLASH);
+            return bl_scanner_maketoken(s, TOK_BACKSLASH);
         case ':':
-            return make_token(s, TOK_COLON);
+            return bl_scanner_maketoken(s, TOK_COLON);
         case ',':
-            return make_token(s, TOK_COMMA);
+            return bl_scanner_maketoken(s, TOK_COMMA);
         case '@':
             return bl_scanner_decorator(s);
         case '!':
-            return make_token(s, bl_scanner_match(s, '=') ? TOK_BANGEQ : TOK_BANG);
+            return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_BANGEQ : TOK_BANG);
         case '.':
             if(bl_scanner_match(s, '.'))
             {
-                return make_token(s, bl_scanner_match(s, '.') ? TOK_TRIDOT : TOK_RANGE);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '.') ? TOK_TRIDOT : TOK_RANGE);
             }
-            return make_token(s, TOK_DOT);
+            return bl_scanner_maketoken(s, TOK_DOT);
         case '+':
         {
             if(bl_scanner_match(s, '+'))
-                return make_token(s, TOK_INCREMENT);
+            {
+                return bl_scanner_maketoken(s, TOK_INCREMENT);
+            }
             if(bl_scanner_match(s, '='))
-                return make_token(s, TOK_PLUSEQ);
+            {
+                return bl_scanner_maketoken(s, TOK_PLUSEQ);
+            }
             else
-                return make_token(s, TOK_PLUS);
+            {
+                return bl_scanner_maketoken(s, TOK_PLUS);
+            }
         }
         case '-':
         {
             if(bl_scanner_match(s, '-'))
-                return make_token(s, TOK_DECREMENT);
+            {
+                return bl_scanner_maketoken(s, TOK_DECREMENT);
+            }
             if(bl_scanner_match(s, '='))
-                return make_token(s, TOK_MINUSEQ);
+            {
+                return bl_scanner_maketoken(s, TOK_MINUSEQ);
+            }
             else
-                return make_token(s, TOK_MINUS);
+            {
+                return bl_scanner_maketoken(s, TOK_MINUS);
+            }
         }
         case '*':
             if(bl_scanner_match(s, '*'))
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_POWEQ : TOK_POW);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_POWEQ : TOK_POW);
             }
             else
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_MULTIPLYEQ : TOK_MULTIPLY);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_MULTIPLYEQ : TOK_MULTIPLY);
             }
         case '/':
             if(bl_scanner_match(s, '/'))
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_FLOOREQ : TOK_FLOOR);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_FLOOREQ : TOK_FLOOR);
             }
             else
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_DIVIDEEQ : TOK_DIVIDE);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_DIVIDEEQ : TOK_DIVIDE);
             }
         case '=':
-            return make_token(s, bl_scanner_match(s, '=') ? TOK_EQUALEQ : TOK_EQUAL);
+            return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_EQUALEQ : TOK_EQUAL);
         case '<':
             if(bl_scanner_match(s, '<'))
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_LSHIFTEQ : TOK_LSHIFT);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_LSHIFTEQ : TOK_LSHIFT);
             }
             else
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_LESSEQ : TOK_LESS);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_LESSEQ : TOK_LESS);
             }
         case '>':
             if(bl_scanner_match(s, '>'))
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_RSHIFTEQ : TOK_RSHIFT);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_RSHIFTEQ : TOK_RSHIFT);
             }
             else
             {
-                return make_token(s, bl_scanner_match(s, '=') ? TOK_GREATEREQ : TOK_GREATER);
+                return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_GREATEREQ : TOK_GREATER);
             }
         case '%':
-            return make_token(s, bl_scanner_match(s, '=') ? TOK_PERCENTEQ : TOK_PERCENT);
+            return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_PERCENTEQ : TOK_PERCENT);
         case '&':
-            return make_token(s, bl_scanner_match(s, '=') ? TOK_AMPEQ : TOK_AMP);
+            return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_AMPEQ : TOK_AMP);
         case '|':
-            return make_token(s, bl_scanner_match(s, '=') ? TOK_BAREQ : TOK_BAR);
+            return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_BAREQ : TOK_BAR);
         case '~':
-            return make_token(s, bl_scanner_match(s, '=') ? TOK_TILDEEQ : TOK_TILDE);
+            return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_TILDEEQ : TOK_TILDE);
         case '^':
-            return make_token(s, bl_scanner_match(s, '=') ? TOK_XOREQ : TOK_XOR);
+            return bl_scanner_maketoken(s, bl_scanner_match(s, '=') ? TOK_XOREQ : TOK_XOR);
             // newline
         case '\n':
-            return make_token(s, TOK_NEWLINE);
+            return bl_scanner_maketoken(s, TOK_NEWLINE);
         case '"':
             return bl_scanner_scanstring(s, '"');
         case '\'':
             return bl_scanner_scanstring(s, '\'');
         case '?':
-            return make_token(s, TOK_QUESTION);
+            return bl_scanner_maketoken(s, TOK_QUESTION);
             // --- DO NOT MOVE ABOVE OR BELOW THE DEFAULT CASE ---
             // fall-through tokens goes here... this tokens are only valid
             // when the carry another token with them...
@@ -6289,13 +6481,9 @@ AstToken bl_scanner_scantoken(AstScanner* s)
         default:
             break;
     }
-    return error_token(s, "unexpected character %c", c);
+    return bl_scanner_makeerrortoken(s, "unexpected character %c", c);
 }
 
-static bool is_std_file(ObjFile* file);
-static void add_module(VMState* vm, ObjModule* module);
-static Object* gc_protect(VMState* vm, Object* object);
-static void gc_clear_protection(VMState* vm);
 static BinaryBlob* bl_parser_currentblob(AstParser* p);
 static void bl_parser_errorat(AstParser* p, AstToken* t, const char* message, va_list args);
 static void bl_parser_raiseerror(AstParser* p, const char* message, ...);
@@ -6345,43 +6533,43 @@ static void bl_parser_parseassign(AstParser* p, uint8_t realop, uint8_t getop, u
 static void bl_parser_doassign(AstParser* p, uint8_t getop, uint8_t setop, int arg, bool canassign);
 static void bl_parser_namedvar(AstParser* p, AstToken name, bool canassign);
 static Value bl_parser_compilenumber(AstParser* p);
-static int read_hex_digit(char c);
-static int read_hex_escape(AstParser* p, char* str, int index, int count);
-static int read_unicode_escape(AstParser* p, char* string, char* realstring, int numberbytes, int realindex, int index);
-static char* compile_string(AstParser* p, int* length);
-static void do_parse_precedence(AstParser* p, AstPrecedence precedence);
-static void parse_precedence(AstParser* p, AstPrecedence precedence);
-static void parse_precedence_no_advance(AstParser* p, AstPrecedence precedence);
-static AstRule* get_rule(TokType type);
+static int bl_parser_readhexdigit(char c);
+static int bl_parser_readhexescape(AstParser* p, char* str, int index, int count);
+static int bl_parser_readunicodeescape(AstParser* p, char* string, char* realstring, int numberbytes, int realindex, int index);
+static char* bl_parser_compilestring(AstParser* p, int* length);
+static void bl_parser_doparseprecedence(AstParser* p, AstPrecedence precedence);
+static void bl_parser_parseprecedence(AstParser* p, AstPrecedence precedence);
+static void bl_parser_parseprecnoadvance(AstParser* p, AstPrecedence precedence);
+static AstRule* bl_parser_getrule(TokType type);
 static void bl_parser_parseexpr(AstParser* p);
 static void bl_parser_parseblock(AstParser* p);
-static void function_args(AstParser* p);
-static void function_body(AstParser* p, AstCompiler* compiler);
+static void bl_parser_parsefunctionargs(AstParser* p);
+static void bl_parser_parsefunctionbody(AstParser* p, AstCompiler* compiler);
 static void bl_parser_parsefunction(AstParser* p, FuncType type);
 static void bl_parser_parsemethod(AstParser* p, AstToken classname, bool isstatic);
 static void bl_parser_parsefield(AstParser* p, bool isstatic);
-static void function_declaration(AstParser* p);
-static void class_declaration(AstParser* p);
-static void compile_var_declaration(AstParser* p, bool isinitializer);
-static void var_declaration(AstParser* p);
-static void expression_statement(AstParser* p, bool isinitializer, bool semi);
-static void forloop_statement(AstParser* p);
-static void foreach_statement(AstParser* p);
-static void using_statement(AstParser* p);
-static void if_statement(AstParser* p);
-static void echo_statement(AstParser* p);
-static void die_statement(AstParser* p);
-static void parse_specific_import(AstParser* p, char* modulename, int importconstant, bool wasrenamed, bool isnative);
-static void import_statement(AstParser* p);
-static void assert_statement(AstParser* p);
-static void try_statement(AstParser* p);
-static void return_statement(AstParser* p);
-static void while_statement(AstParser* p);
-static void do_while_statement(AstParser* p);
-static void continue_statement(AstParser* p);
-static void break_statement(AstParser* p);
-static void synchronize(AstParser* p);
-static void declaration(AstParser* p);
+static void bl_parser_parsefunctiondecl(AstParser* p);
+static void bl_parser_parseclassdecl(AstParser* p);
+static void bl_parser_compilevardecl(AstParser* p, bool isinitializer);
+static void bl_parser_parsevardecl(AstParser* p);
+static void bl_parser_parseexprstmt(AstParser* p, bool isinitializer, bool semi);
+static void bl_parser_parseforloopstmt(AstParser* p);
+static void bl_parser_parseforeachstmt(AstParser* p);
+static void bl_parser_parseusingstmt(AstParser* p);
+static void bl_parser_parseifstmt(AstParser* p);
+static void bl_parser_parseechostmt(AstParser* p);
+static void bl_parser_parsediestmt(AstParser* p);
+static void bl_parser_parsespecificimport(AstParser* p, char* modulename, int importconstant, bool wasrenamed, bool isnative);
+static void bl_parser_parseimportstmt(AstParser* p);
+static void bl_parser_parseassertstmt(AstParser* p);
+static void bl_parser_parsetrystmt(AstParser* p);
+static void bl_parser_parsereturnstmt(AstParser* p);
+static void bl_parser_parsewhilestmt(AstParser* p);
+static void bl_parser_parsedowhilestmt(AstParser* p);
+static void bl_parser_parsecontinuestmt(AstParser* p);
+static void bl_parser_parsebreakstmt(AstParser* p);
+static void bl_parser_synchronize(AstParser* p);
+static void bl_parser_parsedeclaration(AstParser* p);
 static void bl_parser_parsestmt(AstParser* p);
 
 static BinaryBlob* bl_parser_currentblob(AstParser* p)
@@ -6395,7 +6583,9 @@ static void bl_parser_errorat(AstParser* p, AstToken* t, const char* message, va
     // do not cascade error
     // suppress error if already in panic mode
     if(p->panicmode)
+    {
         return;
+    }
     p->panicmode = true;
     fprintf(stderr, "SyntaxError");
     if(t->type == TOK_EOF)
@@ -6447,7 +6637,9 @@ static void bl_parser_advance(AstParser* p)
     {
         p->current = bl_scanner_scantoken(p->scanner);
         if(p->current.type != TOK_ERROR)
+        {
             break;
+        }
         bl_parser_raiseerroratcurrent(p, p->current.start);
     }
 }
@@ -6478,7 +6670,9 @@ static void bl_parser_consumeor(AstParser* p, const char* message, const TokType
 static bool bl_parser_checknumber(AstParser* p)
 {
     if(p->previous.type == TOK_REGNUMBER || p->previous.type == TOK_OCTNUMBER || p->previous.type == TOK_BINNUMBER || p->previous.type == TOK_HEXNUMBER)
+    {
         return true;
+    }
     return false;
 }
 
@@ -6490,7 +6684,9 @@ static bool bl_parser_check(AstParser* p, TokType t)
 static bool bl_parser_match(AstParser* p, TokType t)
 {
     if(!bl_parser_check(p, t))
+    {
         return false;
+    }
     bl_parser_advance(p);
     return true;
 }
@@ -6499,24 +6695,34 @@ static void bl_parser_consumestmtend(AstParser* p)
 {
     // allow block last statement to omit statement end
     if(p->blockcount > 0 && bl_parser_check(p, TOK_RBRACE))
+    {
         return;
+    }
     if(bl_parser_match(p, TOK_SEMICOLON))
     {
         while(bl_parser_match(p, TOK_SEMICOLON) || bl_parser_match(p, TOK_NEWLINE))
+        {
             ;
+        }
         return;
     }
     if(bl_parser_match(p, TOK_EOF) || p->previous.type == TOK_EOF)
+    {
         return;
+    }
     bl_parser_consume(p, TOK_NEWLINE, "end of statement expected");
     while(bl_parser_match(p, TOK_SEMICOLON) || bl_parser_match(p, TOK_NEWLINE))
+    {
         ;
+    }
 }
 
 static void bl_parser_ignorespace(AstParser* p)
 {
     while(bl_parser_match(p, TOK_NEWLINE))
+    {
         ;
+    }
 }
 
 static int bl_parser_getcodeargscount(const uint8_t* bytecode, const Value* constants, int ip)
@@ -6653,7 +6859,9 @@ static void bl_parser_emitloop(AstParser* p, int loopstart)
     bl_parser_emitbyte(p, OP_LOOP);
     int offset = bl_parser_currentblob(p)->count - loopstart + 2;
     if(offset > UINT16_MAX)
+    {
         bl_parser_raiseerror(p, "loop body too large");
+    }
     bl_parser_emitbyte(p, (offset >> 8) & 0xff);
     bl_parser_emitbyte(p, offset & 0xff);
 }
@@ -6769,7 +6977,7 @@ static void bl_compiler_init(AstParser* p, AstCompiler* compiler, FuncType type)
     if(type != TYPE_SCRIPT)
     {
         bl_vm_pushvalue(p->vm, OBJ_VAL(compiler->currfunc));
-        p->vm->compiler->currfunc->name = copy_string(p->vm, p->previous.start, p->previous.length);
+        p->vm->compiler->currfunc->name = bl_string_copystring(p->vm, p->previous.start, p->previous.length);
         bl_vm_popvalue(p->vm);
     }
     // claiming slot zero for use in class methods
@@ -6790,7 +6998,7 @@ static void bl_compiler_init(AstParser* p, AstCompiler* compiler, FuncType type)
 
 static int bl_parser_identconst(AstParser* p, AstToken* name)
 {
-    return bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, name->start, name->length)));
+    return bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystring(p->vm, name->start, name->length)));
 }
 
 static bool bl_parser_identsequal(AstToken* a, AstToken* b)
@@ -6839,7 +7047,9 @@ static int bl_compiler_addupvalue(AstParser* p, AstCompiler* compiler, uint16_t 
 static int bl_compiler_resolveupvalue(AstParser* p, AstCompiler* compiler, AstToken* name)
 {
     if(compiler->enclosing == NULL)
+    {
         return -1;
+    }
     int local = bl_compiler_resolvelocal(p, compiler->enclosing, name);
     if(local != -1)
     {
@@ -6873,7 +7083,9 @@ static void bl_parser_declvar(AstParser* p)
 {
     // global variables are implicitly declared...
     if(p->vm->compiler->scopedepth == 0)
+    {
         return;
+    }
     AstToken* name = &p->previous;
     for(int i = p->vm->compiler->localcount - 1; i >= 0; i--)
     {
@@ -6894,15 +7106,19 @@ static int bl_parser_parsevar(AstParser* p, const char* message)
 {
     bl_parser_consume(p, TOK_IDENTIFIER, message);
     bl_parser_declvar(p);
-    if(p->vm->compiler->scopedepth > 0)// we are in a local scope...
+    if(p->vm->compiler->scopedepth > 0)
+    {// we are in a local scope...
         return 0;
+    }
     return bl_parser_identconst(p, &p->previous);
 }
 
 static void bl_parser_markinit(AstParser* p)
 {
     if(p->vm->compiler->scopedepth == 0)
+    {
         return;
+    }
     p->vm->compiler->locals[p->vm->compiler->localcount - 1].depth = p->vm->compiler->scopedepth;
 }
 
@@ -6930,7 +7146,7 @@ static ObjFunction* bl_compiler_end(AstParser* p)
     ObjFunction* function = p->vm->compiler->currfunc;
     if(!p->haderror && p->vm->shouldprintbytecode)
     {
-        disassemble_blob(bl_parser_currentblob(p), function->name == NULL ? p->module->file : function->name->chars);
+        bl_blob_disassembleitem(bl_parser_currentblob(p), function->name == NULL ? p->module->file : function->name->chars);
     }
     p->vm->compiler = p->vm->compiler->enclosing;
     return function;
@@ -7004,8 +7220,8 @@ static void bl_parser_rulebinary(AstParser* p, AstToken previous, bool canassign
     (void)canassign;
     op = p->previous.type;
     // compile the right operand
-    rule = get_rule(op);
-    parse_precedence(p, (AstPrecedence)(rule->precedence + 1));
+    rule = bl_parser_getrule(op);
+    bl_parser_parseprecedence(p, (AstPrecedence)(rule->precedence + 1));
     // emit the operator instruction
     switch(op)
     {
@@ -7293,7 +7509,8 @@ static void bl_parser_ruledot(AstParser* p, AstToken previous, bool canassign)
     }
     else
     {
-        OpCode getop = OP_GET_PROPERTY, setop = OP_SET_PROPERTY;
+        OpCode getop = OP_GET_PROPERTY;
+        OpCode setop = OP_SET_PROPERTY;
         if(p->currentclass != NULL && (previous.type == TOK_SELF || bl_parser_identsequal(&p->previous, &p->currentclass->name)))
         {
             getop = OP_GET_SELF_PROPERTY;
@@ -7304,7 +7521,8 @@ static void bl_parser_ruledot(AstParser* p, AstToken previous, bool canassign)
 
 static void bl_parser_namedvar(AstParser* p, AstToken name, bool canassign)
 {
-    uint8_t getop, setop;
+    uint8_t getop;
+    uint8_t setop;
     int arg = bl_compiler_resolvelocal(p, p->vm->compiler, &name);
     if(arg != -1)
     {
@@ -7362,7 +7580,7 @@ static void bl_parser_ruledict(AstParser* p, bool canassign)
                 if(bl_parser_check(p, TOK_IDENTIFIER))
                 {
                     bl_parser_consume(p, TOK_IDENTIFIER, "");
-                    bl_parser_emitconstant(p, OBJ_VAL(copy_string(p->vm, p->previous.start, p->previous.length)));
+                    bl_parser_emitconstant(p, OBJ_VAL(bl_string_copystring(p->vm, p->previous.start, p->previous.length)));
                 }
                 else
                 {
@@ -7533,48 +7751,57 @@ static void bl_parser_rulenumber(AstParser* p, bool canassign)
 
 // Reads the next character, which should be a hex digit (0-9, a-f, or A-F) and
 // returns its numeric value. If the character isn't a hex digit, returns -1.
-static int read_hex_digit(char c)
+static int bl_parser_readhexdigit(char c)
 {
     if(c >= '0' && c <= '9')
+    {
         return c - '0';
+    }
     if(c >= 'a' && c <= 'f')
+    {
         return c - 'a' + 10;
+    }
     if(c >= 'A' && c <= 'F')
+    {
         return c - 'A' + 10;
+    }
     return -1;
 }
 
 // Reads [digits] hex digits in a string literal and returns their number value.
-static int read_hex_escape(AstParser* p, char* str, int index, int count)
+static int bl_parser_readhexescape(AstParser* p, char* str, int index, int count)
 {
     int value = 0;
-    int i = 0, digit = 0;
+    int i = 0;
+    int digit = 0;
     for(; i < count; i++)
     {
-        digit = read_hex_digit(str[index + i + 2]);
+        digit = bl_parser_readhexdigit(str[index + i + 2]);
         if(digit == -1)
         {
             bl_parser_raiseerror(p, "invalid escape sequence");
         }
         value = (value * 16) | digit;
     }
-    if(count == 4 && (digit = read_hex_digit(str[index + i + 2])) != -1)
+    if(count == 4 && (digit = bl_parser_readhexdigit(str[index + i + 2])) != -1)
     {
         value = (value * 16) | digit;
     }
     return value;
 }
 
-static int read_unicode_escape(AstParser* p, char* string, char* realstring, int numberbytes, int realindex, int index)
+static int bl_parser_readunicodeescape(AstParser* p, char* string, char* realstring, int numberbytes, int realindex, int index)
 {
-    int value = read_hex_escape(p, realstring, realindex, numberbytes);
+    int value = bl_parser_readhexescape(p, realstring, realindex, numberbytes);
     int count = bl_util_utf8numbytes(value);
     if(count == -1)
     {
         bl_parser_raiseerror(p, "cannot encode a negative unicode value");
     }
-    if(value > 65535)// check for greater that \uffff
+    if(value > 65535)
+    {// check for greater that \uffff
         count++;
+    }
     if(count != 0)
     {
         memcpy(string + index, bl_util_utf8encode(value), (size_t)count + 1);
@@ -7584,11 +7811,12 @@ static int read_unicode_escape(AstParser* p, char* string, char* realstring, int
     return count;
 }
 
-static char* compile_string(AstParser* p, int* length)
+static char* bl_parser_compilestring(AstParser* p, int* length)
 {
     char* str = (char*)malloc((((size_t)p->previous.length - 2) + 1) * sizeof(char));
     char* real = (char*)p->previous.start + 1;
-    int reallength = p->previous.length - 2, k = 0;
+    int reallength = p->previous.length - 2;
+    int k = 0;
     for(int i = 0; i < reallength; i++, k++)
     {
         char c = real[i];
@@ -7634,20 +7862,20 @@ static char* compile_string(AstParser* p, int* length)
                     break;
                 case 'x':
                 {
-                    k += read_unicode_escape(p, str, real, 2, i, k) - 1;
+                    k += bl_parser_readunicodeescape(p, str, real, 2, i, k) - 1;
                     i += 3;
                     continue;
                 }
                 case 'u':
                 {
-                    int count = read_unicode_escape(p, str, real, 4, i, k);
+                    int count = bl_parser_readunicodeescape(p, str, real, 4, i, k);
                     k += count > 4 ? count - 2 : count - 1;
                     i += count > 4 ? 6 : 5;
                     continue;
                 }
                 case 'U':
                 {
-                    int count = read_unicode_escape(p, str, real, 8, i, k);
+                    int count = bl_parser_readunicodeescape(p, str, real, 8, i, k);
                     k += count > 4 ? count - 2 : count - 1;
                     i += 9;
                     continue;
@@ -7670,8 +7898,8 @@ static void bl_parser_rulestring(AstParser* p, bool canassign)
     int length;
     char* str;
     (void)canassign;
-    str = compile_string(p, &length);
-    bl_parser_emitconstant(p, OBJ_VAL(take_string(p->vm, str, length)));
+    str = bl_parser_compilestring(p, &length);
+    bl_parser_emitconstant(p, OBJ_VAL(bl_string_takestring(p->vm, str, length)));
 }
 
 static void bl_parser_rulestrinterpol(AstParser* p, bool canassign)
@@ -7713,7 +7941,7 @@ static void bl_parser_ruleunary(AstParser* p, bool canassign)
     (void)canassign;
     op = p->previous.type;
     // compile the expression
-    parse_precedence(p, PREC_UNARY);
+    bl_parser_parseprecedence(p, PREC_UNARY);
     // emit instruction
     switch(op)
     {
@@ -7738,7 +7966,7 @@ static void bl_parser_ruleand(AstParser* p, AstToken previous, bool canassign)
     (void)canassign;
     endjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
     bl_parser_emitbyte(p, OP_POP);
-    parse_precedence(p, PREC_AND);
+    bl_parser_parseprecedence(p, PREC_AND);
     bl_parser_patchjump(p, endjump);
 }
 
@@ -7752,7 +7980,7 @@ static void bl_parser_ruleor(AstParser* p, AstToken previous, bool canassign)
     endjump = bl_parser_emitjump(p, OP_JUMP);
     bl_parser_patchjump(p, elsejump);
     bl_parser_emitbyte(p, OP_POP);
-    parse_precedence(p, PREC_OR);
+    bl_parser_parseprecedence(p, PREC_OR);
     bl_parser_patchjump(p, endjump);
 }
 
@@ -7764,7 +7992,7 @@ static void bl_parser_ruleconditional(AstParser* p, AstToken previous, bool cana
     bl_parser_emitbyte(p, OP_POP);
     bl_parser_ignorespace(p);
     // compile the then expression
-    parse_precedence(p, PREC_CONDITIONAL);
+    bl_parser_parseprecedence(p, PREC_CONDITIONAL);
     bl_parser_ignorespace(p);
     int elsejump = bl_parser_emitjump(p, OP_JUMP);
     bl_parser_patchjump(p, thenjump);
@@ -7774,7 +8002,7 @@ static void bl_parser_ruleconditional(AstParser* p, AstToken previous, bool cana
     // compile the else expression
     // here we parse at PREC_ASSIGNMENT precedence as
     // linear conditionals can be nested.
-    parse_precedence(p, PREC_ASSIGNMENT);
+    bl_parser_parseprecedence(p, PREC_ASSIGNMENT);
     bl_parser_patchjump(p, elsejump);
 }
 
@@ -7787,117 +8015,18 @@ static void bl_parser_ruleanon(AstParser* p, bool canassign)
     // compile parameter list
     if(!bl_parser_check(p, TOK_BAR))
     {
-        function_args(p);
+        bl_parser_parsefunctionargs(p);
     }
     bl_parser_consume(p, TOK_BAR, "expected '|' after anonymous function parameters");
-    function_body(p, &compiler);
+    bl_parser_parsefunctionbody(p, &compiler);
 }
 
-static AstRule parserules[] = {
-    // symbols
-    [TOK_NEWLINE] = { NULL, NULL, PREC_NONE },// (
-    [TOK_LPAREN] = { bl_parser_rulegrouping, bl_parser_rulecall, PREC_CALL },// (
-    [TOK_RPAREN] = { NULL, NULL, PREC_NONE },// )
-    [TOK_LBRACKET] = { bl_parser_rulelist, bl_parser_ruleindexing, PREC_CALL },// [
-    [TOK_RBRACKET] = { NULL, NULL, PREC_NONE },// ]
-    [TOK_LBRACE] = { bl_parser_ruledict, NULL, PREC_NONE },// {
-    [TOK_RBRACE] = { NULL, NULL, PREC_NONE },// }
-    [TOK_SEMICOLON] = { NULL, NULL, PREC_NONE },// ;
-    [TOK_COMMA] = { NULL, NULL, PREC_NONE },// ,
-    [TOK_BACKSLASH] = { NULL, NULL, PREC_NONE },// '\'
-    [TOK_BANG] = { bl_parser_ruleunary, NULL, PREC_NONE },// !
-    [TOK_BANGEQ] = { NULL, bl_parser_rulebinary, PREC_EQUALITY },// !=
-    [TOK_COLON] = { NULL, NULL, PREC_NONE },// :
-    [TOK_AT] = { NULL, NULL, PREC_NONE },// @
-    [TOK_DOT] = { NULL, bl_parser_ruledot, PREC_CALL },// .
-    [TOK_RANGE] = { NULL, bl_parser_rulebinary, PREC_RANGE },// ..
-    [TOK_TRIDOT] = { NULL, NULL, PREC_NONE },// ...
-    [TOK_PLUS] = { bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM },// +
-    [TOK_PLUSEQ] = { NULL, NULL, PREC_NONE },// +=
-    [TOK_INCREMENT] = { NULL, NULL, PREC_NONE },// ++
-    [TOK_MINUS] = { bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM },// -
-    [TOK_MINUSEQ] = { NULL, NULL, PREC_NONE },// -=
-    [TOK_DECREMENT] = { NULL, NULL, PREC_NONE },// --
-    [TOK_MULTIPLY] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// *
-    [TOK_MULTIPLYEQ] = { NULL, NULL, PREC_NONE },// *=
-    [TOK_POW] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// **
-    [TOK_POWEQ] = { NULL, NULL, PREC_NONE },// **=
-    [TOK_DIVIDE] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// '/'
-    [TOK_DIVIDEEQ] = { NULL, NULL, PREC_NONE },// '/='
-    [TOK_FLOOR] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// '//'
-    [TOK_FLOOREQ] = { NULL, NULL, PREC_NONE },// '//='
-    [TOK_EQUAL] = { NULL, NULL, PREC_NONE },// =
-    [TOK_EQUALEQ] = { NULL, bl_parser_rulebinary, PREC_EQUALITY },// ==
-    [TOK_LESS] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// <
-    [TOK_LESSEQ] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// <=
-    [TOK_LSHIFT] = { NULL, bl_parser_rulebinary, PREC_SHIFT },// <<
-    [TOK_LSHIFTEQ] = { NULL, NULL, PREC_NONE },// <<=
-    [TOK_GREATER] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// >
-    [TOK_GREATEREQ] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// >=
-    [TOK_RSHIFT] = { NULL, bl_parser_rulebinary, PREC_SHIFT },// >>
-    [TOK_RSHIFTEQ] = { NULL, NULL, PREC_NONE },// >>=
-    [TOK_PERCENT] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// %
-    [TOK_PERCENTEQ] = { NULL, NULL, PREC_NONE },// %=
-    [TOK_AMP] = { NULL, bl_parser_rulebinary, PREC_BIT_AND },// &
-    [TOK_AMPEQ] = { NULL, NULL, PREC_NONE },// &=
-    [TOK_BAR] = { bl_parser_ruleanon, bl_parser_rulebinary, PREC_BIT_OR },// |
-    [TOK_BAREQ] = { NULL, NULL, PREC_NONE },// |=
-    [TOK_TILDE] = { bl_parser_ruleunary, NULL, PREC_UNARY },// ~
-    [TOK_TILDEEQ] = { NULL, NULL, PREC_NONE },// ~=
-    [TOK_XOR] = { NULL, bl_parser_rulebinary, PREC_BIT_XOR },// ^
-    [TOK_XOREQ] = { NULL, NULL, PREC_NONE },// ^=
-    [TOK_QUESTION] = { NULL, bl_parser_ruleconditional, PREC_CONDITIONAL },// ??
-    // keywords
-    [TOK_AND] = { NULL, bl_parser_ruleand, PREC_AND },
-    [TOK_AS] = { NULL, NULL, PREC_NONE },
-    [TOK_ASSERT] = { NULL, NULL, PREC_NONE },
-    [TOK_BREAK] = { NULL, NULL, PREC_NONE },
-    [TOK_CLASS] = { NULL, NULL, PREC_NONE },
-    [TOK_CONTINUE] = { NULL, NULL, PREC_NONE },
-    [TOK_DEF] = { NULL, NULL, PREC_NONE },
-    [TOK_DEFAULT] = { NULL, NULL, PREC_NONE },
-    [TOK_DIE] = { NULL, NULL, PREC_NONE },
-    [TOK_DO] = { NULL, NULL, PREC_NONE },
-    [TOK_ECHO] = { NULL, NULL, PREC_NONE },
-    [TOK_ELSE] = { NULL, NULL, PREC_NONE },
-    [TOK_FALSE] = { bl_parser_ruleliteral, NULL, PREC_NONE },
-    [TOK_FOREACH] = { NULL, NULL, PREC_NONE },
-    [TOK_IF] = { NULL, NULL, PREC_NONE },
-    [TOK_IMPORT] = { NULL, NULL, PREC_NONE },
-    [TOK_IN] = { NULL, NULL, PREC_NONE },
-    [TOK_FORLOOP] = { NULL, NULL, PREC_NONE },
-    [TOK_VAR] = { NULL, NULL, PREC_NONE },
-    [TOK_NIL] = { bl_parser_ruleliteral, NULL, PREC_NONE },
-    [TOK_OR] = { NULL, bl_parser_ruleor, PREC_OR },
-    [TOK_PARENT] = { bl_parser_ruleparent, NULL, PREC_NONE },
-    [TOK_RETURN] = { NULL, NULL, PREC_NONE },
-    [TOK_SELF] = { bl_parser_ruleself, NULL, PREC_NONE },
-    [TOK_STATIC] = { NULL, NULL, PREC_NONE },
-    [TOK_TRUE] = { bl_parser_ruleliteral, NULL, PREC_NONE },
-    [TOK_USING] = { NULL, NULL, PREC_NONE },
-    [TOK_WHEN] = { NULL, NULL, PREC_NONE },
-    [TOK_WHILE] = { NULL, NULL, PREC_NONE },
-    [TOK_TRY] = { NULL, NULL, PREC_NONE },
-    [TOK_CATCH] = { NULL, NULL, PREC_NONE },
-    [TOK_FINALLY] = { NULL, NULL, PREC_NONE },
-    // types token
-    [TOK_LITERAL] = { bl_parser_rulestring, NULL, PREC_NONE },
-    [TOK_REGNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// regular numbers
-    [TOK_BINNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// binary numbers
-    [TOK_OCTNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// octal numbers
-    [TOK_HEXNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// hexadecimal numbers
-    [TOK_IDENTIFIER] = { bl_parser_rulevariable, NULL, PREC_NONE },
-    [TOK_INTERPOLATION] = { bl_parser_rulestrinterpol, NULL, PREC_NONE },
-    [TOK_EOF] = { NULL, NULL, PREC_NONE },
-    // error
-    [TOK_ERROR] = { NULL, NULL, PREC_NONE },
-    [TOK_EMPTY] = { bl_parser_ruleliteral, NULL, PREC_NONE },
-    [TOK_UNDEFINED] = { NULL, NULL, PREC_NONE },
-};
 
-static void do_parse_precedence(AstParser* p, AstPrecedence precedence)
+
+static void bl_parser_doparseprecedence(AstParser* p, AstPrecedence precedence)
 {
-    bparseprefixfn prefix_rule = get_rule(p->previous.type)->prefix;
+    AstToken previous;
+    bparseprefixfn prefix_rule = bl_parser_getrule(p->previous.type)->prefix;
     if(prefix_rule == NULL)
     {
         bl_parser_raiseerror(p, "expected expression");
@@ -7905,12 +8034,12 @@ static void do_parse_precedence(AstParser* p, AstPrecedence precedence)
     }
     bool canassign = precedence <= PREC_ASSIGNMENT;
     prefix_rule(p, canassign);
-    while(precedence <= get_rule(p->current.type)->precedence)
+    while(precedence <= bl_parser_getrule(p->current.type)->precedence)
     {
-        AstToken previous = p->previous;
+        previous = p->previous;
         bl_parser_ignorespace(p);
         bl_parser_advance(p);
-        bparseinfixfn infix_rule = get_rule(p->previous.type)->infix;
+        bparseinfixfn infix_rule = bl_parser_getrule(p->previous.type)->infix;
         infix_rule(p, previous, canassign);
     }
     if(canassign && bl_parser_match(p, TOK_EQUAL))
@@ -7919,35 +8048,506 @@ static void do_parse_precedence(AstParser* p, AstPrecedence precedence)
     }
 }
 
-static void parse_precedence(AstParser* p, AstPrecedence precedence)
+static void bl_parser_parseprecedence(AstParser* p, AstPrecedence precedence)
 {
     if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    {
         return;
+    }
     bl_parser_ignorespace(p);
     if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    {
         return;
+    }
     bl_parser_advance(p);
-    do_parse_precedence(p, precedence);
+    bl_parser_doparseprecedence(p, precedence);
 }
 
-static void parse_precedence_no_advance(AstParser* p, AstPrecedence precedence)
+static void bl_parser_parseprecnoadvance(AstParser* p, AstPrecedence precedence)
 {
     if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    {
         return;
+    }
     bl_parser_ignorespace(p);
     if(bl_scanner_isatend(p->scanner) && p->vm->isrepl)
+    {
         return;
-    do_parse_precedence(p, precedence);
+    }
+    bl_parser_doparseprecedence(p, precedence);
 }
 
-static AstRule* get_rule(TokType type)
+static inline AstRule* bl_parser_makerule(AstRule* dest, bparseprefixfn prefix, bparseinfixfn infix, AstPrecedence precedence)
 {
+    dest->prefix = prefix;
+    dest->infix = infix;
+    dest->precedence = precedence;
+    return dest;
+}
+
+AstRule* bl_parser_getrule(TokType type)
+{
+    #if 0
+    // clang-format off
+    static AstRule parserules[] = {
+        // symbols
+        [TOK_NEWLINE] = { NULL, NULL, PREC_NONE },// (
+        [TOK_LPAREN] = { bl_parser_rulegrouping, bl_parser_rulecall, PREC_CALL },// (
+        [TOK_RPAREN] = { NULL, NULL, PREC_NONE },// )
+        [TOK_LBRACKET] = { bl_parser_rulelist, bl_parser_ruleindexing, PREC_CALL },// [
+        [TOK_RBRACKET] = { NULL, NULL, PREC_NONE },// ]
+        [TOK_LBRACE] = { bl_parser_ruledict, NULL, PREC_NONE },// {
+        [TOK_RBRACE] = { NULL, NULL, PREC_NONE },// }
+        [TOK_SEMICOLON] = { NULL, NULL, PREC_NONE },// ;
+        [TOK_COMMA] = { NULL, NULL, PREC_NONE },// ,
+        [TOK_BACKSLASH] = { NULL, NULL, PREC_NONE },// '\'
+        [TOK_BANG] = { bl_parser_ruleunary, NULL, PREC_NONE },// !
+        [TOK_BANGEQ] = { NULL, bl_parser_rulebinary, PREC_EQUALITY },// !=
+        [TOK_COLON] = { NULL, NULL, PREC_NONE },// :
+        [TOK_AT] = { NULL, NULL, PREC_NONE },// @
+        [TOK_DOT] = { NULL, bl_parser_ruledot, PREC_CALL },// .
+        [TOK_RANGE] = { NULL, bl_parser_rulebinary, PREC_RANGE },// ..
+        [TOK_TRIDOT] = { NULL, NULL, PREC_NONE },// ...
+        [TOK_PLUS] = { bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM },// +
+        [TOK_PLUSEQ] = { NULL, NULL, PREC_NONE },// +=
+        [TOK_INCREMENT] = { NULL, NULL, PREC_NONE },// ++
+        [TOK_MINUS] = { bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM },// -
+        [TOK_MINUSEQ] = { NULL, NULL, PREC_NONE },// -=
+        [TOK_DECREMENT] = { NULL, NULL, PREC_NONE },// --
+        [TOK_MULTIPLY] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// *
+        [TOK_MULTIPLYEQ] = { NULL, NULL, PREC_NONE },// *=
+        [TOK_POW] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// **
+        [TOK_POWEQ] = { NULL, NULL, PREC_NONE },// **=
+        [TOK_DIVIDE] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// '/'
+        [TOK_DIVIDEEQ] = { NULL, NULL, PREC_NONE },// '/='
+        [TOK_FLOOR] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// '//'
+        [TOK_FLOOREQ] = { NULL, NULL, PREC_NONE },// '//='
+        [TOK_EQUAL] = { NULL, NULL, PREC_NONE },// =
+        [TOK_EQUALEQ] = { NULL, bl_parser_rulebinary, PREC_EQUALITY },// ==
+        [TOK_LESS] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// <
+        [TOK_LESSEQ] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// <=
+        [TOK_LSHIFT] = { NULL, bl_parser_rulebinary, PREC_SHIFT },// <<
+        [TOK_LSHIFTEQ] = { NULL, NULL, PREC_NONE },// <<=
+        [TOK_GREATER] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// >
+        [TOK_GREATEREQ] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// >=
+        [TOK_RSHIFT] = { NULL, bl_parser_rulebinary, PREC_SHIFT },// >>
+        [TOK_RSHIFTEQ] = { NULL, NULL, PREC_NONE },// >>=
+        [TOK_PERCENT] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// %
+        [TOK_PERCENTEQ] = { NULL, NULL, PREC_NONE },// %=
+        [TOK_AMP] = { NULL, bl_parser_rulebinary, PREC_BIT_AND },// &
+        [TOK_AMPEQ] = { NULL, NULL, PREC_NONE },// &=
+        [TOK_BAR] = { bl_parser_ruleanon, bl_parser_rulebinary, PREC_BIT_OR },// |
+        [TOK_BAREQ] = { NULL, NULL, PREC_NONE },// |=
+        [TOK_TILDE] = { bl_parser_ruleunary, NULL, PREC_UNARY },// ~
+        [TOK_TILDEEQ] = { NULL, NULL, PREC_NONE },// ~=
+        [TOK_XOR] = { NULL, bl_parser_rulebinary, PREC_BIT_XOR },// ^
+        [TOK_XOREQ] = { NULL, NULL, PREC_NONE },// ^=
+        [TOK_QUESTION] = { NULL, bl_parser_ruleconditional, PREC_CONDITIONAL },// ??
+        // keywords
+        [TOK_AND] = { NULL, bl_parser_ruleand, PREC_AND },
+        [TOK_AS] = { NULL, NULL, PREC_NONE },
+        [TOK_ASSERT] = { NULL, NULL, PREC_NONE },
+        [TOK_BREAK] = { NULL, NULL, PREC_NONE },
+        [TOK_CLASS] = { NULL, NULL, PREC_NONE },
+        [TOK_CONTINUE] = { NULL, NULL, PREC_NONE },
+        [TOK_DEF] = { NULL, NULL, PREC_NONE },
+        [TOK_DEFAULT] = { NULL, NULL, PREC_NONE },
+        [TOK_DIE] = { NULL, NULL, PREC_NONE },
+        [TOK_DO] = { NULL, NULL, PREC_NONE },
+        [TOK_ECHO] = { NULL, NULL, PREC_NONE },
+        [TOK_ELSE] = { NULL, NULL, PREC_NONE },
+        [TOK_FALSE] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_FOREACH] = { NULL, NULL, PREC_NONE },
+        [TOK_IF] = { NULL, NULL, PREC_NONE },
+        [TOK_IMPORT] = { NULL, NULL, PREC_NONE },
+        [TOK_IN] = { NULL, NULL, PREC_NONE },
+        [TOK_FORLOOP] = { NULL, NULL, PREC_NONE },
+        [TOK_VAR] = { NULL, NULL, PREC_NONE },
+        [TOK_NIL] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_OR] = { NULL, bl_parser_ruleor, PREC_OR },
+        [TOK_PARENT] = { bl_parser_ruleparent, NULL, PREC_NONE },
+        [TOK_RETURN] = { NULL, NULL, PREC_NONE },
+        [TOK_SELF] = { bl_parser_ruleself, NULL, PREC_NONE },
+        [TOK_STATIC] = { NULL, NULL, PREC_NONE },
+        [TOK_TRUE] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_USING] = { NULL, NULL, PREC_NONE },
+        [TOK_WHEN] = { NULL, NULL, PREC_NONE },
+        [TOK_WHILE] = { NULL, NULL, PREC_NONE },
+        [TOK_TRY] = { NULL, NULL, PREC_NONE },
+        [TOK_CATCH] = { NULL, NULL, PREC_NONE },
+        [TOK_FINALLY] = { NULL, NULL, PREC_NONE },
+        // types token
+        [TOK_LITERAL] = { bl_parser_rulestring, NULL, PREC_NONE },
+        [TOK_REGNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// regular numbers
+        [TOK_BINNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// binary numbers
+        [TOK_OCTNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// octal numbers
+        [TOK_HEXNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// hexadecimal numbers
+        [TOK_IDENTIFIER] = { bl_parser_rulevariable, NULL, PREC_NONE },
+        [TOK_INTERPOLATION] = { bl_parser_rulestrinterpol, NULL, PREC_NONE },
+        [TOK_EOF] = { NULL, NULL, PREC_NONE },
+        // error
+        [TOK_ERROR] = { NULL, NULL, PREC_NONE },
+        [TOK_EMPTY] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_UNDEFINED] = { NULL, NULL, PREC_NONE },
+    };
+    // clang-format on
     return &parserules[type];
+    #else
+    static AstRule rule;
+    switch(type)
+    {
+        // symbols
+        // (
+        case TOK_NEWLINE:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // (
+        case TOK_LPAREN:
+            return bl_parser_makerule(&rule, bl_parser_rulegrouping, bl_parser_rulecall, PREC_CALL);
+            break;
+        // )
+        case TOK_RPAREN:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // [
+        case TOK_LBRACKET:
+            return bl_parser_makerule(&rule, bl_parser_rulelist, bl_parser_ruleindexing, PREC_CALL);
+            break;
+        // ]
+        case TOK_RBRACKET:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // {
+        case TOK_LBRACE:
+            return bl_parser_makerule(&rule, bl_parser_ruledict, NULL, PREC_NONE);
+            break;
+        // }
+        case TOK_RBRACE:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ;
+        case TOK_SEMICOLON:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ,
+        case TOK_COMMA:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ''
+        case TOK_BACKSLASH:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // !
+        case TOK_BANG:
+            return bl_parser_makerule(&rule, bl_parser_ruleunary, NULL, PREC_NONE);
+            break;
+        // !=
+        case TOK_BANGEQ:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_EQUALITY);
+            break;
+        // :
+        case TOK_COLON:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // @
+        case TOK_AT:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // .
+        case TOK_DOT:
+            return bl_parser_makerule(&rule, NULL, bl_parser_ruledot, PREC_CALL);
+            break;
+        // ..
+        case TOK_RANGE:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_RANGE);
+            break;
+        // ...
+        case TOK_TRIDOT:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // +
+        case TOK_PLUS:
+            return bl_parser_makerule(&rule, bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM);
+            break;
+        // +=
+        case TOK_PLUSEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ++
+        case TOK_INCREMENT:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // -
+        case TOK_MINUS:
+            return bl_parser_makerule(&rule, bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM);
+            break;
+        // -=
+        case TOK_MINUSEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // --
+        case TOK_DECREMENT:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // *
+        case TOK_MULTIPLY:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_FACTOR);
+            break;
+        // *=
+        case TOK_MULTIPLYEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // **
+        case TOK_POW:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_FACTOR);
+            break;
+        // **=
+        case TOK_POWEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // '/'
+        case TOK_DIVIDE:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_FACTOR);
+            break;
+        // '/='
+        case TOK_DIVIDEEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // '//'
+        case TOK_FLOOR:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_FACTOR);
+            break;
+        // '//='
+        case TOK_FLOOREQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // =
+        case TOK_EQUAL:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ==
+        case TOK_EQUALEQ:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_EQUALITY);
+            break;
+        // <
+        case TOK_LESS:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_COMPARISON);
+            break;
+        // <=
+        case TOK_LESSEQ:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_COMPARISON);
+            break;
+        // <<
+        case TOK_LSHIFT:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_SHIFT);
+            break;
+        // <<=
+        case TOK_LSHIFTEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // >
+        case TOK_GREATER:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_COMPARISON);
+            break;
+        // >=
+        case TOK_GREATEREQ:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_COMPARISON);
+            break;
+        // >>
+        case TOK_RSHIFT:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_SHIFT);
+            break;
+        // >>=
+        case TOK_RSHIFTEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // %
+        case TOK_PERCENT:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_FACTOR);
+            break;
+        // %=
+        case TOK_PERCENTEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // &
+        case TOK_AMP:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_BIT_AND);
+            break;
+        // &=
+        case TOK_AMPEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // |
+        case TOK_BAR:
+            return bl_parser_makerule(&rule, bl_parser_ruleanon, bl_parser_rulebinary, PREC_BIT_OR);
+            break;
+        // |=
+        case TOK_BAREQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ~
+        case TOK_TILDE:
+            return bl_parser_makerule(&rule, bl_parser_ruleunary, NULL, PREC_UNARY);
+            break;
+        // ~=
+        case TOK_TILDEEQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ^
+        case TOK_XOR:
+            return bl_parser_makerule(&rule, NULL, bl_parser_rulebinary, PREC_BIT_XOR);
+            break;
+        // ^=
+        case TOK_XOREQ:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // ??
+        case TOK_QUESTION:
+            return bl_parser_makerule(&rule, NULL, bl_parser_ruleconditional, PREC_CONDITIONAL);
+            break;
+        // keywords
+        case TOK_AND:
+            return bl_parser_makerule(&rule, NULL, bl_parser_ruleand, PREC_AND);
+            break;
+        case TOK_AS:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_ASSERT:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_BREAK:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_CLASS:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_CONTINUE:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_DEF:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_DEFAULT:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_DIE:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_DO:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_ECHO:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_ELSE:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_FALSE:
+            return bl_parser_makerule(&rule, bl_parser_ruleliteral, NULL, PREC_NONE);
+            break;
+        case TOK_FOREACH:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_IF:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_IMPORT:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_IN:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_FORLOOP:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_VAR:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_NIL:
+            return bl_parser_makerule(&rule, bl_parser_ruleliteral, NULL, PREC_NONE);
+            break;
+        case TOK_OR:
+            return bl_parser_makerule(&rule, NULL, bl_parser_ruleor, PREC_OR);
+            break;
+        case TOK_PARENT:
+            return bl_parser_makerule(&rule, bl_parser_ruleparent, NULL, PREC_NONE);
+            break;
+        case TOK_RETURN:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_SELF:
+            return bl_parser_makerule(&rule, bl_parser_ruleself, NULL, PREC_NONE);
+            break;
+        case TOK_STATIC:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_TRUE:
+            return bl_parser_makerule(&rule, bl_parser_ruleliteral, NULL, PREC_NONE);
+            break;
+        case TOK_USING:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_WHEN:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_WHILE:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_TRY:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_CATCH:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_FINALLY:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // types token
+        case TOK_LITERAL:
+            return bl_parser_makerule(&rule, bl_parser_rulestring, NULL, PREC_NONE);
+            break;
+        // regular numbers
+        case TOK_REGNUMBER:
+            return bl_parser_makerule(&rule, bl_parser_rulenumber, NULL, PREC_NONE);
+            break;
+        // binary numbers
+        case TOK_BINNUMBER:
+            return bl_parser_makerule(&rule, bl_parser_rulenumber, NULL, PREC_NONE);
+            break;
+        // octal numbers
+        case TOK_OCTNUMBER:
+            return bl_parser_makerule(&rule, bl_parser_rulenumber, NULL, PREC_NONE);
+            break;
+        // hexadecimal numbers
+        case TOK_HEXNUMBER:
+            return bl_parser_makerule(&rule, bl_parser_rulenumber, NULL, PREC_NONE);
+            break;
+        case TOK_IDENTIFIER:
+            return bl_parser_makerule(&rule, bl_parser_rulevariable, NULL, PREC_NONE);
+            break;
+        case TOK_INTERPOLATION:
+            return bl_parser_makerule(&rule, bl_parser_rulestrinterpol, NULL, PREC_NONE);
+            break;
+        case TOK_EOF:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        // error
+        case TOK_ERROR:
+            return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+            break;
+        case TOK_EMPTY:
+            return bl_parser_makerule(&rule, bl_parser_ruleliteral, NULL, PREC_NONE);
+            break;
+        default:
+            break;
+    }
+    return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+    #endif
 }
 
 static void bl_parser_parseexpr(AstParser* p)
 {
-    parse_precedence(p, PREC_ASSIGNMENT);
+    bl_parser_parseprecedence(p, PREC_ASSIGNMENT);
 }
 
 static void bl_parser_parseblock(AstParser* p)
@@ -7956,13 +8556,13 @@ static void bl_parser_parseblock(AstParser* p)
     bl_parser_ignorespace(p);
     while(!bl_parser_check(p, TOK_RBRACE) && !bl_parser_check(p, TOK_EOF))
     {
-        declaration(p);
+        bl_parser_parsedeclaration(p);
     }
     p->blockcount--;
     bl_parser_consume(p, TOK_RBRACE, "expected '}' after block");
 }
 
-static void function_args(AstParser* p)
+static void bl_parser_parsefunctionargs(AstParser* p)
 {
     // compile argument list...
     do
@@ -7986,7 +8586,7 @@ static void function_args(AstParser* p)
     } while(bl_parser_match(p, TOK_COMMA));
 }
 
-static void function_body(AstParser* p, AstCompiler* compiler)
+static void bl_parser_parsefunctionbody(AstParser* p, AstCompiler* compiler)
 {
     // compile the body
     bl_parser_ignorespace(p);
@@ -8011,10 +8611,10 @@ static void bl_parser_parsefunction(AstParser* p, FuncType type)
     bl_parser_consume(p, TOK_LPAREN, "expected '(' after function name");
     if(!bl_parser_check(p, TOK_RPAREN))
     {
-        function_args(p);
+        bl_parser_parsefunctionargs(p);
     }
     bl_parser_consume(p, TOK_RPAREN, "expected ')' after function parameters");
-    function_body(p, &compiler);
+    bl_parser_parsefunctionbody(p, &compiler);
 }
 
 static void bl_parser_parsemethod(AstParser* p, AstToken classname, bool isstatic)
@@ -8053,7 +8653,7 @@ static void bl_parser_parsefield(AstParser* p, bool isstatic)
     bl_parser_ignorespace(p);
 }
 
-static void function_declaration(AstParser* p)
+static void bl_parser_parsefunctiondecl(AstParser* p)
 {
     int global = bl_parser_parsevar(p, "function name expected");
     bl_parser_markinit(p);
@@ -8061,7 +8661,7 @@ static void function_declaration(AstParser* p)
     bl_parser_defvar(p, global);
 }
 
-static void class_declaration(AstParser* p)
+static void bl_parser_parseclassdecl(AstParser* p)
 {
     bl_parser_consume(p, TOK_IDENTIFIER, "class name expected");
     int nameconstant = bl_parser_identconst(p, &p->previous);
@@ -8097,7 +8697,9 @@ static void class_declaration(AstParser* p)
     {
         bool isstatic = false;
         if(bl_parser_match(p, TOK_STATIC))
+        {
             isstatic = true;
+        }
         if(bl_parser_match(p, TOK_VAR))
         {
             bl_parser_parsefield(p, isstatic);
@@ -8117,7 +8719,7 @@ static void class_declaration(AstParser* p)
     p->currentclass = p->currentclass->enclosing;
 }
 
-static void compile_var_declaration(AstParser* p, bool isinitializer)
+static void bl_parser_compilevardecl(AstParser* p, bool isinitializer)
 {
     int totalparsed = 0;
     do
@@ -8149,12 +8751,12 @@ static void compile_var_declaration(AstParser* p, bool isinitializer)
     }
 }
 
-static void var_declaration(AstParser* p)
+static void bl_parser_parsevardecl(AstParser* p)
 {
-    compile_var_declaration(p, false);
+    bl_parser_compilevardecl(p, false);
 }
 
-static void expression_statement(AstParser* p, bool isinitializer, bool semi)
+static void bl_parser_parseexprstmt(AstParser* p, bool isinitializer, bool semi)
 {
     if(p->vm->isrepl && p->vm->compiler->scopedepth == 0)
     {
@@ -8166,7 +8768,7 @@ static void expression_statement(AstParser* p, bool isinitializer, bool semi)
     }
     else
     {
-        parse_precedence_no_advance(p, PREC_ASSIGNMENT);
+        bl_parser_parseprecnoadvance(p, PREC_ASSIGNMENT);
     }
     if(!isinitializer)
     {
@@ -8207,7 +8809,7 @@ static void expression_statement(AstParser* p, bool isinitializer, bool semi)
  *    i = i + 1
  * }
  */
-static void forloop_statement(AstParser* p)
+static void bl_parser_parseforloopstmt(AstParser* p)
 {
     bl_parser_beginscope(p);
     // parse initializer...
@@ -8217,11 +8819,11 @@ static void forloop_statement(AstParser* p)
     }
     else if(bl_parser_match(p, TOK_VAR))
     {
-        compile_var_declaration(p, true);
+        bl_parser_compilevardecl(p, true);
     }
     else
     {
-        expression_statement(p, true, false);
+        bl_parser_parseexprstmt(p, true, false);
     }
     // keep a copy of the surrounding loop's start and depth
     int surroundingloopstart = p->innermostloopstart;
@@ -8312,12 +8914,12 @@ static void forloop_statement(AstParser* p)
  * @itern(x) function returns a false value. so the @iter(x) never needs
  * to return a false value
  */
-static void foreach_statement(AstParser* p)
+static void bl_parser_parseforeachstmt(AstParser* p)
 {
     bl_parser_beginscope(p);
     // define @iter and @itern constant
-    int iter__ = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, "@iter", 5)));
-    int iter_n__ = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, "@itern", 6)));
+    int iter__ = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystring(p->vm, "@iter", 5)));
+    int iter_n__ = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystring(p->vm, "@itern", 6)));
     /*
     if(bl_parser_match(p, TOK_LPAREN))
     {
@@ -8325,7 +8927,8 @@ static void foreach_statement(AstParser* p)
     }
     */
     bl_parser_consume(p, TOK_IDENTIFIER, "expected variable name after 'for'");
-    AstToken keytoken, valuetoken;
+    AstToken keytoken;
+    AstToken valuetoken;
     if(!bl_parser_check(p, TOK_COMMA))
     {
         keytoken = bl_parser_synthtoken(" _ ");
@@ -8414,7 +9017,7 @@ static void foreach_statement(AstParser* p)
  *    ...
  * }
  */
-static void using_statement(AstParser* p)
+static void bl_parser_parseusingstmt(AstParser* p)
 {
     bl_parser_parseexpr(p);// the expression
     bl_parser_consume(p, TOK_LBRACE, "expected '{' after using expression");
@@ -8459,8 +9062,8 @@ static void using_statement(AstParser* p)
                     else if(p->previous.type == TOK_LITERAL)
                     {
                         int length;
-                        char* str = compile_string(p, &length);
-                        ObjString* string = copy_string(p->vm, str, length);
+                        char* str = bl_parser_compilestring(p, &length);
+                        ObjString* string = bl_string_copystring(p->vm, str, length);
                         bl_vm_pushvalue(p->vm, OBJ_VAL(string));// gc fix
                         bl_hashtable_set(p->vm, &sw->table, OBJ_VAL(string), jump);
                         bl_vm_popvalue(p->vm);// gc fix
@@ -8508,7 +9111,7 @@ static void using_statement(AstParser* p)
     bl_vm_popvalue(p->vm);// pop the switch
 }
 
-static void if_statement(AstParser* p)
+static void bl_parser_parseifstmt(AstParser* p)
 {
     bl_parser_parseexpr(p);
     int thenjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
@@ -8524,21 +9127,21 @@ static void if_statement(AstParser* p)
     bl_parser_patchjump(p, elsejump);
 }
 
-static void echo_statement(AstParser* p)
+static void bl_parser_parseechostmt(AstParser* p)
 {
     bl_parser_parseexpr(p);
     bl_parser_emitbyte(p, OP_ECHO);
     bl_parser_consumestmtend(p);
 }
 
-static void die_statement(AstParser* p)
+static void bl_parser_parsediestmt(AstParser* p)
 {
     bl_parser_parseexpr(p);
     bl_parser_emitbyte(p, OP_DIE);
     bl_parser_consumestmtend(p);
 }
 
-static void parse_specific_import(AstParser* p, char* modulename, int importconstant, bool wasrenamed, bool isnative)
+static void bl_parser_parsespecificimport(AstParser* p, char* modulename, int importconstant, bool wasrenamed, bool isnative)
 {
     if(bl_parser_match(p, TOK_LBRACE))
     {
@@ -8576,11 +9179,11 @@ static void parse_specific_import(AstParser* p, char* modulename, int importcons
     }
 }
 
-static void import_statement(AstParser* p)
+static void bl_parser_parseimportstmt(AstParser* p)
 {
     //  bl_parser_consume(p, TOK_LITERAL, "expected module name");
     //  int modulenamelength;
-    //  char *modulename = compile_string(p, &modulenamelength);
+    //  char *modulename = bl_parser_compilestring(p, &modulenamelength);
     char* modulename = NULL;
     char* modulefile = NULL;
     int partcount = 0;
@@ -8625,9 +9228,9 @@ static void import_statement(AstParser* p)
         // handle native modules
         if(partcount == 0 && modulename[0] == '_' && !isrelative)
         {
-            int module = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, modulename, (int)strlen(modulename))));
+            int module = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystring(p->vm, modulename, (int)strlen(modulename))));
             bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, module);
-            parse_specific_import(p, modulename, module, false, true);
+            bl_parser_parsespecificimport(p, modulename, module, false, true);
             return;
         }
         if(modulefile == NULL)
@@ -8665,12 +9268,12 @@ static void import_statement(AstParser* p)
         // check if there is one in the vm's registry
         // handle native modules
         Value md;
-        ObjString* finalmodulename = copy_string(p->vm, modulename, (int)strlen(modulename));
+        ObjString* finalmodulename = bl_string_copystring(p->vm, modulename, (int)strlen(modulename));
         if(bl_hashtable_get(&p->vm->modules, OBJ_VAL(finalmodulename), &md))
         {
             int module = bl_parser_makeconstant(p, OBJ_VAL(finalmodulename));
             bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, module);
-            parse_specific_import(p, modulename, module, false, true);
+            bl_parser_parsespecificimport(p, modulename, module, false, true);
             return;
         }
         free(modulepath);
@@ -8706,10 +9309,10 @@ static void import_statement(AstParser* p)
     bl_vm_popvalue(p->vm);
     int importconstant = bl_parser_makeconstant(p, OBJ_VAL(closure));
     bl_parser_emitbyte_and_short(p, OP_CALL_IMPORT, importconstant);
-    parse_specific_import(p, modulename, importconstant, wasrenamed, false);
+    bl_parser_parsespecificimport(p, modulename, importconstant, wasrenamed, false);
 }
 
-static void assert_statement(AstParser* p)
+static void bl_parser_parseassertstmt(AstParser* p)
 {
     bl_parser_parseexpr(p);
     if(bl_parser_match(p, TOK_COMMA))
@@ -8725,7 +9328,7 @@ static void assert_statement(AstParser* p)
     bl_parser_consumestmtend(p);
 }
 
-static void try_statement(AstParser* p)
+static void bl_parser_parsetrystmt(AstParser* p)
 {
     if(p->vm->compiler->handlercount == MAX_EXCEPTION_HANDLERS)
     {
@@ -8741,7 +9344,9 @@ static void try_statement(AstParser* p)
     p->istrying = false;
     // we can safely use 0 because a program cannot start with a
     // catch or finally block
-    int address = 0, type = -1, finally = 0;
+    int address = 0;
+    int type = -1;
+    int finally = 0;
     bool catchexists = false, finalexists = false;
     // catch body must maintain its own scope
     if(bl_parser_match(p, TOK_CATCH))
@@ -8765,7 +9370,7 @@ static void try_statement(AstParser* p)
     }
     else
     {
-        type = bl_parser_makeconstant(p, OBJ_VAL(copy_string(p->vm, "Exception", 9)));
+        type = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystring(p->vm, "Exception", 9)));
     }
     bl_parser_patchjump(p, exitjump);
     if(bl_parser_match(p, TOK_FINALLY))
@@ -8790,7 +9395,7 @@ static void try_statement(AstParser* p)
     bl_parser_patchtry(p, trybegins, type, address, finally);
 }
 
-static void return_statement(AstParser* p)
+static void bl_parser_parsereturnstmt(AstParser* p)
 {
     p->isreturning = true;
     if(p->vm->compiler->type == TYPE_SCRIPT)
@@ -8818,7 +9423,7 @@ static void return_statement(AstParser* p)
     p->isreturning = false;
 }
 
-static void while_statement(AstParser* p)
+static void bl_parser_parsewhilestmt(AstParser* p)
 {
     int surroundingloopstart = p->innermostloopstart;
     int surroundingscopedepth = p->innermostloopscopedepth;
@@ -8837,7 +9442,7 @@ static void while_statement(AstParser* p)
     p->innermostloopscopedepth = surroundingscopedepth;
 }
 
-static void do_while_statement(AstParser* p)
+static void bl_parser_parsedowhilestmt(AstParser* p)
 {
     int surroundingloopstart = p->innermostloopstart;
     int surroundingscopedepth = p->innermostloopscopedepth;
@@ -8857,7 +9462,7 @@ static void do_while_statement(AstParser* p)
     p->innermostloopscopedepth = surroundingscopedepth;
 }
 
-static void continue_statement(AstParser* p)
+static void bl_parser_parsecontinuestmt(AstParser* p)
 {
     if(p->innermostloopstart == -1)
     {
@@ -8870,7 +9475,7 @@ static void continue_statement(AstParser* p)
     bl_parser_consumestmtend(p);
 }
 
-static void break_statement(AstParser* p)
+static void bl_parser_parsebreakstmt(AstParser* p)
 {
     if(p->innermostloopstart == -1)
     {
@@ -8882,13 +9487,15 @@ static void break_statement(AstParser* p)
     bl_parser_consumestmtend(p);
 }
 
-static void synchronize(AstParser* p)
+static void bl_parser_synchronize(AstParser* p)
 {
     p->panicmode = false;
     while(p->current.type != TOK_EOF)
     {
         if(p->current.type == TOK_NEWLINE || p->current.type == TOK_SEMICOLON)
+        {
             return;
+        }
         switch(p->current.type)
         {
             case TOK_CLASS:
@@ -8921,26 +9528,26 @@ static void synchronize(AstParser* p)
     }
 }
 
-static void declaration(AstParser* p)
+static void bl_parser_parsedeclaration(AstParser* p)
 {
     bl_parser_ignorespace(p);
     if(bl_parser_match(p, TOK_CLASS))
     {
-        class_declaration(p);
+        bl_parser_parseclassdecl(p);
     }
     else if(bl_parser_match(p, TOK_DEF))
     {
-        function_declaration(p);
+        bl_parser_parsefunctiondecl(p);
     }
     else if(bl_parser_match(p, TOK_VAR))
     {
-        var_declaration(p);
+        bl_parser_parsevardecl(p);
     }
     else if(bl_parser_match(p, TOK_LBRACE))
     {
         if(!bl_parser_check(p, TOK_NEWLINE) && p->vm->compiler->scopedepth == 0)
         {
-            expression_statement(p, false, true);
+            bl_parser_parseexprstmt(p, false, true);
         }
         else
         {
@@ -8955,7 +9562,9 @@ static void declaration(AstParser* p)
     }
     bl_parser_ignorespace(p);
     if(p->panicmode)
-        synchronize(p);
+    {
+        bl_parser_synchronize(p);
+    }
     bl_parser_ignorespace(p);
 }
 
@@ -8965,51 +9574,51 @@ static void bl_parser_parsestmt(AstParser* p)
     bl_parser_ignorespace(p);
     if(bl_parser_match(p, TOK_ECHO))
     {
-        echo_statement(p);
+        bl_parser_parseechostmt(p);
     }
     else if(bl_parser_match(p, TOK_IF))
     {
-        if_statement(p);
+        bl_parser_parseifstmt(p);
     }
     else if(bl_parser_match(p, TOK_DO))
     {
-        do_while_statement(p);
+        bl_parser_parsedowhilestmt(p);
     }
     else if(bl_parser_match(p, TOK_WHILE))
     {
-        while_statement(p);
+        bl_parser_parsewhilestmt(p);
     }
     else if(bl_parser_match(p, TOK_FORLOOP))
     {
-        forloop_statement(p);
+        bl_parser_parseforloopstmt(p);
     }
     else if(bl_parser_match(p, TOK_FOREACH))
     {
-        foreach_statement(p);
+        bl_parser_parseforeachstmt(p);
     }
     else if(bl_parser_match(p, TOK_USING))
     {
-        using_statement(p);
+        bl_parser_parseusingstmt(p);
     }
     else if(bl_parser_match(p, TOK_CONTINUE))
     {
-        continue_statement(p);
+        bl_parser_parsecontinuestmt(p);
     }
     else if(bl_parser_match(p, TOK_BREAK))
     {
-        break_statement(p);
+        bl_parser_parsebreakstmt(p);
     }
     else if(bl_parser_match(p, TOK_RETURN))
     {
-        return_statement(p);
+        bl_parser_parsereturnstmt(p);
     }
     else if(bl_parser_match(p, TOK_ASSERT))
     {
-        assert_statement(p);
+        bl_parser_parseassertstmt(p);
     }
     else if(bl_parser_match(p, TOK_DIE))
     {
-        die_statement(p);
+        bl_parser_parsediestmt(p);
     }
     else if(bl_parser_match(p, TOK_LBRACE))
     {
@@ -9019,15 +9628,15 @@ static void bl_parser_parsestmt(AstParser* p)
     }
     else if(bl_parser_match(p, TOK_IMPORT))
     {
-        import_statement(p);
+        bl_parser_parseimportstmt(p);
     }
     else if(bl_parser_match(p, TOK_TRY))
     {
-        try_statement(p);
+        bl_parser_parsetrystmt(p);
     }
     else
     {
-        expression_statement(p, false, false);
+        bl_parser_parseexprstmt(p, false, false);
     }
     bl_parser_ignorespace(p);
 }
@@ -9056,13 +9665,13 @@ ObjFunction* bl_compiler_compilesource(VMState* vm, ObjModule* module, const cha
     bl_parser_ignorespace(&parser);
     while(!bl_parser_match(&parser, TOK_EOF))
     {
-        declaration(&parser);
+        bl_parser_parsedeclaration(&parser);
     }
     ObjFunction* function = bl_compiler_end(&parser);
     return parser.haderror ? NULL : function;
 }
 
-void mark_compiler_roots(VMState* vm)
+void bl_parser_markcompilerroots(VMState* vm)
 {
     AstCompiler* compiler = vm->compiler;
     while(compiler != NULL)
@@ -9072,22 +9681,22 @@ void mark_compiler_roots(VMState* vm)
     }
 }
 
-void disassemble_blob(BinaryBlob* blob, const char* name)
+void bl_blob_disassembleitem(BinaryBlob* blob, const char* name)
 {
     printf("== %s ==\n", name);
     for(int offset = 0; offset < blob->count;)
     {
-        offset = disassemble_instruction(blob, offset);
+        offset = bl_blob_disassembleinst(blob, offset);
     }
 }
 
-int simple_instruction(const char* name, int offset)
+int bl_blob_disaspriminst(const char* name, int offset)
 {
     printf("%s\n", name);
     return offset + 1;
 }
 
-int constant_instruction(const char* name, BinaryBlob* blob, int offset)
+int bl_blob_disasconstinst(const char* name, BinaryBlob* blob, int offset)
 {
     uint16_t constant = (blob->code[offset + 1] << 8) | blob->code[offset + 2];
     printf("%-16s %8d '", name, constant);
@@ -9096,21 +9705,21 @@ int constant_instruction(const char* name, BinaryBlob* blob, int offset)
     return offset + 3;
 }
 
-int short_instruction(const char* name, BinaryBlob* blob, int offset)
+int bl_blob_disasshortinst(const char* name, BinaryBlob* blob, int offset)
 {
     uint16_t slot = (blob->code[offset + 1] << 8) | blob->code[offset + 2];
     printf("%-16s %8d\n", name, slot);
     return offset + 3;
 }
 
-static int byte_instruction(const char* name, BinaryBlob* blob, int offset)
+static int bl_blob_disasbyteinst(const char* name, BinaryBlob* blob, int offset)
 {
     uint8_t slot = blob->code[offset + 1];
     printf("%-16s %8d\n", name, slot);
     return offset + 2;
 }
 
-static int jump_instruction(const char* name, int sign, BinaryBlob* blob, int offset)
+static int bl_blob_disasjumpinst(const char* name, int sign, BinaryBlob* blob, int offset)
 {
     uint16_t jump = (uint16_t)(blob->code[offset + 1] << 8);
     jump |= blob->code[offset + 2];
@@ -9118,7 +9727,7 @@ static int jump_instruction(const char* name, int sign, BinaryBlob* blob, int of
     return offset + 3;
 }
 
-static int try_instruction(const char* name, BinaryBlob* blob, int offset)
+static int bl_blob_disastryinst(const char* name, BinaryBlob* blob, int offset)
 {
     uint16_t type = (uint16_t)(blob->code[offset + 1] << 8);
     type |= blob->code[offset + 2];
@@ -9130,7 +9739,7 @@ static int try_instruction(const char* name, BinaryBlob* blob, int offset)
     return offset + 7;
 }
 
-static int invoke_instruction(const char* name, BinaryBlob* blob, int offset)
+static int bl_blob_disasinvokeinst(const char* name, BinaryBlob* blob, int offset)
 {
     uint16_t constant = (uint16_t)(blob->code[offset + 1] << 8);
     constant |= blob->code[offset + 2];
@@ -9141,7 +9750,7 @@ static int invoke_instruction(const char* name, BinaryBlob* blob, int offset)
     return offset + 4;
 }
 
-int disassemble_instruction(BinaryBlob* blob, int offset)
+int bl_blob_disassembleinst(BinaryBlob* blob, int offset)
 {
     printf("%08d ", offset);
     if(offset > 0 && blob->lines[offset] == blob->lines[offset - 1])
@@ -9156,135 +9765,135 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
     switch(instruction)
     {
         case OP_JUMP_IF_FALSE:
-            return jump_instruction("fjump", 1, blob, offset);
+            return bl_blob_disasjumpinst("fjump", 1, blob, offset);
         case OP_JUMP:
-            return jump_instruction("jump", 1, blob, offset);
+            return bl_blob_disasjumpinst("jump", 1, blob, offset);
         case OP_TRY:
-            return try_instruction("itry", blob, offset);
+            return bl_blob_disastryinst("itry", blob, offset);
         case OP_LOOP:
-            return jump_instruction("loop", -1, blob, offset);
+            return bl_blob_disasjumpinst("loop", -1, blob, offset);
         case OP_DEFINE_GLOBAL:
-            return constant_instruction("dglob", blob, offset);
+            return bl_blob_disasconstinst("dglob", blob, offset);
         case OP_GET_GLOBAL:
-            return constant_instruction("gglob", blob, offset);
+            return bl_blob_disasconstinst("gglob", blob, offset);
         case OP_SET_GLOBAL:
-            return constant_instruction("sglob", blob, offset);
+            return bl_blob_disasconstinst("sglob", blob, offset);
         case OP_GET_LOCAL:
-            return short_instruction("gloc", blob, offset);
+            return bl_blob_disasshortinst("gloc", blob, offset);
         case OP_SET_LOCAL:
-            return short_instruction("sloc", blob, offset);
+            return bl_blob_disasshortinst("sloc", blob, offset);
         case OP_GET_PROPERTY:
-            return constant_instruction("gprop", blob, offset);
+            return bl_blob_disasconstinst("gprop", blob, offset);
         case OP_GET_SELF_PROPERTY:
-            return constant_instruction("gprops", blob, offset);
+            return bl_blob_disasconstinst("gprops", blob, offset);
         case OP_SET_PROPERTY:
-            return constant_instruction("sprop", blob, offset);
+            return bl_blob_disasconstinst("sprop", blob, offset);
         case OP_GET_UP_VALUE:
-            return short_instruction("gupv", blob, offset);
+            return bl_blob_disasshortinst("gupv", blob, offset);
         case OP_SET_UP_VALUE:
-            return short_instruction("supv", blob, offset);
+            return bl_blob_disasshortinst("supv", blob, offset);
         case OP_POP_TRY:
-            return simple_instruction("ptry", offset);
+            return bl_blob_disaspriminst("ptry", offset);
         case OP_PUBLISH_TRY:
-            return simple_instruction("pubtry", offset);
+            return bl_blob_disaspriminst("pubtry", offset);
         case OP_CONSTANT:
-            return constant_instruction("load", blob, offset);
+            return bl_blob_disasconstinst("load", blob, offset);
         case OP_EQUAL:
-            return simple_instruction("eq", offset);
+            return bl_blob_disaspriminst("eq", offset);
         case OP_GREATER:
-            return simple_instruction("gt", offset);
+            return bl_blob_disaspriminst("gt", offset);
         case OP_LESS:
-            return simple_instruction("less", offset);
+            return bl_blob_disaspriminst("less", offset);
         case OP_EMPTY:
-            return simple_instruction("em", offset);
+            return bl_blob_disaspriminst("em", offset);
         case OP_NIL:
-            return simple_instruction("nil", offset);
+            return bl_blob_disaspriminst("nil", offset);
         case OP_TRUE:
-            return simple_instruction("true", offset);
+            return bl_blob_disaspriminst("true", offset);
         case OP_FALSE:
-            return simple_instruction("false", offset);
+            return bl_blob_disaspriminst("false", offset);
         case OP_ADD:
-            return simple_instruction("add", offset);
+            return bl_blob_disaspriminst("add", offset);
         case OP_SUBTRACT:
-            return simple_instruction("sub", offset);
+            return bl_blob_disaspriminst("sub", offset);
         case OP_MULTIPLY:
-            return simple_instruction("mul", offset);
+            return bl_blob_disaspriminst("mul", offset);
         case OP_DIVIDE:
-            return simple_instruction("div", offset);
+            return bl_blob_disaspriminst("div", offset);
         case OP_F_DIVIDE:
-            return simple_instruction("fdiv", offset);
+            return bl_blob_disaspriminst("fdiv", offset);
         case OP_REMINDER:
-            return simple_instruction("rmod", offset);
+            return bl_blob_disaspriminst("rmod", offset);
         case OP_POW:
-            return simple_instruction("pow", offset);
+            return bl_blob_disaspriminst("pow", offset);
         case OP_NEGATE:
-            return simple_instruction("neg", offset);
+            return bl_blob_disaspriminst("neg", offset);
         case OP_NOT:
-            return simple_instruction("not", offset);
+            return bl_blob_disaspriminst("not", offset);
         case OP_BIT_NOT:
-            return simple_instruction("bnot", offset);
+            return bl_blob_disaspriminst("bnot", offset);
         case OP_AND:
-            return simple_instruction("band", offset);
+            return bl_blob_disaspriminst("band", offset);
         case OP_OR:
-            return simple_instruction("bor", offset);
+            return bl_blob_disaspriminst("bor", offset);
         case OP_XOR:
-            return simple_instruction("bxor", offset);
+            return bl_blob_disaspriminst("bxor", offset);
         case OP_LSHIFT:
-            return simple_instruction("lshift", offset);
+            return bl_blob_disaspriminst("lshift", offset);
         case OP_RSHIFT:
-            return simple_instruction("rshift", offset);
+            return bl_blob_disaspriminst("rshift", offset);
         case OP_ONE:
-            return simple_instruction("one", offset);
+            return bl_blob_disaspriminst("one", offset);
         case OP_CALL_IMPORT:
-            return short_instruction("cimport", blob, offset);
+            return bl_blob_disasshortinst("cimport", blob, offset);
         case OP_NATIVE_MODULE:
-            return short_instruction("fimport", blob, offset);
+            return bl_blob_disasshortinst("fimport", blob, offset);
         case OP_SELECT_IMPORT:
-            return short_instruction("simport", blob, offset);
+            return bl_blob_disasshortinst("simport", blob, offset);
         case OP_SELECT_NATIVE_IMPORT:
-            return short_instruction("snimport", blob, offset);
+            return bl_blob_disasshortinst("snimport", blob, offset);
         case OP_EJECT_IMPORT:
-            return short_instruction("eimport", blob, offset);
+            return bl_blob_disasshortinst("eimport", blob, offset);
         case OP_EJECT_NATIVE_IMPORT:
-            return short_instruction("enimport", blob, offset);
+            return bl_blob_disasshortinst("enimport", blob, offset);
         case OP_IMPORT_ALL:
-            return simple_instruction("aimport", offset);
+            return bl_blob_disaspriminst("aimport", offset);
         case OP_IMPORT_ALL_NATIVE:
-            return simple_instruction("animport", offset);
+            return bl_blob_disaspriminst("animport", offset);
         case OP_ECHO:
-            return simple_instruction("echo", offset);
+            return bl_blob_disaspriminst("echo", offset);
         case OP_STRINGIFY:
-            return simple_instruction("str", offset);
+            return bl_blob_disaspriminst("str", offset);
         case OP_CHOICE:
-            return simple_instruction("cho", offset);
+            return bl_blob_disaspriminst("cho", offset);
         case OP_DIE:
-            return simple_instruction("die", offset);
+            return bl_blob_disaspriminst("die", offset);
         case OP_POP:
-            return simple_instruction("pop", offset);
+            return bl_blob_disaspriminst("pop", offset);
         case OP_CLOSE_UP_VALUE:
-            return simple_instruction("clupv", offset);
+            return bl_blob_disaspriminst("clupv", offset);
         case OP_DUP:
-            return simple_instruction("dup", offset);
+            return bl_blob_disaspriminst("dup", offset);
         case OP_ASSERT:
-            return simple_instruction("assrt", offset);
+            return bl_blob_disaspriminst("assrt", offset);
         case OP_POP_N:
-            return short_instruction("pop_n", blob, offset);
+            return bl_blob_disasshortinst("pop_n", blob, offset);
             // non-user objects...
         case OP_SWITCH:
-            return short_instruction("sw", blob, offset);
+            return bl_blob_disasshortinst("sw", blob, offset);
             // data container manipulators
         case OP_RANGE:
-            return short_instruction("rng", blob, offset);
+            return bl_blob_disasshortinst("rng", blob, offset);
         case OP_LIST:
-            return short_instruction("list", blob, offset);
+            return bl_blob_disasshortinst("list", blob, offset);
         case OP_DICT:
-            return short_instruction("dict", blob, offset);
+            return bl_blob_disasshortinst("dict", blob, offset);
         case OP_GET_INDEX:
-            return byte_instruction("gind", blob, offset);
+            return bl_blob_disasbyteinst("gind", blob, offset);
         case OP_GET_RANGED_INDEX:
-            return byte_instruction("grind", blob, offset);
+            return bl_blob_disasbyteinst("grind", blob, offset);
         case OP_SET_INDEX:
-            return simple_instruction("sind", offset);
+            return bl_blob_disaspriminst("sind", offset);
         case OP_CLOSURE:
         {
             offset++;
@@ -9304,27 +9913,27 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
             return offset;
         }
         case OP_CALL:
-            return byte_instruction("call", blob, offset);
+            return bl_blob_disasbyteinst("call", blob, offset);
         case OP_INVOKE:
-            return invoke_instruction("invk", blob, offset);
+            return bl_blob_disasinvokeinst("invk", blob, offset);
         case OP_INVOKE_SELF:
-            return invoke_instruction("invks", blob, offset);
+            return bl_blob_disasinvokeinst("invks", blob, offset);
         case OP_RETURN:
-            return simple_instruction("ret", offset);
+            return bl_blob_disaspriminst("ret", offset);
         case OP_CLASS:
-            return constant_instruction("class", blob, offset);
+            return bl_blob_disasconstinst("class", blob, offset);
         case OP_METHOD:
-            return constant_instruction("meth", blob, offset);
+            return bl_blob_disasconstinst("meth", blob, offset);
         case OP_CLASS_PROPERTY:
-            return constant_instruction("clprop", blob, offset);
+            return bl_blob_disasconstinst("clprop", blob, offset);
         case OP_GET_SUPER:
-            return constant_instruction("gsup", blob, offset);
+            return bl_blob_disasconstinst("gsup", blob, offset);
         case OP_INHERIT:
-            return simple_instruction("inher", offset);
+            return bl_blob_disaspriminst("inher", offset);
         case OP_SUPER_INVOKE:
-            return invoke_instruction("sinvk", blob, offset);
+            return bl_blob_disasinvokeinst("sinvk", blob, offset);
         case OP_SUPER_INVOKE_SELF:
-            return byte_instruction("sinvks", blob, offset);
+            return bl_blob_disasbyteinst("sinvks", blob, offset);
         default:
             printf("unknown opcode %d\n", instruction);
             return offset + 1;
@@ -9332,25 +9941,25 @@ int disassemble_instruction(BinaryBlob* blob, int offset)
 }
 
 #define FILE_ERROR(type, message) \
-    file_close(file); \
+    file_close(file);             \
     RETURN_ERROR(#type " -> %s", message, file->path->chars);
-#define RETURN_STATUS(status) \
-    if((status) == 0) \
-    { \
-        RETURN_TRUE; \
-    } \
-    else \
-    { \
+#define RETURN_STATUS(status)              \
+    if((status) == 0)                      \
+    {                                      \
+        RETURN_TRUE;                       \
+    }                                      \
+    else                                   \
+    {                                      \
         FILE_ERROR(File, strerror(errno)); \
     }
-#define DENY_STD() \
+#define DENY_STD()              \
     if(file->mode->length == 0) \
         RETURN_ERROR("method not supported for std files");
 #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
 
 static int file_close(ObjFile* file)
 {
-    if(file->file != NULL && !is_std_file(file))
+    if(file->file != NULL && !bl_object_isstdfile(file))
     {
         fflush(file->file);
         int result = fclose(file->file);
@@ -9363,7 +9972,7 @@ static int file_close(ObjFile* file)
 
 static void file_open(ObjFile* file)
 {
-    if((file->file == NULL || !file->isopen) && !is_std_file(file))
+    if((file->file == NULL || !file->isopen) && !bl_object_isstdfile(file))
     {
         char* mode = file->mode->chars;
         if(strstr(file->mode->chars, "w") != NULL && strstr(file->mode->chars, "+") != NULL)
@@ -9392,9 +10001,9 @@ bool cfn_file(VMState* vm, int argcount, Value* args)
     }
     else
     {
-        mode = (ObjString*)gc_protect(vm, (Object*)copy_string(vm, "r", 1));
+        mode = (ObjString*)bl_mem_gcprotect(vm, (Object*)bl_string_copystring(vm, "r", 1));
     }
-    ObjFile* file = (ObjFile*)gc_protect(vm, (Object*)bl_object_makefile(vm, path, mode));
+    ObjFile* file = (ObjFile*)bl_mem_gcprotect(vm, (Object*)bl_object_makefile(vm, path, mode));
     file_open(file);
     RETURN_OBJ(file);
 }
@@ -9411,14 +10020,16 @@ bool objfn_file_close(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(close, 0);
     file_close(AS_FILE(METHOD_OBJECT));
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_file_open(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(open, 0);
     file_open(AS_FILE(METHOD_OBJECT));
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_file_isopen(VMState* vm, int argcount, Value* args)
@@ -9427,7 +10038,7 @@ bool objfn_file_isopen(VMState* vm, int argcount, Value* args)
     (void)vm;
     (void)argcount;
     file = AS_FILE(METHOD_OBJECT);
-    RETURN_BOOL(is_std_file(file) || (file->isopen && file->file != NULL));
+    RETURN_BOOL(bl_object_isstdfile(file) || (file->isopen && file->file != NULL));
 }
 
 bool objfn_file_isclosed(VMState* vm, int argcount, Value* args)
@@ -9436,7 +10047,7 @@ bool objfn_file_isclosed(VMState* vm, int argcount, Value* args)
     (void)argcount;
     (void)vm;
     file = AS_FILE(METHOD_OBJECT);
-    RETURN_BOOL(!is_std_file(file) && !file->isopen && file->file == NULL);
+    RETURN_BOOL(!bl_object_isstdfile(file) && !file->isopen && file->file == NULL);
 }
 
 bool objfn_file_read(VMState* vm, int argcount, Value* args)
@@ -9458,7 +10069,7 @@ bool objfn_file_read(VMState* vm, int argcount, Value* args)
     }
     file = AS_FILE(METHOD_OBJECT);
     inbinarymode = strstr(file->mode->chars, "b") != NULL;
-    if(!is_std_file(file))
+    if(!bl_object_isstdfile(file))
     {
         // file is in read mode and file does not exist
         if(strstr(file->mode->chars, "r") != NULL && !bl_util_fileexists(file->path->chars))
@@ -9521,7 +10132,9 @@ bool objfn_file_read(VMState* vm, int argcount, Value* args)
     }
     // we made use of +1 so we can terminate the string.
     if(buffer != NULL)
+    {
         buffer[bytesread] = '\0';
+    }
     // close file
     /*if (bytesread == filesize) {
     file_close(file);
@@ -9531,7 +10144,7 @@ bool objfn_file_read(VMState* vm, int argcount, Value* args)
     {
         RETURN_T_STRING(buffer, bytesread);
     }
-    RETURN_OBJ(take_bytes(vm, (unsigned char*)buffer, bytesread));
+    RETURN_OBJ(bl_bytes_takebytes(vm, (unsigned char*)buffer, bytesread));
 }
 
 bool objfn_file_gets(VMState* vm, int argcount, Value* args)
@@ -9552,7 +10165,7 @@ bool objfn_file_gets(VMState* vm, int argcount, Value* args)
     }
     file = AS_FILE(METHOD_OBJECT);
     inbinarymode = strstr(file->mode->chars, "b") != NULL;
-    if(!is_std_file(file))
+    if(!bl_object_isstdfile(file))
     {
         // file is in read mode and file does not exist
         if(strstr(file->mode->chars, "r") != NULL && !bl_util_fileexists(file->path->chars))
@@ -9608,12 +10221,14 @@ bool objfn_file_gets(VMState* vm, int argcount, Value* args)
     }
     // we made use of +1, so we can terminate the string.
     if(buffer != NULL)
+    {
         buffer[bytesread] = '\0';
+    }
     if(!inbinarymode)
     {
         RETURN_T_STRING(buffer, bytesread);
     }
-    RETURN_OBJ(take_bytes(vm, (unsigned char*)buffer, bytesread));
+    RETURN_OBJ(bl_bytes_takebytes(vm, (unsigned char*)buffer, bytesread));
 }
 
 bool objfn_file_write(VMState* vm, int argcount, Value* args)
@@ -9640,7 +10255,7 @@ bool objfn_file_write(VMState* vm, int argcount, Value* args)
         length = bytes->bytes.count;
     }
     // file is in read only mode
-    if(!is_std_file(file))
+    if(!bl_object_isstdfile(file))
     {
         if(strstr(file->mode->chars, "r") != NULL && strstr(file->mode->chars, "+") == NULL)
         {
@@ -9701,7 +10316,7 @@ bool objfn_file_puts(VMState* vm, int argcount, Value* args)
         length = bytes->bytes.count;
     }
     // file is in read only mode
-    if(!is_std_file(file))
+    if(!bl_object_isstdfile(file))
     {
         if(strstr(file->mode->chars, "r") != NULL && strstr(file->mode->chars, "+") == NULL)
         {
@@ -9754,7 +10369,7 @@ bool objfn_file_istty(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(istty, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
-    if(is_std_file(file))
+    if(bl_object_isstdfile(file))
     {
         RETURN_BOOL(isatty(fileno(file->file)) && fileno(file->file) == fileno(stdout));
     }
@@ -9784,15 +10399,16 @@ bool objfn_file_flush(VMState* vm, int argcount, Value* args)
 #else
     fflush(file->file);
 #endif
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool objfn_file_stats(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(stats, 0);
     ObjFile* file = AS_FILE(METHOD_OBJECT);
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
-    if(!is_std_file(file))
+    ObjDict* dict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
+    if(!bl_object_isstdfile(file))
     {
         if(bl_util_fileexists(file->path->chars))
         {
@@ -9958,7 +10574,8 @@ bool objfn_file_copy(VMState* vm, int argcount, Value* args)
         {
             FILE_ERROR(Permission, "unable to create new file");
         }
-        size_t nread, nwrite;
+        size_t nread;
+        size_t nwrite;
         unsigned char buffer[8192];
         do
         {
@@ -10046,13 +10663,21 @@ bool objfn_file_settimes(VMState* vm, int argcount, Value* args)
                 newtimes.modtime = mtime;
     #else
             if(atime == (time_t)-1)
+            {
                 newtimes.actime = stats.st_atime;
+            }
             else
+            {
                 newtimes.actime = atime;
+            }
             if(mtime == (time_t)-1)
+            {
                 newtimes.modtime = stats.st_mtime;
+            }
             else
+            {
                 newtimes.modtime = mtime;
+            }
     #endif
             RETURN_STATUS(utime(file->path->chars, &newtimes));
         }
@@ -10116,9 +10741,9 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
     if(module != NULL)
     {
         sdup = strdup(module->name);
-        ObjModule* themodule = (ObjModule*)gc_protect(vm, (Object*)bl_object_makemodule(vm, sdup, source));
-        themodule->preloader = module->preloader;
-        themodule->unloader = module->unloader;
+        ObjModule* themodule = (ObjModule*)bl_mem_gcprotect(vm, (Object*)bl_object_makemodule(vm, sdup, source));
+        themodule->preloader = (void*)module->preloader;
+        themodule->unloader = (void*)module->unloader;
         if(module->fields != NULL)
         {
             for(int j = 0; module->fields[j].name != NULL; j++)
@@ -10137,7 +10762,7 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
             {
                 RegFunc func = module->functions[j];
                 Value funcname = GC_STRING(func.name);
-                Value funcrealvalue = OBJ_VAL(gc_protect(vm, (Object*)bl_object_makenativefunction(vm, func.natfn, func.name)));
+                Value funcrealvalue = OBJ_VAL(bl_mem_gcprotect(vm, (Object*)bl_object_makenativefunction(vm, func.natfn, func.name)));
                 bl_vm_pushvalue(vm, funcrealvalue);
                 bl_hashtable_set(vm, &themodule->values, funcname, funcrealvalue);
                 bl_vm_popvalue(vm);
@@ -10148,15 +10773,15 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
             for(int j = 0; module->classes[j].name != NULL; j++)
             {
                 RegClass klassreg = module->classes[j];
-                ObjString* classname = (ObjString*)gc_protect(vm, (Object*)copy_string(vm, klassreg.name, (int)strlen(klassreg.name)));
-                ObjClass* klass = (ObjClass*)gc_protect(vm, (Object*)bl_object_makeclass(vm, classname));
+                ObjString* classname = (ObjString*)bl_mem_gcprotect(vm, (Object*)bl_string_copystring(vm, klassreg.name, (int)strlen(klassreg.name)));
+                ObjClass* klass = (ObjClass*)bl_mem_gcprotect(vm, (Object*)bl_object_makeclass(vm, classname));
                 if(klassreg.functions != NULL)
                 {
                     for(int k = 0; klassreg.functions[k].name != NULL; k++)
                     {
                         RegFunc func = klassreg.functions[k];
                         Value funcname = GC_STRING(func.name);
-                        ObjNativeFunction* native = (ObjNativeFunction*)gc_protect(vm, (Object*)bl_object_makenativefunction(vm, func.natfn, func.name));
+                        ObjNativeFunction* native = (ObjNativeFunction*)bl_mem_gcprotect(vm, (Object*)bl_object_makenativefunction(vm, func.natfn, func.name));
                         if(func.isstatic)
                         {
                             native->type = TYPE_STATIC;
@@ -10189,7 +10814,7 @@ bool load_module(VMState* vm, ModInitFunc init_fn, char* importname, char* sourc
         }
         add_native_module(vm, themodule, themodule->name);
         free(sdup);
-        gc_clear_protection(vm);
+        bl_mem_gcclearprotect(vm);
         return true;
     }
     else
@@ -10272,7 +10897,7 @@ void bind_user_modules(VMState* vm, char* pkgroot)
         }
         closedir(dir);
     }
-    gc_clear_protection(vm);
+    bl_mem_gcclearprotect(vm);
 }
 
 void bind_native_modules(VMState* vm)
@@ -10304,7 +10929,7 @@ char* load_user_module(VMState* vm, const char* path, char* name)
     {
         return (char*)dlerror();
     }
-    fn = dlsym(handle, fnname);
+    fn = (ModInitFunc)dlsym(handle, fnname);
     if(fn == NULL)
     {
         return (char*)dlerror();
@@ -10346,7 +10971,9 @@ static ObjString* bin_to_string(VMState* vm, long n)
     char newstr[1027];// assume maximum of 1024 bits + 0b (indicator) + sign (-).
     int length = 0;
     if(n < 0)
+    {
         newstr[length++] = '-';
+    }
     newstr[length++] = '0';
     newstr[length++] = 'b';
     for(int i = count - 1; i >= 0; i--)
@@ -10354,7 +10981,7 @@ static ObjString* bin_to_string(VMState* vm, long n)
         newstr[length++] = str[i];
     }
     newstr[length++] = 0;
-    return copy_string(vm, newstr, length);
+    return bl_string_copystring(vm, newstr, length);
     //  // To store the binary number
     //  long long number = 0;
     //  int cnt = 0;
@@ -10371,21 +10998,21 @@ static ObjString* bin_to_string(VMState* vm, long n)
     //  char str[67]; // assume maximum of 64 bits + 2 binary indicators (0b)
     //  int length = sprintf(str, "0b%lld", number);
     //
-    //  return copy_string(vm, str, length);
+    //  return bl_string_copystring(vm, str, length);
 }
 
 static ObjString* number_to_oct(VMState* vm, long long n, bool numeric)
 {
     char str[66];// assume maximum of 64 bits + 2 octal indicators (0c)
     int length = sprintf(str, numeric ? "0c%llo" : "%llo", n);
-    return copy_string(vm, str, length);
+    return bl_string_copystring(vm, str, length);
 }
 
 static ObjString* number_to_hex(VMState* vm, long long n, bool numeric)
 {
     char str[66];// assume maximum of 64 bits + 2 hex indicators (0x)
     int length = sprintf(str, numeric ? "0x%llx" : "%llx", n);
-    return copy_string(vm, str, length);
+    return bl_string_copystring(vm, str, length);
 }
 
 /**
@@ -10517,7 +11144,9 @@ bool cfn_max(VMState* vm, int argcount, Value* args)
         ENFORCE_ARG_TYPE(max, i, bl_value_isnumber);
         double number = AS_NUMBER(args[i]);
         if(number > max)
+        {
             max = number;
+        }
     }
     RETURN_NUMBER(max);
 }
@@ -10537,7 +11166,9 @@ bool cfn_min(VMState* vm, int argcount, Value* args)
         ENFORCE_ARG_TYPE(min, i, bl_value_isnumber);
         double number = AS_NUMBER(args[i]);
         if(number < min)
+        {
             min = number;
+        }
     }
     RETURN_NUMBER(min);
 }
@@ -10708,7 +11339,9 @@ bool cfn_tonumber(VMState* vm, int argcount, Value* args)
     }
     const char* v = (const char*)bl_value_tostring(vm, args[0]);
     int length = (int)strlen(v);
-    int start = 0, end = 1, multiplier = 1;
+    int start = 0;
+    int end = 1;
+    int multiplier = 1;
     if(v[0] == '-')
     {
         start++;
@@ -10767,13 +11400,13 @@ bool cfn_tolist(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(args[0]);
     }
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     if(bl_value_isdict(args[0]))
     {
         ObjDict* dict = AS_DICT(args[0]);
         for(int i = 0; i < dict->names.count; i++)
         {
-            ObjArray* nlist = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+            ObjArray* nlist = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
             bl_valarray_push(vm, &nlist->items, dict->names.values[i]);
             Value value;
             bl_hashtable_get(&dict->items, dict->names.values[i], &value);
@@ -10786,7 +11419,8 @@ bool cfn_tolist(VMState* vm, int argcount, Value* args)
         ObjString* str = AS_STRING(args[0]);
         for(int i = 0; i < str->utf8length; i++)
         {
-            int start = i, end = i + 1;
+            int start = i;
+            int end = i + 1;
             bl_util_utf8slice(str->chars, &start, &end);
             bl_array_push(vm, list, STRING_L_VAL(str->chars + start, (int)(end - start)));
         }
@@ -10832,7 +11466,7 @@ bool cfn_todict(VMState* vm, int argcount, Value* args)
     {
         RETURN_VALUE(args[0]);
     }
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* dict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     bl_dict_setentry(vm, dict, NUMBER_VAL(0), args[0]);
     RETURN_OBJ(dict);
 }
@@ -10945,7 +11579,8 @@ bool cfn_typeof(VMState* vm, int argcount, Value* args)
 bool cfn_iscallable(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(is_callable, 1);
-    RETURN_BOOL(bl_value_isclass(args[0]) || bl_value_isscriptfunction(args[0]) || bl_value_isclosure(args[0]) || bl_value_isboundfunction(args[0]) || bl_value_isnativefunction(args[0]));
+    RETURN_BOOL(bl_value_isclass(args[0]) || bl_value_isscriptfunction(args[0]) || bl_value_isclosure(args[0]) || bl_value_isboundfunction(args[0])
+                || bl_value_isnativefunction(args[0]));
 }
 
 /**
@@ -11196,7 +11831,7 @@ void array_free(void* data)
 
 ObjPointer* new_array(VMState* vm, DynArray* array)
 {
-    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)bl_dict_makeptr(vm, array));
+    ObjPointer* ptr = (ObjPointer*)bl_mem_gcprotect(vm, (Object*)bl_dict_makeptr(vm, array));
     ptr->fnptrfree = &array_free;
     return ptr;
 }
@@ -11243,7 +11878,7 @@ bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
     if(bl_value_isnumber(args[1]))
     {
         array->length++;
-        array->buffer = GROW_ARRAY(int16_t, array->buffer, array->length - 1, array->length);
+        array->buffer = GROW_ARRAY(int16_t, sizeof(int16_t), array->buffer, array->length - 1, array->length);
         int16_t* values = (int16_t*)array->buffer;
         values[array->length - 1] = (int16_t)AS_NUMBER(args[1]);
     }
@@ -11252,7 +11887,7 @@ bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
         ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
-            array->buffer = GROW_ARRAY(int16_t, array->buffer, array->length, array->length + list->items.count);
+            array->buffer = GROW_ARRAY(int16_t, sizeof(int16_t), array->buffer, array->length, array->length + list->items.count);
             int16_t* values = (int16_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
@@ -11269,7 +11904,8 @@ bool modfn_array_int16append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("Int16Array can only append an int16 or a list of int16");
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_array_int16get(VMState* vm, int argcount, Value* args)
@@ -11321,34 +11957,13 @@ bool modfn_array_int16pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_int16remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
-    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
-    DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    int16_t* values = (int16_t*)array->buffer;
-    int index = AS_NUMBER(args[1]);
-    if(index < 0 || index >= array->length)
-    {
-        RETURN_ERROR("Int16Array index %d out of range", index);
-    }
-    int16_t val = values[index];
-    for(int i = index; i < array->length; i++)
-    {
-        values[i] = values[i + 1];
-    }
-    array->length--;
-    RETURN_NUMBER(val);
-}
-
 bool modfn_array_int16tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int16_t* values = (int16_t*)array->buffer;
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
         bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
@@ -11361,7 +11976,7 @@ bool modfn_array_int16tobytes(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 2));
+    ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, array->length * 2));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 2);
     RETURN_OBJ(bytes);
 }
@@ -11423,7 +12038,7 @@ bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
     if(bl_value_isnumber(args[1]))
     {
         array->length++;
-        array->buffer = GROW_ARRAY(int32_t, array->buffer, array->length - 1, array->length);
+        array->buffer = GROW_ARRAY(int32_t, sizeof(int32_t), array->buffer, array->length - 1, array->length);
         int32_t* values = (int32_t*)array->buffer;
         values[array->length - 1] = (int32_t)AS_NUMBER(args[1]);
     }
@@ -11432,7 +12047,7 @@ bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
         ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
-            array->buffer = GROW_ARRAY(int32_t, array->buffer, array->length, array->length + list->items.count);
+            array->buffer = GROW_ARRAY(int32_t, sizeof(int32_t), array->buffer, array->length, array->length + list->items.count);
             int32_t* values = (int32_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
@@ -11449,7 +12064,8 @@ bool modfn_array_int32append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("Int32Array can only append an int32 or a list of int32");
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_array_int32get(VMState* vm, int argcount, Value* args)
@@ -11501,34 +12117,13 @@ bool modfn_array_int32pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_int32remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
-    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
-    DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    int32_t* values = (int32_t*)array->buffer;
-    int index = AS_NUMBER(args[1]);
-    if(index < 0 || index >= array->length)
-    {
-        RETURN_ERROR("Int32Array index %d out of range", index);
-    }
-    int32_t val = values[index];
-    for(int i = index; i < array->length; i++)
-    {
-        values[i] = values[i + 1];
-    }
-    array->length--;
-    RETURN_NUMBER(val);
-}
-
 bool modfn_array_int32tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int32_t* values = (int32_t*)array->buffer;
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
         bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
@@ -11541,7 +12136,7 @@ bool modfn_array_int32tobytes(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 4));
+    ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, array->length * 4));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 4);
     RETURN_OBJ(bytes);
 }
@@ -11603,7 +12198,7 @@ bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
     if(bl_value_isnumber(args[1]))
     {
         array->length++;
-        array->buffer = GROW_ARRAY(int64_t, array->buffer, array->length - 1, array->length);
+        array->buffer = GROW_ARRAY(int64_t, sizeof(int64_t), array->buffer, array->length - 1, array->length);
         int64_t* values = (int64_t*)array->buffer;
         values[array->length - 1] = (int64_t)AS_NUMBER(args[1]);
     }
@@ -11612,7 +12207,7 @@ bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
         ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
-            array->buffer = GROW_ARRAY(int64_t, array->buffer, array->length, array->length + list->items.count);
+            array->buffer = GROW_ARRAY(int64_t, sizeof(int64_t), array->buffer, array->length, array->length + list->items.count);
             int64_t* values = (int64_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
@@ -11629,7 +12224,8 @@ bool modfn_array_int64append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("Int64Array can only append an int64 or a list of int64");
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_array_int64get(VMState* vm, int argcount, Value* args)
@@ -11681,34 +12277,13 @@ bool modfn_array_int64pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_int64remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
-    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
-    DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    int64_t* values = (int64_t*)array->buffer;
-    int index = AS_NUMBER(args[1]);
-    if(index < 0 || index >= array->length)
-    {
-        RETURN_ERROR("Int64Array index %d out of range", index);
-    }
-    int64_t val = values[index];
-    for(int i = index; i < array->length; i++)
-    {
-        values[i] = values[i + 1];
-    }
-    array->length--;
-    RETURN_NUMBER(val);
-}
-
 bool modfn_array_int64tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     int64_t* values = (int64_t*)array->buffer;
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
         bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
@@ -11721,7 +12296,7 @@ bool modfn_array_int64tobytes(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 8));
+    ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, array->length * 8));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 8);
     RETURN_OBJ(bytes);
 }
@@ -11783,7 +12358,7 @@ bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
     if(bl_value_isnumber(args[1]))
     {
         array->length++;
-        array->buffer = GROW_ARRAY(uint16_t, array->buffer, array->length - 1, array->length);
+        array->buffer = GROW_ARRAY(uint16_t, sizeof(uint16_t), array->buffer, array->length - 1, array->length);
         uint16_t* values = (uint16_t*)array->buffer;
         values[array->length - 1] = (uint16_t)AS_NUMBER(args[1]);
     }
@@ -11792,7 +12367,7 @@ bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
         ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
-            array->buffer = GROW_ARRAY(uint16_t, array->buffer, array->length, array->length + list->items.count);
+            array->buffer = GROW_ARRAY(uint16_t, sizeof(uint16_t), array->buffer, array->length, array->length + list->items.count);
             uint16_t* values = (uint16_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
@@ -11809,7 +12384,8 @@ bool modfn_array_uint16append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("UInt16Array can only append an uint16 or a list of uint16");
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_array_uint16get(VMState* vm, int argcount, Value* args)
@@ -11861,34 +12437,13 @@ bool modfn_array_uint16pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_uint16remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
-    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
-    DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    uint16_t* values = (uint16_t*)array->buffer;
-    int index = AS_NUMBER(args[1]);
-    if(index < 0 || index >= array->length)
-    {
-        RETURN_ERROR("UInt16Array index %d out of range", index);
-    }
-    uint16_t val = values[index];
-    for(int i = index; i < array->length; i++)
-    {
-        values[i] = values[i + 1];
-    }
-    array->length--;
-    RETURN_NUMBER(val);
-}
-
 bool modfn_array_uint16tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint16_t* values = (uint16_t*)array->buffer;
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
         bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
@@ -11901,7 +12456,7 @@ bool modfn_array_uint16tobytes(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 2));
+    ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, array->length * 2));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 2);
     RETURN_OBJ(bytes);
 }
@@ -11963,7 +12518,7 @@ bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
     if(bl_value_isnumber(args[1]))
     {
         array->length++;
-        array->buffer = GROW_ARRAY(uint32_t, array->buffer, array->length - 1, array->length);
+        array->buffer = GROW_ARRAY(uint32_t, sizeof(uint32_t), array->buffer, array->length - 1, array->length);
         uint32_t* values = (uint32_t*)array->buffer;
         values[array->length - 1] = (uint32_t)AS_NUMBER(args[1]);
     }
@@ -11972,7 +12527,7 @@ bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
         ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
-            array->buffer = GROW_ARRAY(uint32_t, array->buffer, array->length, array->length + list->items.count);
+            array->buffer = GROW_ARRAY(uint32_t, sizeof(uint32_t), array->buffer, array->length, array->length + list->items.count);
             uint32_t* values = (uint32_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
@@ -11989,7 +12544,8 @@ bool modfn_array_uint32append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("UInt32Array can only append an uint32 or a list of uint32");
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_array_uint32get(VMState* vm, int argcount, Value* args)
@@ -12041,34 +12597,13 @@ bool modfn_array_uint32pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_uint32remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
-    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
-    DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    uint32_t* values = (uint32_t*)array->buffer;
-    int index = AS_NUMBER(args[1]);
-    if(index < 0 || index >= array->length)
-    {
-        RETURN_ERROR("UInt32Array index %d out of range", index);
-    }
-    uint32_t val = values[index];
-    for(int i = index; i < array->length; i++)
-    {
-        values[i] = values[i + 1];
-    }
-    array->length--;
-    RETURN_NUMBER(val);
-}
-
 bool modfn_array_uint32tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint32_t* values = (uint32_t*)array->buffer;
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
         bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
@@ -12081,7 +12616,7 @@ bool modfn_array_uint32tobytes(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 4));
+    ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, array->length * 4));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 4);
     RETURN_OBJ(bytes);
 }
@@ -12143,7 +12678,7 @@ bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
     if(bl_value_isnumber(args[1]))
     {
         array->length++;
-        array->buffer = GROW_ARRAY(uint64_t, array->buffer, array->length - 1, array->length);
+        array->buffer = GROW_ARRAY(uint64_t, sizeof(uint64_t), array->buffer, array->length - 1, array->length);
         uint64_t* values = (uint64_t*)array->buffer;
         values[array->length - 1] = (uint64_t)AS_NUMBER(args[1]);
     }
@@ -12152,7 +12687,7 @@ bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
         ObjArray* list = AS_LIST(args[1]);
         if(list->items.count > 0)
         {
-            array->buffer = GROW_ARRAY(uint64_t, array->buffer, array->length, array->length + list->items.count);
+            array->buffer = GROW_ARRAY(uint64_t, sizeof(uint64_t), array->buffer, array->length, array->length + list->items.count);
             uint64_t* values = (uint64_t*)array->buffer;
             for(int i = 0; i < list->items.count; i++)
             {
@@ -12169,7 +12704,8 @@ bool modfn_array_uint64append(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("UInt64Array can only append an uint64 or a list of uint64");
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_array_uint64get(VMState* vm, int argcount, Value* args)
@@ -12221,34 +12757,13 @@ bool modfn_array_uint64pop(VMState* vm, int argcount, Value* args)
     RETURN_NUMBER(last);
 }
 
-bool modfn_array_uint64remove(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(remove, 2);
-    ENFORCE_ARG_TYPE(remove, 0, bl_value_ispointer);
-    ENFORCE_ARG_TYPE(remove, 1, bl_value_isnumber);
-    DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    uint64_t* values = (uint64_t*)array->buffer;
-    int index = AS_NUMBER(args[1]);
-    if(index < 0 || index >= array->length)
-    {
-        RETURN_ERROR("UInt64Array index %d out of range", index);
-    }
-    uint64_t val = values[index];
-    for(int i = index; i < array->length; i++)
-    {
-        values[i] = values[i + 1];
-    }
-    array->length--;
-    RETURN_NUMBER(val);
-}
-
 bool modfn_array_uint64tolist(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     uint64_t* values = (uint64_t*)array->buffer;
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     for(int i = 0; i < array->length; i++)
     {
         bl_array_push(vm, list, NUMBER_VAL((double)values[i]));
@@ -12261,7 +12776,7 @@ bool modfn_array_uint64tobytes(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(to_list, 1);
     ENFORCE_ARG_TYPE(to_list, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)bl_object_makebytes(vm, array->length * 8));
+    ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_object_makebytes(vm, array->length * 8));
     memcpy(bytes->bytes.bytes, array->buffer, array->length * 8);
     RETURN_OBJ(bytes);
 }
@@ -12312,10 +12827,11 @@ bool modfn_array_extend(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(extend, 1, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     DynArray* array2 = (DynArray*)AS_PTR(args[1])->pointer;
-    array->buffer = GROW_ARRAY(void, array->buffer, array->length, array->length + array2->length);
+    array->buffer = GROW_ARRAY(void, sizeof(void*), array->buffer, array->length, array->length + array2->length);
     memcpy(array->buffer + array->length, array2->buffer, array2->length);
     array->length += array2->length;
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_array_tostring(VMState* vm, int argcount, Value* args)
@@ -12323,7 +12839,7 @@ bool modfn_array_tostring(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(to_string, 1);
     ENFORCE_ARG_TYPE(to_string, 0, bl_value_ispointer);
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
-    RETURN_L_STRING(array->buffer, array->length);
+    RETURN_L_STRING((const char*)array->buffer, array->length);
 }
 
 bool modfn_array_itern_(VMState* vm, int argcount, Value* args)
@@ -12451,20 +12967,38 @@ bool modfn_io_mktime(VMState* vm, int argcount, Value* args)
         }
         ENFORCE_ARG_TYPE(mktime, 6, bl_value_isbool);
     }
-    int year = -1900, month = 1, day = 1, hour = 0, minute = 0, seconds = 0, isdst = 0;
+    int year = -1900;
+    int month = 1;
+    int day = 1;
+    int hour = 0;
+    int minute = 0;
+    int seconds = 0;
+    int isdst = 0;
     year += AS_NUMBER(args[0]);
     if(argcount > 1)
+    {
         month = AS_NUMBER(args[1]);
+    }
     if(argcount > 2)
+    {
         day = AS_NUMBER(args[2]);
+    }
     if(argcount > 3)
+    {
         hour = AS_NUMBER(args[3]);
+    }
     if(argcount > 4)
+    {
         minute = AS_NUMBER(args[4]);
+    }
     if(argcount > 5)
+    {
         seconds = AS_NUMBER(args[5]);
+    }
     if(argcount > 6)
+    {
         isdst = AS_BOOL(args[5]) ? 1 : 0;
+    }
     struct tm t;
     t.tm_year = year;
     t.tm_mon = month - 1;
@@ -12484,7 +13018,7 @@ bool modfn_io_localtime(VMState* vm, int argcount, Value* args)
     (void)argcount;
     gettimeofday(&rawtime, NULL);
     localtime_r(&rawtime.tv_sec, &now);
-    dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    dict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     ADD_TIME("year", 4, (double)now.tm_year + 1900);
     ADD_TIME("month", 5, (double)now.tm_mon + 1);
     ADD_TIME("day", 3, now.tm_mday);
@@ -12524,7 +13058,7 @@ bool modfn_io_gmtime(VMState* vm, int argcount, Value* args)
     (void)argcount;
     gettimeofday(&rawtime, NULL);
     gmtime_r(&rawtime.tv_sec, &now);
-    dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    dict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     ADD_TIME("year", 4, (double)now.tm_year + 1900);
     ADD_TIME("month", 5, (double)now.tm_mon + 1);
     ADD_TIME("day", 3, now.tm_mday);
@@ -12585,13 +13119,17 @@ static struct termios oterm;
 static int bl_util_cbreak(int fd)
 {
     if((tcgetattr(fd, &oterm)) == -1)
+    {
         return -1;
+    }
     nterm = oterm;
     nterm.c_lflag = nterm.c_lflag & ~(ECHO | ICANON);
     nterm.c_cc[VMIN] = 1;
     nterm.c_cc[VTIME] = 0;
     if((tcsetattr(fd, TCSAFLUSH, &nterm)) == -1)
+    {
         return -1;
+    }
     return 1;
 }
 
@@ -12626,7 +13164,9 @@ static int read_line(char line[], int max)
         }
     }
     if(c == EOF && nch == 0)
+    {
         return EOF;
+    }
     line[nch] = '\0';
     return nch;
 }
@@ -12642,7 +13182,7 @@ bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(_tcsetattr, 0, bl_value_isfile);
 #ifdef HAVE_TERMIOS_H
     ObjFile* file = AS_FILE(args[0]);
-    if(!is_std_file(file))
+    if(!bl_object_isstdfile(file))
     {
         RETURN_ERROR("can only use tty on std objects");
     }
@@ -12652,7 +13192,7 @@ bool modfn_io_ttytcgetattr(VMState* vm, int argcount, Value* args)
         RETURN_ERROR(strerror(errno));
     }
     // we have our attributes already
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* dict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     bl_dict_addentry(vm, dict, NUMBER_VAL(0), NUMBER_VAL(rawattr.c_iflag));
     bl_dict_addentry(vm, dict, NUMBER_VAL(1), NUMBER_VAL(rawattr.c_oflag));
     bl_dict_addentry(vm, dict, NUMBER_VAL(2), NUMBER_VAL(rawattr.c_cflag));
@@ -12682,7 +13222,7 @@ bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
     ObjFile* file = AS_FILE(args[0]);
     int type = AS_NUMBER(args[1]);
     ObjDict* dict = AS_DICT(args[2]);
-    if(!is_std_file(file))
+    if(!bl_object_isstdfile(file))
     {
         RETURN_ERROR("can only use tty on std objects");
     }
@@ -12707,7 +13247,12 @@ bool modfn_io_ttytcsetattr(VMState* vm, int argcount, Value* args)
             }
         }
     }
-    Value iflag = NIL_VAL, oflag = NIL_VAL, cflag = NIL_VAL, lflag = NIL_VAL, ispeed = NIL_VAL, ospeed = NIL_VAL;
+    Value iflag = NIL_VAL;
+    Value oflag = NIL_VAL;
+    Value cflag = NIL_VAL;
+    Value lflag = NIL_VAL;
+    Value ispeed = NIL_VAL;
+    Value ospeed = NIL_VAL;
     tcgetattr(STDIN_FILENO, &origtermios);
     atexit(disable_raw_mode);
     struct termios raw = origtermios;
@@ -12753,7 +13298,8 @@ bool modfn_io_ttyexitraw(VMState* vm, int argcount, Value* args)
 #ifdef HAVE_TERMIOS_H
     ENFORCE_ARG_COUNT(TTY.exit_raw, 0);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &origtermios);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 #else
     RETURN_ERROR("exit_raw() is not supported on this platform");
 #endif /* HAVE_TERMIOS_H */
@@ -12769,7 +13315,8 @@ bool modfn_io_ttyflush(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(TTY.flush, 0);
     fflush(stdout);
     fflush(stderr);
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 /**
@@ -12786,7 +13333,8 @@ bool modfn_io_flush(VMState* vm, int argcount, Value* args)
     {
         fflush(file->file);
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 /**
@@ -12855,7 +13403,8 @@ bool modfn_io_putc(VMState* vm, int argcount, Value* args)
     {
         fflush(stdout);
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 /**
@@ -12868,8 +13417,8 @@ Value io_module_stdin(VMState* vm)
     ObjFile* file;
     ObjString* mode;
     ObjString* name;
-    name = copy_string(vm, "<stdin>", 7);
-    mode = copy_string(vm, "rb", 2);
+    name = bl_string_copystring(vm, "<stdin>", 7);
+    mode = bl_string_copystring(vm, "rb", 2);
     file = bl_object_makefile(vm, name, mode);
     file->file = stdin;
     file->isopen = true;
@@ -12887,8 +13436,8 @@ Value io_module_stdout(VMState* vm)
     ObjFile* file;
     ObjString* mode;
     ObjString* name;
-    name = copy_string(vm, "<stdout>", 8);
-    mode = copy_string(vm, "wb", 2);
+    name = bl_string_copystring(vm, "<stdout>", 8);
+    mode = bl_string_copystring(vm, "wb", 2);
     file = bl_object_makefile(vm, name, mode);
     file->file = stdout;
     file->isopen = true;
@@ -12905,8 +13454,8 @@ Value io_module_stderr(VMState* vm)
     ObjFile* file;
     ObjString* mode;
     ObjString* name;
-    name = copy_string(vm, "<stderr>", 8);
-    mode = copy_string(vm, "wb", 2);
+    name = bl_string_copystring(vm, "<stderr>", 8);
+    mode = bl_string_copystring(vm, "wb", 2);
     file = bl_object_makefile(vm, name, mode);
     file->file = stderr;
     file->isopen = true;
@@ -13158,7 +13707,9 @@ bool modfn_os_exec(VMState* vm, int argcount, Value* args)
     fflush(stdout);
     FILE* fd = popen(string->chars, "r");
     if(!fd)
+    {
         return bl_value_returnnil(vm, args);
+    }
     char buffer[256];
     size_t nread;
     size_t outputsize = 256;
@@ -13172,7 +13723,7 @@ bool modfn_os_exec(VMState* vm, int argcount, Value* args)
             {
                 size_t old = outputsize;
                 outputsize *= 2;
-                char* temp = GROW_ARRAY(char, output, old, outputsize);
+                char* temp = GROW_ARRAY(char, sizeof(char), output, old, outputsize);
                 if(temp == NULL)
                 {
                     RETURN_ERROR("device out of memory");
@@ -13211,7 +13762,7 @@ bool modfn_os_info(VMState* vm, int argcount, Value* args)
     {
         RETURN_ERROR("could not access os information");
     }
-    ObjDict* dict = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* dict = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     bl_dict_addentry(vm, dict, GC_L_STRING("sysname", 7), GC_STRING(os.sysname));
     bl_dict_addentry(vm, dict, GC_L_STRING("nodename", 8), GC_STRING(os.nodename));
     bl_dict_addentry(vm, dict, GC_L_STRING("version", 7), GC_STRING(os.version));
@@ -13228,7 +13779,8 @@ bool modfn_os_sleep(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(sleep, 1);
     ENFORCE_ARG_TYPE(sleep, 0, bl_value_isnumber);
     sleep((int)AS_NUMBER(args[0]));
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 Value get_os_platform(VMState* vm)
@@ -13268,13 +13820,13 @@ Value get_os_platform(VMState* vm)
 #else
     #define PLATFORM_NAME "unknown"
 #endif
-    return OBJ_VAL(copy_string(vm, PLATFORM_NAME, (int)strlen(PLATFORM_NAME)));
+    return OBJ_VAL(bl_string_copystring(vm, PLATFORM_NAME, (int)strlen(PLATFORM_NAME)));
 #undef PLATFORM_NAME
 }
 
 Value get_blade_os_args(VMState* vm)
 {
-    ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+    ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
     if(vm->stdargs != NULL)
     {
         for(int i = 0; i < vm->stdargscount; i++)
@@ -13282,7 +13834,7 @@ Value get_blade_os_args(VMState* vm)
             bl_array_push(vm, list, GC_STRING(vm->stdargs[i]));
         }
     }
-    gc_clear_protection(vm);
+    bl_mem_gcclearprotect(vm);
     return OBJ_VAL(list);
 }
 
@@ -13389,7 +13941,7 @@ bool modfn_os_readdir(VMState* vm, int argcount, Value* args)
     DIR* dir;
     if((dir = opendir(path->chars)) != NULL)
     {
-        ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+        ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
         struct dirent* ent;
         while((ent = readdir(dir)) != NULL)
         {
@@ -13417,7 +13969,9 @@ static int remove_directory(char* path, int pathlength, bool recursive)
             int pathstringlength = pathlength + (int)strlen(ent->d_name) + 2;
             char* pathstring = bl_util_mergepaths(path, ent->d_name);
             if(pathstring == NULL)
+            {
                 return -1;
+            }
             struct stat sb;
             if(stat(pathstring, &sb) == 0)
             {
@@ -13498,7 +14052,8 @@ bool modfn_os_exit(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(exit, 1);
     ENFORCE_ARG_TYPE(exit, 0, bl_value_isnumber);
     exit((int)AS_NUMBER(args[0]));
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_os_cwd(VMState* vm, int argcount, Value* args)
@@ -13690,7 +14245,7 @@ bool modfn_process_process(VMState* vm, int argcount, Value* args)
 {
     ENFORCE_ARG_RANGE(Process, 0, 1);
     BProcess* process = ALLOCATE(BProcess, 1);
-    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)bl_dict_makeptr(vm, process));
+    ObjPointer* ptr = (ObjPointer*)bl_mem_gcprotect(vm, (Object*)bl_dict_makeptr(vm, process));
     ptr->name = "<*Process::Process>";
     process->pid = -1;
     RETURN_OBJ(ptr);
@@ -13744,7 +14299,9 @@ bool modfn_process_wait(VMState* vm, int argcount, Value* args)
         if(p == -1)
         {
             if(errno == EINTR)
+            {
                 continue;
+            }
             break;
         }
     } while(p != process->pid);
@@ -13765,13 +14322,15 @@ bool modfn_process_id(VMState* vm, int argcount, Value* args)
 
 bool modfn_process_newshared(VMState* vm, int argcount, Value* args)
 {
+    ObjPointer* ptr;
+    BProcessShared* shared;
     ENFORCE_ARG_COUNT(newshared, 0);
-    BProcessShared* shared = mmap(NULL, sizeof(BProcessShared), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    shared->bytes = mmap(NULL, sizeof(unsigned char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    shared->format = mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    shared->getformat = mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    shared = (BProcessShared*)mmap(NULL, sizeof(BProcessShared), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    shared->bytes = (unsigned char*)mmap(NULL, sizeof(unsigned char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    shared->format = (char*)mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    shared->getformat = (char*)mmap(NULL, sizeof(char), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     shared->length = shared->getformatlength = shared->formatlength = 0;
-    ObjPointer* ptr = (ObjPointer*)gc_protect(vm, (Object*)bl_dict_makeptr(vm, shared));
+    ptr = (ObjPointer*)bl_mem_gcprotect(vm, (Object*)bl_dict_makeptr(vm, shared));
     ptr->name = "<*Process::SharedValue>";
     ptr->fnptrfree = b__free_shared_memory;
     RETURN_OBJ(ptr);
@@ -13809,9 +14368,9 @@ bool modfn_process_sharedread(VMState* vm, int argcount, Value* args)
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     if(shared->length > 0 || shared->formatlength > 0)
     {
-        ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)copy_bytes(vm, shared->bytes, shared->length));
+        ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_bytes_copybytes(vm, shared->bytes, shared->length));
         // return [format, bytes]
-        ObjArray* list = (ObjArray*)gc_protect(vm, (Object*)bl_object_makelist(vm));
+        ObjArray* list = (ObjArray*)bl_mem_gcprotect(vm, (Object*)bl_object_makelist(vm));
         bl_array_push(vm, list, GC_L_STRING(shared->getformat, shared->getformatlength));
         bl_array_push(vm, list, OBJ_VAL(bytes));
         RETURN_OBJ(list);
@@ -13825,7 +14384,8 @@ bool modfn_process_sharedlock(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(sharedlock, 0, bl_value_ispointer);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = true;
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args)
@@ -13834,15 +14394,8 @@ bool modfn_process_sharedunlock(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_TYPE(sharedunlock, 0, bl_value_ispointer);
     BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
     shared->locked = false;
-    return bl_value_returnempty(vm, args);;
-}
-
-bool modfn_process_sharedislocked(VMState* vm, int argcount, Value* args)
-{
-    ENFORCE_ARG_COUNT(sharedislocked, 1);
-    ENFORCE_ARG_TYPE(sharedislocked, 0, bl_value_ispointer);
-    BProcessShared* shared = (BProcessShared*)AS_PTR(args[0])->pointer;
-    RETURN_BOOL(shared->locked);
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 RegModule* bl_modload_process(VMState* vm)
@@ -13869,8 +14422,6 @@ RegModule* bl_modload_process(VMState* vm)
     static RegModule module = { .name = "_process", .fields = osmodulefields, .functions = osmodulefunctions, .classes = NULL, .preloader = NULL, .unloader = NULL };
     return &module;
 }
-
-extern bool bl_vmdo_callvalue(VMState* vm, Value callee, int argcount);
 
 /**
  * hasprop(object: instance, name: string)
@@ -13988,7 +14539,7 @@ bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
     Value value;
     if(bl_hashtable_get(&AS_INSTANCE(args[0])->klass->methods, args[1], &value))
     {
-        ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(value)));
+        ObjBoundMethod* bound = (ObjBoundMethod*)bl_mem_gcprotect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(value)));
         ObjArray* list = AS_LIST(args[2]);
         // remove the args list, the string name and the instance
         // then push the bound method
@@ -14001,7 +14552,8 @@ bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
         }
         return bl_vmdo_callvalue(vm, OBJ_VAL(bound), list->items.count);
     }
-    return bl_value_returnempty(vm, args);;
+    return bl_value_returnempty(vm, args);
+    ;
 }
 
 bool modfn_reflect_bindmethod(VMState* vm, int argcount, Value* args)
@@ -14009,7 +14561,7 @@ bool modfn_reflect_bindmethod(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(delist, 2);
     ENFORCE_ARG_TYPE(delist, 0, bl_value_isinstance);
     ENFORCE_ARG_TYPE(delist, 1, bl_value_isclosure);
-    ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(args[1])));
+    ObjBoundMethod* bound = (ObjBoundMethod*)bl_mem_gcprotect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(args[1])));
     RETURN_OBJ(bound);
 }
 
@@ -14022,7 +14574,7 @@ bool modfn_reflect_getboundmethod(VMState* vm, int argcount, Value* args)
     Value value;
     if(bl_hashtable_get(&instance->klass->methods, args[1], &value))
     {
-        ObjBoundMethod* bound = (ObjBoundMethod*)gc_protect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(value)));
+        ObjBoundMethod* bound = (ObjBoundMethod*)bl_mem_gcprotect(vm, (Object*)bl_object_makeboundmethod(vm, args[0], AS_CLOSURE(value)));
         RETURN_OBJ(bound);
     }
     return bl_value_returnnil(vm, args);
@@ -14046,7 +14598,7 @@ bool modfn_reflect_getfunctionmetadata(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(getfunctionmetadata, 1);
     ENFORCE_ARG_TYPE(getfunctionmetadata, 0, bl_value_isclosure);
     ObjClosure* closure = AS_CLOSURE(args[0]);
-    ObjDict* result = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    ObjDict* result = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     bl_dict_setentry(vm, result, GC_STRING("name"), OBJ_VAL(closure->fnptr->name));
     bl_dict_setentry(vm, result, GC_STRING("arity"), NUMBER_VAL(closure->fnptr->arity));
     bl_dict_setentry(vm, result, GC_STRING("isvariadic"), NUMBER_VAL(closure->fnptr->isvariadic));
@@ -14100,13 +14652,13 @@ RegModule* bl_modload_reflect(VMState* vm)
    | Author: Chris Schneider <cschneid@relog.ch>                          |
    +----------------------------------------------------------------------+
  */
-#define INC_OUTPUTPOS(a, b) \
-    if((a) < 0 || ((INT_MAX - outputpos) / ((int)b)) < (a)) \
-    { \
-        free(formatcodes); \
-        free(formatargs); \
+#define INC_OUTPUTPOS(a, b)                                               \
+    if((a) < 0 || ((INT_MAX - outputpos) / ((int)b)) < (a))               \
+    {                                                                     \
+        free(formatcodes);                                                \
+        free(formatargs);                                                 \
         RETURN_ERROR("Type %c: integer overflow in format string", code); \
-    } \
+    }                                                                     \
     outputpos += (a) * (b);
 #define MAX_LENGTH_OF_LONG 20
 //#define LONG_FMT "%" PRId64
@@ -14114,7 +14666,6 @@ RegModule* bl_modload_reflect(VMState* vm)
 #ifndef MAX
     #define MAX(a, b) (a > b ? a : b)
 #endif
-
 
 static long to_long(VMState* vm, Value value)
 {
@@ -14132,7 +14683,9 @@ static long to_long(VMState* vm, Value value)
     }
     const char* v = (const char*)bl_value_tostring(vm, value);
     int length = (int)strlen(v);
-    int start = 0, end = 1, multiplier = 1;
+    int start = 0;
+    int end = 1;
+    int multiplier = 1;
     if(v[0] == '-')
     {
         start++;
@@ -14175,7 +14728,9 @@ static double to_double(VMState* vm, Value value)
     }
     const char* v = (const char*)bl_value_tostring(vm, value);
     int length = (int)strlen(v);
-    int start = 0, end = 1, multiplier = 1;
+    int start = 0;
+    int end = 1;
+    int multiplier = 1;
     if(v[0] == '-')
     {
         start++;
@@ -14213,8 +14768,6 @@ static void do_pack(VMState* vm, Value val, size_t size, const int* map, unsigne
     }
 }
 
-
-
 /* Mapping of byte from char (8bit) to long for machine endian */
 static int bytemap[1];
 /* Mappings of bytes from int (machine dependent) to int for machine endian */
@@ -14249,7 +14802,8 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
     char* format = string->chars;
     size_t formatlen = string->length;
     size_t formatcount = 0;
-    int outputpos = 0, outputsize = 0;
+    int outputpos = 0;
+    int outputsize = 0;
     /* We have a maximum of <formatlen> format codes to deal with */
     char* formatcodes = ALLOCATE(char, formatlen);
     int* formatargs = ALLOCATE(int, formatlen);
@@ -14683,7 +15237,7 @@ bool modfn_struct_pack(VMState* vm, int argcount, Value* args)
     free(formatcodes);
     free(formatargs);
     output[outputpos] = '\0';
-    ObjBytes* bytes = (ObjBytes*)gc_protect(vm, (Object*)take_bytes(vm, output, outputpos));
+    ObjBytes* bytes = (ObjBytes*)bl_mem_gcprotect(vm, (Object*)bl_bytes_takebytes(vm, output, outputpos));
     RETURN_OBJ(bytes);
 }
 
@@ -14724,7 +15278,7 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
     }
     input += offset;
     inputlen -= offset;
-    returnvalue = (ObjDict*)gc_protect(vm, (Object*)bl_object_makedict(vm));
+    returnvalue = (ObjDict*)bl_mem_gcprotect(vm, (Object*)bl_object_makedict(vm));
     while(formatlen-- > 0)
     {
         type = *(format++);
@@ -14766,58 +15320,58 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
         switch((int)type)
         {
             case 'X':
+            {
+                /* Never use any input */
+                size = -1;
+                if(repetitions < 0)
                 {
-                    /* Never use any input */
-                    size = -1;
-                    if(repetitions < 0)
-                    {
-                        // TODO: Give warning...
-                        //          RETURN_ERROR("Type %c: '*' ignored", type);
-                        repetitions = 1;
-                    }
+                    // TODO: Give warning...
+                    //          RETURN_ERROR("Type %c: '*' ignored", type);
+                    repetitions = 1;
                 }
-                break;
+            }
+            break;
             case '@':
-                {
-                    size = 0;
-                }
-                break;
+            {
+                size = 0;
+            }
+            break;
             case 'a':
             case 'A':
             case 'Z':
-                {
-                    size = repetitions;
-                    repetitions = 1;
-                }
-                break;
+            {
+                size = repetitions;
+                repetitions = 1;
+            }
+            break;
             case 'h':
             case 'H':
+            {
+                size = repetitions;
+                if(repetitions > 0)
                 {
-                    size = repetitions;
-                    if(repetitions > 0)
-                    {
-                        size = (repetitions + (repetitions % 2)) / 2;
-                    }
-                    repetitions = 1;
+                    size = (repetitions + (repetitions % 2)) / 2;
                 }
-                break;
+                repetitions = 1;
+            }
+            break;
             case 'c':
             case 'C':
             case 'x':
-                {
-                    /* Use 1 byte of input */
-                    size = 1;
-                }
-                break;
+            {
+                /* Use 1 byte of input */
+                size = 1;
+            }
+            break;
             case 's':
             case 'S':
             case 'n':
             case 'v':
-                {
-                    /* Use 2 bytes of input */
-                    size = 2;
-                }
-                break;
+            {
+                /* Use 2 bytes of input */
+                size = 2;
+            }
+            break;
                 /* Use sizeof(int) bytes of input */
             case 'i':
             case 'I':
@@ -14958,7 +15512,8 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                     {
                         /* Z will strip everything after the first null character */
                         char pad = '\0';
-                        size_t s, len = inputlen - inputpos; /* Remaining string */
+                        size_t s;
+                        size_t len = inputlen - inputpos; /* Remaining string */
                         /* If size was given take minimum of len and size */
                         if((size >= 0) && (len > (size_t)size))
                         {
@@ -14969,7 +15524,9 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         for(s = 0; s < len; s++)
                         {
                             if(input[inputpos + s] == pad)
+                            {
                                 break;
+                            }
                         }
                         len = s;
                         bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), GC_L_STRING(&input[inputpos], len));
@@ -14981,7 +15538,8 @@ bool modfn_struct_unpack(VMState* vm, int argcount, Value* args)
                         size_t len = (inputlen - inputpos) * 2; /* Remaining */
                         int nibbleshift = (type == 'h') ? 0 : 4;
                         int first = 1;
-                        size_t ipos, opos;
+                        size_t ipos;
+                        size_t opos;
                         /* If size was given take minimum of len and size */
                         if((size >= 0) && (len > (size_t)(size * 2)))
                         {
@@ -15348,20 +15906,30 @@ static void bl_vm_resetstack(VMState* vm)
 
 static Value bl_vm_getstacktrace(VMState* vm)
 {
-    char* trace = calloc(0, sizeof(char));
+    int i;
+    int line;
+    size_t instruction;
+    size_t tracelinelength;
+    char* trace;
+    char* fnname;
+    char* traceline;
+    const char* traceformat;
+    CallFrame* frame;
+    ObjFunction* function;
+    trace = (char*)calloc(1, sizeof(char));
     if(trace != NULL)
     {
-        for(int i = 0; i < vm->framecount; i++)
+        for(i = 0; i < vm->framecount; i++)
         {
-            CallFrame* frame = &vm->frames[i];
-            ObjFunction* function = frame->closure->fnptr;
+            frame = &vm->frames[i];
+            function = frame->closure->fnptr;
             // -1 because the IP is sitting on the next instruction to be executed
-            size_t instruction = frame->ip - function->blob.code - 1;
-            int line = function->blob.lines[instruction];
-            const char* traceformat = i != vm->framecount - 1 ? "    %s:%d -> %s()\n" : "    %s:%d -> %s()";
-            char* fnname = function->name == NULL ? "@.script" : function->name->chars;
-            size_t tracelinelength = snprintf(NULL, 0, traceformat, function->module->file, line, fnname);
-            char* traceline = ALLOCATE(char, tracelinelength + 1);
+            instruction = frame->ip - function->blob.code - 1;
+            line = function->blob.lines[instruction];
+            traceformat = i != vm->framecount - 1 ? "    %s:%d -> %s()\n" : "    %s:%d -> %s()";
+            fnname = function->name == NULL ? (char*)"@.script" : function->name->chars;
+            tracelinelength = snprintf(NULL, 0, traceformat, function->module->file, line, fnname);
+            traceline = ALLOCATE(char, tracelinelength + 1);
             if(traceline != NULL)
             {
                 sprintf(traceline, traceformat, function->module->file, line, fnname);
@@ -15400,7 +15968,8 @@ bool bl_vm_propagateexception(VMState* vm, bool isassert)
         vm->framecount--;
     }
     fflush(stdout);// flush out anything on stdout first
-    Value message, trace;
+    Value message;
+    Value trace;
     if(!isassert)
     {
         fprintf(stderr, "Unhandled %s", exception->klass->name->chars);
@@ -15457,7 +16026,7 @@ bool bl_vm_throwexception(VMState* vm, bool isassert, const char* format, ...)
     char* message = NULL;
     int length = vasprintf(&message, format, args);
     va_end(args);
-    ObjInstance* instance = bl_object_makeexception(vm, take_string(vm, message, length));
+    ObjInstance* instance = bl_object_makeexception(vm, bl_string_takestring(vm, message, length));
     bl_vm_pushvalue(vm, OBJ_VAL(instance));
     Value stacktrace = bl_vm_getstacktrace(vm);
     bl_hashtable_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
@@ -15471,7 +16040,7 @@ static void bl_vm_initexceptions(VMState* vm, ObjModule* module)
     ObjString* classname;
     sstr = "Exception";
     slen = strlen(sstr);
-    //classname = copy_string(vm, sstr, slen);
+    //classname = bl_string_copystring(vm, sstr, slen);
     classname = bl_string_fromallocated(vm, strdup(sstr), slen, bl_util_hashstring(sstr, slen));
     bl_vm_pushvalue(vm, OBJ_VAL(classname));
     ObjClass* klass = bl_object_makeclass(vm, classname);
@@ -15649,7 +16218,7 @@ static void init_builtin_methods(VMState* vm)
         bl_object_defnativemethod(vm, &vm->methodsstring, "length", objfn_string_length);
         bl_object_defnativemethod(vm, &vm->methodsstring, "upper", objfn_string_upper);
         bl_object_defnativemethod(vm, &vm->methodsstring, "lower", objfn_string_lower);
-        bl_object_defnativemethod(vm, &vm->methodsstring, "is_alpha", objfn_string_isalpha);
+        bl_object_defnativemethod(vm, &vm->methodsstring, "bl_scanutil_isalpha", objfn_string_isalpha);
         bl_object_defnativemethod(vm, &vm->methodsstring, "isalnum", objfn_string_isalnum);
         bl_object_defnativemethod(vm, &vm->methodsstring, "is_number", objfn_string_isnumber);
         bl_object_defnativemethod(vm, &vm->methodsstring, "islower", objfn_string_islower);
@@ -15770,7 +16339,7 @@ static void init_builtin_methods(VMState* vm)
         bl_object_defnativemethod(vm, &vm->methodsbytes, "get", objfn_bytes_get);
         bl_object_defnativemethod(vm, &vm->methodsbytes, "split", objfn_bytes_split);
         bl_object_defnativemethod(vm, &vm->methodsbytes, "dispose", objfn_bytes_dispose);
-        bl_object_defnativemethod(vm, &vm->methodsbytes, "is_alpha", objfn_bytes_isalpha);
+        bl_object_defnativemethod(vm, &vm->methodsbytes, "bl_scanutil_isalpha", objfn_bytes_isalpha);
         bl_object_defnativemethod(vm, &vm->methodsbytes, "isalnum", objfn_bytes_isalnum);
         bl_object_defnativemethod(vm, &vm->methodsbytes, "is_number", objfn_bytes_isnumber);
         bl_object_defnativemethod(vm, &vm->methodsbytes, "islower", objfn_bytes_islower);
@@ -15893,11 +16462,11 @@ static bool bl_vmdo_callnativemethod(VMState* vm, ObjNativeFunction* native, int
 {
     if(native->natfn(vm, argcount, vm->stacktop - argcount))
     {
-        gc_clear_protection(vm);
+        bl_mem_gcclearprotect(vm);
         vm->stacktop -= argcount;
         return true;
     }/* else {
-    gc_clear_protection(vm);
+    bl_mem_gcclearprotect(vm);
     bool overridden = AS_BOOL(vm->stacktop[-argcount - 1]);
     *//*if (!overridden) {
       vm->stacktop -= argcount + 1;
@@ -16167,8 +16736,10 @@ static ObjUpvalue* bl_vm_captureupvalue(VMState* vm, Value* local)
         upvalue = upvalue->next;
     }
     if(upvalue != NULL && upvalue->location == local)
+    {
         return upvalue;
-    ObjUpvalue* createdupvalue = new_up_value(vm, local);
+    }
+    ObjUpvalue* createdupvalue = bl_object_makeupvalue(vm, local);
     createdupvalue->next = upvalue;
     if(prevupvalue == NULL)
     {
@@ -16235,10 +16806,14 @@ bool bl_class_isinstanceof(ObjClass* klass1, char* klass2name)
 static ObjString* bl_vmdo_stringmultiply(VMState* vm, ObjString* str, double number)
 {
     int times = (int)number;
-    if(times <= 0)// 'str' * 0 == '', 'str' * -1 == ''
-        return copy_string(vm, "", 0);
-    else if(times == 1)// 'str' * 1 == 'str'
+    if(times <= 0)
+    {// 'str' * 0 == '', 'str' * -1 == ''
+        return bl_string_copystring(vm, "", 0);
+    }
+    else if(times == 1)
+    {// 'str' * 1 == 'str'
         return str;
+    }
     int totallength = str->length * times;
     char* result = ALLOCATE(char, (size_t)totallength + 1);
     for(int i = 0; i < times; i++)
@@ -16246,7 +16821,7 @@ static ObjString* bl_vmdo_stringmultiply(VMState* vm, ObjString* str, double num
         memcpy(result + (str->length * i), str->chars, str->length);
     }
     result[totallength] = '\0';
-    return take_string(vm, result, totallength);
+    return bl_string_takestring(vm, result, totallength);
 }
 
 static ObjArray* bl_array_addarray(VMState* vm, ObjArray* a, ObjArray* b)
@@ -16313,10 +16888,13 @@ static bool bl_vmdo_stringgetindex(VMState* vm, ObjString* string, bool willassi
     int length = string->isascii ? string->length : string->utf8length;
     int realindex = index;
     if(index < 0)
+    {
         index = length + index;
+    }
     if(index < length && index >= 0)
     {
-        int start = index, end = index + 1;
+        int start = index;
+        int end = index + 1;
         if(!string->isascii)
         {
             bl_util_utf8slice(string->chars, &start, &end);
@@ -16359,10 +16937,15 @@ static bool bl_vmdo_stringgetrangedindex(VMState* vm, ObjString* string, bool wi
         return true;
     }
     if(upperindex < 0)
+    {
         upperindex = length + upperindex;
+    }
     if(upperindex > length)
+    {
         upperindex = length;
-    int start = lowerindex, end = upperindex;
+    }
+    int start = lowerindex;
+    int end = upperindex;
     if(!string->isascii)
     {
         bl_util_utf8slice(string->chars, &start, &end);
@@ -16386,7 +16969,9 @@ static bool bl_vmdo_bytesgetindex(VMState* vm, ObjBytes* bytes, bool willassign)
     int index = AS_NUMBER(lower);
     int realindex = index;
     if(index < 0)
+    {
         index = bytes->bytes.count + index;
+    }
     if(index < bytes->bytes.count && index >= 0)
     {
         if(!willassign)
@@ -16426,14 +17011,18 @@ static bool bl_vmdo_bytesgetrangedindex(VMState* vm, ObjBytes* bytes, bool willa
         return true;
     }
     if(upperindex < 0)
+    {
         upperindex = bytes->bytes.count + upperindex;
+    }
     if(upperindex > bytes->bytes.count)
+    {
         upperindex = bytes->bytes.count;
+    }
     if(!willassign)
     {
         bl_vm_popvaluen(vm, 3);// +1 for the list itself
     }
-    bl_vm_pushvalue(vm, OBJ_VAL(copy_bytes(vm, bytes->bytes.bytes + lowerindex, upperindex - lowerindex)));
+    bl_vm_pushvalue(vm, OBJ_VAL(bl_bytes_copybytes(vm, bytes->bytes.bytes + lowerindex, upperindex - lowerindex)));
     return true;
 }
 
@@ -16448,7 +17037,9 @@ static bool bl_vmdo_listgetindex(VMState* vm, ObjArray* list, bool willassign)
     int index = AS_NUMBER(lower);
     int realindex = index;
     if(index < 0)
+    {
         index = list->items.count + index;
+    }
     if(index < list->items.count && index >= 0)
     {
         if(!willassign)
@@ -16488,9 +17079,13 @@ static bool bl_vmdo_listgetrangedindex(VMState* vm, ObjArray* list, bool willass
         return true;
     }
     if(upperindex < 0)
+    {
         upperindex = list->items.count + upperindex;
+    }
     if(upperindex > list->items.count)
+    {
         upperindex = list->items.count;
+    }
     ObjArray* nlist = bl_object_makelist(vm);
     bl_vm_pushvalue(vm, OBJ_VAL(nlist));// gc protect
     for(int i = lowerindex; i < upperindex; i++)
@@ -16589,7 +17184,7 @@ static bool bl_vmdo_concat(VMState* vm)
         memcpy(chars, numstr, numlength);
         memcpy(chars + numlength, b->chars, b->length);
         chars[length] = '\0';
-        ObjString* result = take_string(vm, chars, length);
+        ObjString* result = bl_string_takestring(vm, chars, length);
         result->utf8length = numlength + b->utf8length;
         bl_vm_popvaluen(vm, 2);
         bl_vm_pushvalue(vm, OBJ_VAL(result));
@@ -16605,7 +17200,7 @@ static bool bl_vmdo_concat(VMState* vm)
         memcpy(chars, a->chars, a->length);
         memcpy(chars + a->length, numstr, numlength);
         chars[length] = '\0';
-        ObjString* result = take_string(vm, chars, length);
+        ObjString* result = bl_string_takestring(vm, chars, length);
         result->utf8length = numlength + a->utf8length;
         bl_vm_popvaluen(vm, 2);
         bl_vm_pushvalue(vm, OBJ_VAL(result));
@@ -16619,7 +17214,7 @@ static bool bl_vmdo_concat(VMState* vm)
         memcpy(chars, a->chars, a->length);
         memcpy(chars + a->length, b->chars, b->length);
         chars[length] = '\0';
-        ObjString* result = take_string(vm, chars, length);
+        ObjString* result = bl_string_takestring(vm, chars, length);
         result->utf8length = a->utf8length + b->utf8length;
         bl_vm_popvaluen(vm, 2);
         bl_vm_pushvalue(vm, OBJ_VAL(result));
@@ -16647,53 +17242,70 @@ static double bl_util_modulo(double a, double b)
     return r;
 }
 
+static inline uint8_t READ_BYTE(CallFrame* frame)
+{
+    return *frame->ip++;
+}
+
+static inline uint16_t READ_SHORT(CallFrame* frame)
+{
+    frame->ip += 2;
+    return (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]);
+}
+
+#define READ_CONSTANT(frame) (frame->closure->fnptr->blob.constants.values[READ_SHORT(frame)])
+
+#define READ_STRING(frame) (AS_STRING(READ_CONSTANT(frame)))
+
+#define BINARY_OP(vm, frame, type, op)                                                                                                                        \
+    do                                                                                                                                                        \
+    {                                                                                                                                                         \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0)))                                                           \
+           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1))))                                                       \
+        {                                                                                                                                                     \
+            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
+            break;                                                                                                                                            \
+        }                                                                                                                                                     \
+        Value _b = bl_vm_popvalue(vm);                                                                                                                        \
+        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b);                                                                               \
+        Value _a = bl_vm_popvalue(vm);                                                                                                                        \
+        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a);                                                                               \
+        bl_vm_pushvalue(vm, type(a op b));                                                                                                                    \
+    } while(false)
+
+#define BINARY_BIT_OP(vm, frame, op)                                                                                                                          \
+    do                                                                                                                                                        \
+    {                                                                                                                                                         \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0)))                                                           \
+           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1))))                                                       \
+        {                                                                                                                                                     \
+            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
+            break;                                                                                                                                            \
+        }                                                                                                                                                     \
+        long b = AS_NUMBER(bl_vm_popvalue(vm));                                                                                                               \
+        long a = AS_NUMBER(bl_vm_popvalue(vm));                                                                                                               \
+        bl_vm_pushvalue(vm, INTEGER_VAL(a op b));                                                                                                             \
+    } while(false)
+
+#define BINARY_MOD_OP(type, op)                                                                                                                               \
+    do                                                                                                                                                        \
+    {                                                                                                                                                         \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0)))                                                           \
+           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1))))                                                       \
+        {                                                                                                                                                     \
+            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
+            break;                                                                                                                                            \
+        }                                                                                                                                                     \
+        Value _b = bl_vm_popvalue(vm);                                                                                                                        \
+        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b);                                                                               \
+        Value _a = bl_vm_popvalue(vm);                                                                                                                        \
+        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a);                                                                               \
+        bl_vm_pushvalue(vm, type(op(a, b)));                                                                                                                  \
+    } while(false)
+
 PtrResult bl_vm_run(VMState* vm)
 {
     CallFrame* frame = &vm->frames[vm->framecount - 1];
-#define READ_BYTE() (*frame->ip++)
-#define READ_SHORT() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
-#define READ_CONSTANT() (frame->closure->fnptr->blob.constants.values[READ_SHORT()])
-#define READ_STRING() (AS_STRING(READ_CONSTANT()))
-#define BINARY_OP(type, op) \
-    do \
-    { \
-        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
-        { \
-            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
-            break; \
-        } \
-        Value _b = bl_vm_popvalue(vm); \
-        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b); \
-        Value _a = bl_vm_popvalue(vm); \
-        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a); \
-        bl_vm_pushvalue(vm, type(a op b)); \
-    } while(false)
-#define BINARY_BIT_OP(op) \
-    do \
-    { \
-        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
-        { \
-            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
-            break; \
-        } \
-        long b = AS_NUMBER(bl_vm_popvalue(vm)); \
-        long a = AS_NUMBER(bl_vm_popvalue(vm)); \
-        bl_vm_pushvalue(vm, INTEGER_VAL(a op b)); \
-    } while(false)
-#define BINARY_MOD_OP(type, op) \
-    do \
-    { \
-        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
-        { \
-            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
-            break; \
-        } \
-        Value _b = bl_vm_popvalue(vm); \
-        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b); \
-        Value _a = bl_vm_popvalue(vm); \
-        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a); \
-        bl_vm_pushvalue(vm, type(op(a, b))); \
-    } while(false)
     for(;;)
     {
         // try...finally... (i.e. try without a catch but a finally
@@ -16714,14 +17326,14 @@ PtrResult bl_vm_run(VMState* vm)
                 printf(" ]");
             }
             printf("\n");
-            disassemble_instruction(&frame->closure->fnptr->blob, (int)(frame->ip - frame->closure->fnptr->blob.code));
+            bl_blob_disassembleinst(&frame->closure->fnptr->blob, (int)(frame->ip - frame->closure->fnptr->blob.code));
         }
         uint8_t instruction;
-        switch(instruction = READ_BYTE())
+        switch(instruction = READ_BYTE(frame))
         {
             case OP_CONSTANT:
             {
-                Value constant = READ_CONSTANT();
+                Value constant = READ_CONSTANT(frame);
                 bl_vm_pushvalue(vm, constant);
                 break;
             }
@@ -16749,13 +17361,13 @@ PtrResult bl_vm_run(VMState* vm)
                 }
                 else
                 {
-                    BINARY_OP(NUMBER_VAL, +);
+                    BINARY_OP(vm, frame, NUMBER_VAL, +);
                 }
                 break;
             }
             case OP_SUBTRACT:
             {
-                BINARY_OP(NUMBER_VAL, -);
+                BINARY_OP(vm, frame, NUMBER_VAL, -);
                 break;
             }
             case OP_MULTIPLY:
@@ -16780,12 +17392,12 @@ PtrResult bl_vm_run(VMState* vm)
                     bl_vm_pushvalue(vm, OBJ_VAL(nlist));
                     break;
                 }
-                BINARY_OP(NUMBER_VAL, *);
+                BINARY_OP(vm, frame, NUMBER_VAL, *);
                 break;
             }
             case OP_DIVIDE:
             {
-                BINARY_OP(NUMBER_VAL, /);
+                BINARY_OP(vm, frame, NUMBER_VAL, /);
                 break;
             }
             case OP_REMINDER:
@@ -16825,27 +17437,27 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_AND:
             {
-                BINARY_BIT_OP(&);
+                BINARY_BIT_OP(vm, frame, &);
                 break;
             }
             case OP_OR:
             {
-                BINARY_BIT_OP(|);
+                BINARY_BIT_OP(vm, frame, |);
                 break;
             }
             case OP_XOR:
             {
-                BINARY_BIT_OP(^);
+                BINARY_BIT_OP(vm, frame, ^);
                 break;
             }
             case OP_LSHIFT:
             {
-                BINARY_BIT_OP(<<);
+                BINARY_BIT_OP(vm, frame, <<);
                 break;
             }
             case OP_RSHIFT:
             {
-                BINARY_BIT_OP(>>);
+                BINARY_BIT_OP(vm, frame, >>);
                 break;
             }
             case OP_ONE:
@@ -16863,12 +17475,12 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GREATER:
             {
-                BINARY_OP(BOOL_VAL, >);
+                BINARY_OP(vm, frame, BOOL_VAL, >);
                 break;
             }
             case OP_LESS:
             {
-                BINARY_OP(BOOL_VAL, <);
+                BINARY_OP(vm, frame, BOOL_VAL, <);
                 break;
             }
             case OP_NOT:
@@ -16888,13 +17500,13 @@ PtrResult bl_vm_run(VMState* vm)
                 break;
             case OP_JUMP:
             {
-                uint16_t offset = READ_SHORT();
+                uint16_t offset = READ_SHORT(frame);
                 frame->ip += offset;
                 break;
             }
             case OP_JUMP_IF_FALSE:
             {
-                uint16_t offset = READ_SHORT();
+                uint16_t offset = READ_SHORT(frame);
                 if(bl_value_isfalse(bl_vm_peekvalue(vm, 0)))
                 {
                     frame->ip += offset;
@@ -16903,7 +17515,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_LOOP:
             {
-                uint16_t offset = READ_SHORT();
+                uint16_t offset = READ_SHORT(frame);
                 frame->ip -= offset;
                 break;
             }
@@ -16953,7 +17565,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_POP_N:
             {
-                bl_vm_popvaluen(vm, READ_SHORT());
+                bl_vm_popvaluen(vm, READ_SHORT(frame));
                 break;
             }
             case OP_CLOSE_UP_VALUE:
@@ -16964,7 +17576,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_DEFINE_GLOBAL:
             {
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
@@ -16979,7 +17591,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_GLOBAL:
             {
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 Value value;
                 if(!bl_hashtable_get(&frame->closure->fnptr->module->values, OBJ_VAL(name), &value))
                 {
@@ -16999,7 +17611,7 @@ PtrResult bl_vm_run(VMState* vm)
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 HashTable* table = &frame->closure->fnptr->module->values;
                 if(bl_hashtable_set(vm, table, OBJ_VAL(name), bl_vm_peekvalue(vm, 0)))
                 {
@@ -17011,13 +17623,13 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_LOCAL:
             {
-                uint16_t slot = READ_SHORT();
+                uint16_t slot = READ_SHORT(frame);
                 bl_vm_pushvalue(vm, frame->slots[slot]);
                 break;
             }
             case OP_SET_LOCAL:
             {
-                uint16_t slot = READ_SHORT();
+                uint16_t slot = READ_SHORT(frame);
                 if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
@@ -17028,7 +17640,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_PROPERTY:
             {
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 if(bl_value_isobject(bl_vm_peekvalue(vm, 0)))
                 {
                     Value value;
@@ -17104,8 +17716,8 @@ PtrResult bl_vm_run(VMState* vm)
                             {
                                 break;
                             }
-                            runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars,
-                                          name->chars);
+                            runtime_error("instance of class %s does not have a property or method named '%s'",
+                                          AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars, name->chars);
                             break;
                         }
                         case OBJ_STRING:
@@ -17190,7 +17802,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_SELF_PROPERTY:
             {
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 Value value;
                 if(bl_value_isinstance(bl_vm_peekvalue(vm, 0)))
                 {
@@ -17205,7 +17817,8 @@ PtrResult bl_vm_run(VMState* vm)
                     {
                         break;
                     }
-                    runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars, name->chars);
+                    runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars,
+                                  name->chars);
                     break;
                 }
                 else if(bl_value_isclass(bl_vm_peekvalue(vm, 0)))
@@ -17256,7 +17869,7 @@ PtrResult bl_vm_run(VMState* vm)
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
                     break;
                 }
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 if(bl_value_isinstance(bl_vm_peekvalue(vm, 1)))
                 {
                     ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 1));
@@ -17277,13 +17890,13 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_CLOSURE:
             {
-                ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
+                ObjFunction* function = AS_FUNCTION(READ_CONSTANT(frame));
                 ObjClosure* closure = bl_object_makeclosure(vm, function);
                 bl_vm_pushvalue(vm, OBJ_VAL(closure));
                 for(int i = 0; i < closure->upvaluecount; i++)
                 {
-                    uint8_t islocal = READ_BYTE();
-                    int index = READ_SHORT();
+                    uint8_t islocal = READ_BYTE(frame);
+                    int index = READ_SHORT(frame);
                     if(islocal)
                     {
                         closure->upvalues[i] = bl_vm_captureupvalue(vm, frame->slots + index);
@@ -17297,13 +17910,13 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_UP_VALUE:
             {
-                int index = READ_SHORT();
+                int index = READ_SHORT(frame);
                 bl_vm_pushvalue(vm, *((ObjClosure*)frame->closure)->upvalues[index]->location);
                 break;
             }
             case OP_SET_UP_VALUE:
             {
-                int index = READ_SHORT();
+                int index = READ_SHORT(frame);
                 if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
                     runtime_error(ERR_CANT_ASSIGN_EMPTY);
@@ -17314,7 +17927,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_CALL:
             {
-                int argcount = READ_BYTE();
+                int argcount = READ_BYTE(frame);
                 if(!bl_vmdo_callvalue(vm, bl_vm_peekvalue(vm, argcount), argcount))
                 {
                     EXIT_VM();
@@ -17324,8 +17937,8 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_INVOKE:
             {
-                ObjString* method = READ_STRING();
-                int argcount = READ_BYTE();
+                ObjString* method = READ_STRING(frame);
+                int argcount = READ_BYTE(frame);
                 if(!blade_vm_invokemethod(vm, method, argcount))
                 {
                     EXIT_VM();
@@ -17335,8 +17948,8 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_INVOKE_SELF:
             {
-                ObjString* method = READ_STRING();
-                int argcount = READ_BYTE();
+                ObjString* method = READ_STRING(frame);
+                int argcount = READ_BYTE(frame);
                 if(!bl_instance_invokefromself(vm, method, argcount))
                 {
                     EXIT_VM();
@@ -17346,20 +17959,20 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_CLASS:
             {
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makeclass(vm, name)));
                 break;
             }
             case OP_METHOD:
             {
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 bl_vm_classdefmethod(vm, name);
                 break;
             }
             case OP_CLASS_PROPERTY:
             {
-                ObjString* name = READ_STRING();
-                int isstatic = READ_BYTE();
+                ObjString* name = READ_STRING(frame);
+                int isstatic = READ_BYTE(frame);
                 bl_vm_classdefproperty(vm, name, isstatic == 1);
                 break;
             }
@@ -17380,7 +17993,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_SUPER:
             {
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 ObjClass* klass = AS_CLASS(bl_vm_peekvalue(vm, 0));
                 if(!bl_class_bindmethod(vm, klass->superclass, name))
                 {
@@ -17390,8 +18003,8 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_SUPER_INVOKE:
             {
-                ObjString* method = READ_STRING();
-                int argcount = READ_BYTE();
+                ObjString* method = READ_STRING(frame);
+                int argcount = READ_BYTE(frame);
                 ObjClass* klass = AS_CLASS(bl_vm_popvalue(vm));
                 if(!bl_instance_invokefromclass(vm, klass, method, argcount))
                 {
@@ -17402,7 +18015,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_SUPER_INVOKE_SELF:
             {
-                int argcount = READ_BYTE();
+                int argcount = READ_BYTE(frame);
                 ObjClass* klass = AS_CLASS(bl_vm_popvalue(vm));
                 if(!bl_instance_invokefromclass(vm, klass, klass->name, argcount))
                 {
@@ -17413,7 +18026,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_LIST:
             {
-                int count = READ_SHORT();
+                int count = READ_SHORT(frame);
                 ObjArray* list = bl_object_makelist(vm);
                 vm->stacktop[-count - 1] = OBJ_VAL(list);
                 for(int i = count - 1; i >= 0; i--)
@@ -17425,20 +18038,22 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_RANGE:
             {
-                Value _upper = bl_vm_peekvalue(vm, 0), _lower = bl_vm_peekvalue(vm, 1);
+                Value _upper = bl_vm_peekvalue(vm, 0);
+                Value _lower = bl_vm_peekvalue(vm, 1);
                 if(!bl_value_isnumber(_upper) || !bl_value_isnumber(_lower))
                 {
                     runtime_error("invalid range boundaries");
                     break;
                 }
-                double lower = AS_NUMBER(_lower), upper = AS_NUMBER(_upper);
+                double lower = AS_NUMBER(_lower);
+                double upper = AS_NUMBER(_upper);
                 bl_vm_popvaluen(vm, 2);
                 bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makerange(vm, lower, upper)));
                 break;
             }
             case OP_DICT:
             {
-                int count = READ_SHORT() * 2;// 1 for key, 1 for value
+                int count = READ_SHORT(frame) * 2;// 1 for key, 1 for value
                 ObjDict* dict = bl_object_makedict(vm);
                 vm->stacktop[-count - 1] = OBJ_VAL(dict);
                 for(int i = 0; i < count; i += 2)
@@ -17456,7 +18071,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_RANGED_INDEX:
             {
-                uint8_t willassign = READ_BYTE();
+                uint8_t willassign = READ_BYTE(frame);
                 bool isgotten = true;
                 if(bl_value_isobject(bl_vm_peekvalue(vm, 2)))
                 {
@@ -17505,7 +18120,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GET_INDEX:
             {
-                uint8_t willassign = READ_BYTE();
+                uint8_t willassign = READ_BYTE(frame);
                 bool isgotten = true;
                 if(bl_value_isobject(bl_vm_peekvalue(vm, 1)))
                 {
@@ -17647,15 +18262,15 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_CALL_IMPORT:
             {
-                ObjClosure* closure = AS_CLOSURE(READ_CONSTANT());
-                add_module(vm, closure->fnptr->module);
+                ObjClosure* closure = AS_CLOSURE(READ_CONSTANT(frame));
+                bl_state_addmodule(vm, closure->fnptr->module);
                 bl_vmdo_docall(vm, closure, 0);
                 frame = &vm->frames[vm->framecount - 1];
                 break;
             }
             case OP_NATIVE_MODULE:
             {
-                ObjString* modulename = READ_STRING();
+                ObjString* modulename = READ_STRING(frame);
                 Value value;
                 if(bl_hashtable_get(&vm->modules, OBJ_VAL(modulename), &value))
                 {
@@ -17673,7 +18288,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_SELECT_IMPORT:
             {
-                ObjString* entryname = READ_STRING();
+                ObjString* entryname = READ_STRING(frame);
                 ObjFunction* function = AS_CLOSURE(bl_vm_peekvalue(vm, 0))->fnptr;
                 Value value;
                 if(bl_hashtable_get(&function->module->values, OBJ_VAL(entryname), &value))
@@ -17689,7 +18304,7 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_SELECT_NATIVE_IMPORT:
             {
                 ObjString* modulename = AS_STRING(bl_vm_peekvalue(vm, 0));
-                ObjString* valuename = READ_STRING();
+                ObjString* valuename = READ_STRING(frame);
                 Value mod;
                 if(bl_hashtable_get(&vm->modules, OBJ_VAL(modulename), &mod))
                 {
@@ -17727,14 +18342,14 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_EJECT_IMPORT:
             {
-                ObjFunction* function = AS_CLOSURE(READ_CONSTANT())->fnptr;
+                ObjFunction* function = AS_CLOSURE(READ_CONSTANT(frame))->fnptr;
                 bl_hashtable_delete(&frame->closure->fnptr->module->values, STRING_VAL(function->module->name));
                 break;
             }
             case OP_EJECT_NATIVE_IMPORT:
             {
                 Value mod;
-                ObjString* name = READ_STRING();
+                ObjString* name = READ_STRING(frame);
                 if(bl_hashtable_get(&vm->modules, OBJ_VAL(name), &mod))
                 {
                     bl_hashtable_addall(vm, &AS_MODULE(mod)->values, &frame->closure->fnptr->module->values);
@@ -17778,9 +18393,9 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_TRY:
             {
-                ObjString* type = READ_STRING();
-                uint16_t address = READ_SHORT();
-                uint16_t finallyaddress = READ_SHORT();
+                ObjString* type = READ_STRING(frame);
+                uint16_t address = READ_SHORT(frame);
+                uint16_t finallyaddress = READ_SHORT(frame);
                 if(address != 0)
                 {
                     Value value;
@@ -17814,7 +18429,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_SWITCH:
             {
-                ObjSwitch* sw = AS_SWITCH(READ_CONSTANT());
+                ObjSwitch* sw = AS_SWITCH(READ_CONSTANT(frame));
                 Value expr = bl_vm_peekvalue(vm, 0);
                 Value value;
                 if(bl_hashtable_get(&sw->table, expr, &value))
@@ -17852,12 +18467,7 @@ PtrResult bl_vm_run(VMState* vm)
                 break;
         }
     }
-#undef READ_BYTE
-#undef READ_SHORT
-#undef READ_CONSTANT
-#undef READ_LCONSTANT
-#undef READ_STRING
-#undef READ_LSTRING
+
 #undef BINARY_OP
 #undef BINARY_MOD_OP
 }
@@ -17899,9 +18509,13 @@ static void repl(VMState* vm)
     printf("Type \".exit\" to quit or \".credits\" for more information\n");
     char* source = (char*)malloc(sizeof(char));
     memset(source, 0, sizeof(char));
-    int bracecount = 0, parencount = 0, bracketcount = 0, singlequotecount = 0, doublequotecount = 0;
+    int bracecount = 0;
+    int parencount = 0;
+    int bracketcount = 0;
+    int singlequotecount = 0;
+    int doublequotecount = 0;
     ObjModule* module = bl_object_makemodule(vm, strdup(""), strdup("<repl>"));
-    add_module(vm, module);
+    bl_state_addmodule(vm, module);
     for(;;)
     {
         if(!continuerepl)
@@ -17954,35 +18568,57 @@ static void repl(VMState* vm)
         {
             // scope openers...
             if(line[i] == '{')
+            {
                 bracecount++;
+            }
             if(line[i] == '(')
+            {
                 parencount++;
+            }
             if(line[i] == '[')
+            {
                 bracketcount++;
+            }
             // quotes
             if(line[i] == '\'' && doublequotecount == 0)
             {
                 if(singlequotecount == 0)
+                {
                     singlequotecount++;
+                }
                 else
+                {
                     singlequotecount--;
+                }
             }
             if(line[i] == '"' && singlequotecount == 0)
             {
                 if(doublequotecount == 0)
+                {
                     doublequotecount++;
+                }
                 else
+                {
                     doublequotecount--;
+                }
             }
             if(line[i] == '\\' && (singlequotecount > 0 || doublequotecount > 0))
+            {
                 i++;
+            }
             // scope closers...
             if(line[i] == '}' && bracecount > 0)
+            {
                 bracecount--;
+            }
             if(line[i] == ')' && parencount > 0)
+            {
                 parencount--;
+            }
             if(line[i] == ']' && bracketcount > 0)
+            {
                 bracketcount--;
+            }
         }
         source = bl_util_appendstring(source, line);
         if(linelength > 0)
@@ -18003,7 +18639,7 @@ static void repl(VMState* vm)
 static void run_source(VMState* vm, const char* source, const char* filename)
 {
     ObjModule* module = bl_object_makemodule(vm, strdup(""), strdup(filename));
-    add_module(vm, module);
+    bl_state_addmodule(vm, module);
     PtrResult result = bl_vm_interpsource(vm, module, source);
     fflush(stdout);
     if(result == PTR_COMPILE_ERR)
@@ -18055,8 +18691,16 @@ void show_usage(char* argv[], bool fail)
 
 int main(int argc, char* argv[])
 {
-    VMState* vm;
+    bool shoulddebugstack;
+    bool shouldbufferstdout;
+    bool shouldprintbytecode;
+    int i;
+    int opt;
+    int next;
+    int nextgcstart;
+    char** stdargs;
     const char* codeline;
+    VMState* vm;
     vm = (VMState*)malloc(sizeof(VMState));
     if(vm == NULL)
     {
@@ -18066,63 +18710,62 @@ int main(int argc, char* argv[])
     memset(vm, 0, sizeof(VMState));
     init_vm(vm);
     fprintf(stderr, "STACK_MAX = %d\n", STACK_MAX);
-    bool shoulddebugstack = false;
-    bool shouldprintbytecode = false;
-    bool shouldbufferstdout = false;
-    int nextgcstart = DEFAULT_GC_START;
+    shoulddebugstack = false;
+    shouldprintbytecode = false;
+    shouldbufferstdout = false;
+    nextgcstart = DEFAULT_GC_START;
     codeline = NULL;
     if(argc > 1)
     {
-        int opt;
         while((opt = getopt(argc, argv, "hdbjvg:e:")) != -1)
         {
             switch(opt)
             {
                 case 'h':
-                    {
-                        show_usage(argv, false);// exits
-                    }
-                    break;
+                {
+                    show_usage(argv, false);// exits
+                }
+                break;
                 case 'd':
-                    {
-                        shouldprintbytecode = true;
-                    }
-                    break;
+                {
+                    shouldprintbytecode = true;
+                }
+                break;
                 case 'b':
-                    {
-                        shouldbufferstdout = true;
-                    }
-                    break;
+                {
+                    shouldbufferstdout = true;
+                }
+                break;
                 case 'j':
-                    {
-                        shoulddebugstack = true;
-                    }
-                    break;
+                {
+                    shoulddebugstack = true;
+                }
+                break;
                 case 'v':
-                    {
-                        printf("Blade " BLADE_VERSION_STRING " (running on BladeVM " BVM_VERSION ")\n");
-                        return EXIT_SUCCESS;
-                    }
-                    break;
+                {
+                    printf("Blade " BLADE_VERSION_STRING " (running on BladeVM " BVM_VERSION ")\n");
+                    return EXIT_SUCCESS;
+                }
+                break;
                 case 'g':
+                {
+                    next = (int)strtol(optarg, NULL, 10);
+                    if(next > 0)
                     {
-                        int next = (int)strtol(optarg, NULL, 10);
-                        if(next > 0)
-                        {
-                            nextgcstart = next * 1024;// expected value is in kilobytes
-                        }
+                        nextgcstart = next * 1024;// expected value is in kilobytes
                     }
-                    break;
+                }
+                break;
                 case 'e':
-                    {
-                        codeline = optarg;
-                    }
-                    break;
+                {
+                    codeline = optarg;
+                }
+                break;
                 default:
-                    {
-                        show_usage(argv, true);// exits
-                    }
-                    break;
+                {
+                    show_usage(argv, true);// exits
+                }
+                break;
             }
         }
     }
@@ -18144,10 +18787,10 @@ int main(int argc, char* argv[])
 #ifdef _WIN32
         SetConsoleOutputCP(CP_UTF8);
 #endif
-        char** stdargs = (char**)calloc(argc, sizeof(char*));
+        stdargs = (char**)calloc(argc, sizeof(char*));
         if(stdargs != NULL)
         {
-            for(int i = 0; i < argc; i++)
+            for(i = 0; i < argc; i++)
             {
                 stdargs[i] = argv[i];
             }
@@ -18178,4 +18821,3 @@ int main(int argc, char* argv[])
     fprintf(stderr, "Device out of memory.");
     exit(EXIT_FAILURE);
 }
-

@@ -112,7 +112,7 @@ int getopt(int nargc, char* const nargv[], const char* ostr)
         optopt = *place++;
 
     /* See if option letter is one the caller wanted... */
-    if(optopt == ':' || (oli = strchr(ostr, optopt)) == NULL)
+    if(optopt == ':' || (oli = (char*)strchr(ostr, optopt)) == NULL)
     {
         if(*place == 0)
             ++optind;
