@@ -285,10 +285,10 @@
 #define NIL_VAL ((Value){ VAL_NIL, { .number = 0 } })
 #define TRUE_VAL ((Value){ VAL_BOOL, { .boolean = true } })
 #define FALSE_VAL ((Value){ VAL_BOOL, { .boolean = false } })
-#define BOOL_VAL(v) ((Value){ VAL_BOOL, { .boolean = v } })
-#define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
-#define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
-#define OBJ_VAL(v) ((Value){ VAL_OBJ, { .obj = (Object*)v } })
+#define BOOL_VAL(v) ((Value){ VAL_BOOL, { .boolean = (v) } })
+#define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = (double)(v) } })
+#define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = (double)(v) } })
+#define OBJ_VAL(v) ((Value){ VAL_OBJ, { .obj = (Object*)(v) } })
 
 // demote blade values to C value
 #define AS_BOOL(v) ((v).as.boolean)
@@ -876,7 +876,7 @@ struct ObjPointer
 {
     Object obj;
     void* pointer;
-    char* name;
+    const char* name;
     PtrFreeFunc fnptrfree;
 };
 
@@ -1243,7 +1243,7 @@ int bl_util_utf8decode(const uint8_t* bytes, uint32_t length)
     return value;
 }
 
-char* bl_util_appendstring(char* old, char* newstr)
+char* bl_util_appendstring(char* old, const char* newstr)
 {
     char* out;
     size_t oldlen;
@@ -1351,7 +1351,7 @@ char* bl_util_getexepath()
     {
         return strdup(rawpath);
     }
-    return "";
+    return strdup("");
 }
 
 char* bl_util_getexedir()
@@ -1359,7 +1359,7 @@ char* bl_util_getexedir()
     return dirname(bl_util_getexepath());
 }
 
-char* bl_util_mergepaths(char* a, char* b)
+char* bl_util_mergepaths(const char* a, const char* b)
 {
     int lenb;
     int lena;
@@ -1395,7 +1395,7 @@ bool bl_util_fileexists(char* filepath)
     return access(filepath, F_OK) == 0;
 }
 
-char* bl_util_getbladefilename(char* filename)
+char* bl_util_getbladefilename(const char* filename)
 {
     return bl_util_mergepaths(filename, BLADE_EXTENSION);
 }
@@ -1570,15 +1570,12 @@ static uint32_t bl_util_hashbits(uint64_t hash)
 
 uint32_t bl_util_hashdouble(double value)
 {
-    typedef union bdoubleunion bdoubleunion;
-
     union bdoubleunion
     {
         uint64_t bits;
         double num;
     };
-
-    bdoubleunion bits;
+    union bdoubleunion bits;
     bits.num = value;
     return bl_util_hashbits(bits.bits);
 }
@@ -2211,14 +2208,20 @@ void bl_mem_collectgarbage(VMState* vm)
 
 static char* number_to_string(VMState* vm, double number)
 {
-    int length = snprintf(NULL, 0, NUMBER_FORMAT, number);
-    char* numstr = ALLOCATE(char, length + 1);
+    int length;
+    char* numstr;
+    length = snprintf(NULL, 0, NUMBER_FORMAT, number);
+    numstr = ALLOCATE(char, length + 1);
     if(numstr != NULL)
     {
         sprintf(numstr, NUMBER_FORMAT, number);
-        return numstr;
     }
-    return "";
+    else
+    {
+        //return "";
+    }
+    return numstr;
+
 }
 
 // valuetop
@@ -2361,21 +2364,42 @@ void bl_value_echovalue(Value value)
     bl_value_doprintvalue(value, true);
 }
 
+// fixme: should this allocate?
 char* bl_value_tostring(VMState* vm, Value value)
 {
     switch(value.type)
     {
         case VAL_NIL:
-            return "nil";
+            {
+                return (char*)"nil";
+            }
+            break;
         case VAL_BOOL:
-            return AS_BOOL(value) ? (char*)"true" : (char*)"false";
+            {
+                if(AS_BOOL(value))
+                {
+                    return (char*)"true";
+                }
+                else
+                {
+                    return (char*)"false";
+                }
+            }
+            break;
         case VAL_NUMBER:
-            return number_to_string(vm, AS_NUMBER(value));
+            {
+                return number_to_string(vm, AS_NUMBER(value));
+            }
+            break;
         case VAL_OBJ:
-            return bl_writer_objecttostring(vm, value);
+            {
+                return bl_writer_objecttostring(vm, value);
+            }
+            break;
         default:
-            return "";
+            break;
     }
+    return (char*)"";
 }
 
 const char* bl_value_typename(Value value)
@@ -2400,10 +2424,7 @@ const char* bl_value_typename(Value value)
     {
         return bl_object_gettype(AS_OBJ(value));
     }
-    else
-    {
-        return "unknown";
-    }
+    return "unknown";
 }
 
 bool bl_value_valuesequal(Value a, Value b)
@@ -7813,75 +7834,108 @@ static int bl_parser_readunicodeescape(AstParser* p, char* string, char* realstr
 
 static char* bl_parser_compilestring(AstParser* p, int* length)
 {
-    char* str = (char*)malloc((((size_t)p->previous.length - 2) + 1) * sizeof(char));
-    char* real = (char*)p->previous.start + 1;
-    int reallength = p->previous.length - 2;
-    int k = 0;
-    for(int i = 0; i < reallength; i++, k++)
+    int k;
+    int i;
+    int count;
+    int reallength;
+    char c;
+    char* str;
+    char* real;
+    str = (char*)malloc((((size_t)p->previous.length - 2) + 1) * sizeof(char));
+    real = (char*)p->previous.start + 1;
+    reallength = p->previous.length - 2;
+    k = 0;
+    for(i = 0; i < reallength; i++, k++)
     {
-        char c = real[i];
+        c = real[i];
         if(c == '\\' && i < reallength - 1)
         {
             switch(real[i + 1])
             {
                 case '0':
-                    c = '\0';
+                    {
+                        c = '\0';
+                    }
                     break;
                 case '$':
-                    c = '$';
+                    {
+                        c = '$';
+                    }
                     break;
                 case '\'':
-                    c = '\'';
+                    {
+                        c = '\'';
+                    }
                     break;
                 case '"':
-                    c = '"';
+                    {
+                        c = '"';
+                    }
                     break;
                 case 'a':
-                    c = '\a';
+                    {
+                        c = '\a';
+                    }
                     break;
                 case 'b':
-                    c = '\b';
+                    {
+                        c = '\b';
+                    }
                     break;
                 case 'f':
-                    c = '\f';
+                    {
+                        c = '\f';
+                    }
                     break;
                 case 'n':
-                    c = '\n';
+                    {
+                        c = '\n';
+                    }
                     break;
                 case 'r':
-                    c = '\r';
+                    {
+                        c = '\r';
+                    }
                     break;
                 case 't':
-                    c = '\t';
+                    {
+                        c = '\t';
+                    }
                     break;
                 case '\\':
-                    c = '\\';
+                    {
+                        c = '\\';
+                    }
                     break;
                 case 'v':
-                    c = '\v';
+                    {
+                        c = '\v';
+                    }
                     break;
                 case 'x':
-                {
-                    k += bl_parser_readunicodeescape(p, str, real, 2, i, k) - 1;
-                    i += 3;
+                    {
+                        k += bl_parser_readunicodeescape(p, str, real, 2, i, k) - 1;
+                        i += 3;
+                    }
                     continue;
-                }
                 case 'u':
-                {
-                    int count = bl_parser_readunicodeescape(p, str, real, 4, i, k);
-                    k += count > 4 ? count - 2 : count - 1;
-                    i += count > 4 ? 6 : 5;
+                    {
+                        count = bl_parser_readunicodeescape(p, str, real, 4, i, k);
+                        k += count > 4 ? count - 2 : count - 1;
+                        i += count > 4 ? 6 : 5;
+                    }
                     continue;
-                }
                 case 'U':
-                {
-                    int count = bl_parser_readunicodeescape(p, str, real, 8, i, k);
-                    k += count > 4 ? count - 2 : count - 1;
-                    i += 9;
+                    {
+                        count = bl_parser_readunicodeescape(p, str, real, 8, i, k);
+                        k += count > 4 ? count - 2 : count - 1;
+                        i += 9;
+                    }
                     continue;
-                }
                 default:
-                    i--;
+                    {
+                        i--;
+                    }
                     break;
             }
             i++;
@@ -8085,7 +8139,7 @@ static inline AstRule* bl_parser_makerule(AstRule* dest, bparseprefixfn prefix, 
     return dest;
 }
 
-AstRule* bl_parser_getrule(TokType type)
+static AstRule* bl_parser_getrule(TokType type)
 {
     #if 0
     // clang-format off
@@ -9970,6 +10024,7 @@ static int file_close(ObjFile* file)
     return -1;
 }
 
+// fixme: mode is cast to char*
 static void file_open(ObjFile* file)
 {
     if((file->file == NULL || !file->isopen) && !bl_object_isstdfile(file))
@@ -10552,9 +10607,15 @@ bool objfn_file_abspath(VMState* vm, int argcount, Value* args)
 
 bool objfn_file_copy(VMState* vm, int argcount, Value* args)
 {
+    size_t nread;
+    size_t nwrite;
+    const char* mode;
+    unsigned char buffer[8192];
+    FILE* fp;
+    ObjFile* file;    
     ENFORCE_ARG_COUNT(copy, 1);
     ENFORCE_ARG_TYPE(copy, 0, bl_value_isstring);
-    ObjFile* file = AS_FILE(METHOD_OBJECT);
+    file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
     if(bl_util_fileexists(file->path->chars))
     {
@@ -10563,20 +10624,17 @@ bool objfn_file_copy(VMState* vm, int argcount, Value* args)
         {
             FILE_ERROR(Unsupported, "file not open for reading");
         }
-        char* mode = "w";
+        mode = "w";
         // if we are dealing with a binary file
         if(strstr(file->mode->chars, "b") != NULL)
         {
             mode = "wb";
         }
-        FILE* fp = fopen(name->chars, mode);
+        fp = fopen(name->chars, mode);
         if(fp == NULL)
         {
             FILE_ERROR(Permission, "unable to create new file");
         }
-        size_t nread;
-        size_t nwrite;
-        unsigned char buffer[8192];
         do
         {
             nread = fread(buffer, 1, sizeof(buffer), file->file);
@@ -10598,22 +10656,21 @@ bool objfn_file_copy(VMState* vm, int argcount, Value* args)
         file_close(file);
         RETURN_BOOL(nread == nwrite);
     }
-    else
-    {
-        RETURN_ERROR("file not found");
-    }
+    RETURN_ERROR("file not found");
 }
 
 bool objfn_file_truncate(VMState* vm, int argcount, Value* args)
 {
+    off_t finalsize;
+    ObjFile* file;
     ENFORCE_ARG_RANGE(truncate, 0, 1);
-    off_t finalsize = 0;
+    finalsize = 0;
     if(argcount == 1)
     {
         ENFORCE_ARG_TYPE(truncate, 0, bl_value_isnumber);
         finalsize = (off_t)AS_NUMBER(args[0]);
     }
-    ObjFile* file = AS_FILE(METHOD_OBJECT);
+    file = AS_FILE(METHOD_OBJECT);
     DENY_STD();
     RETURN_STATUS(truncate(file->path->chars, finalsize));
 }
@@ -10847,8 +10904,8 @@ void bind_user_modules(VMState* vm, char* pkgroot)
     char* dnam;
     char* path;
     char* name;
-    char* error;
     char* filename;
+    const char* error;
     struct stat sb;
     DIR* dir;
     struct dirent* ent;
@@ -10911,7 +10968,8 @@ void bind_native_modules(VMState* vm)
     //bind_user_modules(vm, bl_util_mergepaths(getcwd(NULL, 0), LOCAL_PACKAGES_DIRECTORY LOCAL_EXT_DIRECTORY));
 }
 
-char* load_user_module(VMState* vm, const char* path, char* name)
+// fixme: should 
+const char* load_user_module(VMState* vm, const char* path, char* name)
 {
     int length;
     char* fnname;
@@ -10927,12 +10985,12 @@ char* load_user_module(VMState* vm, const char* path, char* name)
     fnname[length] = '\0';// terminate the raw string
     if((handle = dlopen(path, RTLD_LAZY)) == NULL)
     {
-        return (char*)dlerror();
+        return dlerror();
     }
     fn = (ModInitFunc)dlsym(handle, fnname);
     if(fn == NULL)
     {
-        return (char*)dlerror();
+        return dlerror();
     }
     int pathlength = (int)strlen(path);
     char* modulefile = ALLOCATE(char, pathlength + 1);
@@ -12828,7 +12886,7 @@ bool modfn_array_extend(VMState* vm, int argcount, Value* args)
     DynArray* array = (DynArray*)AS_PTR(args[0])->pointer;
     DynArray* array2 = (DynArray*)AS_PTR(args[1])->pointer;
     array->buffer = GROW_ARRAY(void, sizeof(void*), array->buffer, array->length, array->length + array2->length);
-    memcpy(array->buffer + array->length, array2->buffer, array2->length);
+    memcpy(((unsigned char*)array->buffer) + array->length, array2->buffer, array2->length);
     array->length += array2->length;
     return bl_value_returnempty(vm, args);
     ;

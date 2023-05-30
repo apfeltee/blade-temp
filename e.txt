@@ -1,206 +1,1002 @@
-Checking main.c ...
-Checking main.c: BIT_ZERO_ON_LEFT...
-main.c:16781:33: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                uint16_t offset = READ_SHORT();
-                                ^
-main.c:16787:33: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                uint16_t offset = READ_SHORT();
-                                ^
-main.c:16796:33: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                uint16_t offset = READ_SHORT();
-                                ^
-main.c:16904:31: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                uint16_t slot = READ_SHORT();
-                              ^
-main.c:16910:31: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                uint16_t slot = READ_SHORT();
-                              ^
-main.c:17176:31: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                    int index = READ_SHORT();
-                              ^
-main.c:17190:27: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                int index = READ_SHORT();
-                          ^
-main.c:17196:27: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                int index = READ_SHORT();
-                          ^
-main.c:17306:27: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                int count = READ_SHORT();
-                          ^
-main.c:17672:34: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                uint16_t address = READ_SHORT();
-                                 ^
-main.c:17673:41: portability: Assigning a pointer to an integer is not portable. [AssignmentAddressToInteger]
-                uint16_t finallyaddress = READ_SHORT();
-                                        ^
-main.c:8077:5: error: Address of local auto-variable assigned to a function parameter. [autoVariables]
-    p->currentclass = &classcompiler;
-    ^
-main.c:14102:22: warning: The address of local variable 'aslong' might be accessed at non-zero index. [objectIndex]
-        *output++ = v[map[i]];
-                     ^
-main.c:14099:22: note: Address of variable taken here.
-    char* v = (char*)&aslong;
-                     ^
-main.c:14102:22: note: The address of local variable 'aslong' might be accessed at non-zero index.
-        *output++ = v[map[i]];
-                     ^
-main.c:15241:26: error: Invalid calloc() argument nr 1. The value is 0 but the valid values are '1:'. [invalidFunctionArg]
-    char* trace = calloc(0, sizeof(char));
-                         ^
-main.c:13084:34: warning: Comparison is wrong. Result of 'output+length' can't be 0 unless there is pointer overflow, and pointer overflow is undefined behaviour. [pointerAdditionResultNotNull]
-            if((output + length) != NULL)
-                                 ^
-main.c:1348:28: warning: Either the condition 'b==NULL' is redundant or there is possible null pointer dereference: b. [nullPointerRedundantCheck]
-    int lenb = (int)strlen(b);
-                           ^
-main.c:1349:10: note: Assuming that condition 'b==NULL' is not redundant
-    if(b == NULL || lenb == 0)
-         ^
-main.c:1348:28: note: Null pointer dereference
-    int lenb = (int)strlen(b);
-                           ^
-main.c:9518:23: warning: Either the condition 'buffer!=NULL' is redundant or there is possible null pointer dereference: buffer. [nullPointerRedundantCheck]
-    bytesread = fread(buffer, sizeof(char), filesize, file->file);
-                      ^
-main.c:9524:15: note: Assuming that condition 'buffer!=NULL' is not redundant
-    if(buffer != NULL)
-              ^
-main.c:9518:23: note: Null pointer dereference
-    bytesread = fread(buffer, sizeof(char), filesize, file->file);
-                      ^
-main.c:9605:23: warning: Either the condition 'buffer!=NULL' is redundant or there is possible null pointer dereference: buffer. [nullPointerRedundantCheck]
-    bytesread = fread(buffer, sizeof(char), length, file->file);
-                      ^
-main.c:9611:15: note: Assuming that condition 'buffer!=NULL' is not redundant
-    if(buffer != NULL)
-              ^
-main.c:9605:23: note: Null pointer dereference
-    bytesread = fread(buffer, sizeof(char), length, file->file);
-                      ^
-main.c:15949:17: style: Consecutive return, break, continue, goto or throw statements are unnecessary. [duplicateBreak]
-                break;
-                ^
-main.c:1120:11: style: The scope of the variable 'chars' can be reduced. [variableScope]
-    char* chars;
-          ^
-main.c:2079:13: style: The scope of the variable 'object' can be reduced. [variableScope]
-    Object* object;
-            ^
-main.c:2703:16: style: The scope of the variable 'entry' can be reduced. [variableScope]
-    HashEntry* entry;
-               ^
-main.c:2835:9: style: The scope of the variable 'capacity' can be reduced. [variableScope]
-    int capacity;
-        ^
-main.c:2876:16: style: The scope of the variable 'entry' can be reduced. [variableScope]
-    HashEntry* entry;
-               ^
-main.c:2890:16: style: The scope of the variable 'entry' can be reduced. [variableScope]
-    HashEntry* entry;
-               ^
-main.c:2904:16: style: The scope of the variable 'entry' can be reduced. [variableScope]
-    HashEntry* entry;
-               ^
-main.c:2905:16: style: The scope of the variable 'string' can be reduced. [variableScope]
-    ObjString* string;
-               ^
-main.c:2936:16: style: The scope of the variable 'entry' can be reduced. [variableScope]
-    HashEntry* entry;
-               ^
-main.c:2975:16: style: The scope of the variable 'entry' can be reduced. [variableScope]
-    HashEntry* entry;
-               ^
-main.c:6127:12: style: The scope of the variable 'kwlen' can be reduced. [variableScope]
-    size_t kwlen;
-           ^
-main.c:6128:12: style: The scope of the variable 'ofs' can be reduced. [variableScope]
-    size_t ofs;
-           ^
-main.c:6129:17: style: The scope of the variable 'kwtext' can be reduced. [variableScope]
-    const char* kwtext;
-                ^
-main.c:9542:10: style: The scope of the variable 'end' can be reduced. [variableScope]
-    long end;
-         ^
-main.c:9543:10: style: The scope of the variable 'currentpos' can be reduced. [variableScope]
-    long currentpos;
-         ^
-main.c:10115:11: style: The scope of the variable 'sdup' can be reduced. [variableScope]
-    char* sdup;
-          ^
-main.c:10219:12: style: The scope of the variable 'dlen' can be reduced. [variableScope]
-    size_t dlen;
-           ^
-main.c:10220:9: style: The scope of the variable 'extlength' can be reduced. [variableScope]
-    int extlength;
-        ^
-main.c:10221:9: style: The scope of the variable 'pathlength' can be reduced. [variableScope]
-    int pathlength;
-        ^
-main.c:10222:9: style: The scope of the variable 'namelength' can be reduced. [variableScope]
-    int namelength;
-        ^
-main.c:10223:11: style: The scope of the variable 'dnam' can be reduced. [variableScope]
-    char* dnam;
-          ^
-main.c:10224:11: style: The scope of the variable 'path' can be reduced. [variableScope]
-    char* path;
-          ^
-main.c:10225:11: style: The scope of the variable 'name' can be reduced. [variableScope]
-    char* name;
-          ^
-main.c:10226:11: style: The scope of the variable 'error' can be reduced. [variableScope]
-    char* error;
-          ^
-main.c:10227:11: style: The scope of the variable 'filename' can be reduced. [variableScope]
-    char* filename;
-          ^
-main.c:10911:9: style: The scope of the variable 'x' can be reduced. [variableScope]
-    int x;
-        ^
-main.c:13060:10: style: The scope of the variable 'buffer' can be reduced. [variableScope]
-    char buffer[256];
-         ^
-main.c:13061:12: style: The scope of the variable 'nread' can be reduced. [variableScope]
-    size_t nread;
-           ^
-main.c:13063:9: style: The scope of the variable 'length' can be reduced. [variableScope]
-    int length = 0;
-        ^
-main.c:14583:9: style: The scope of the variable 'size' can be reduced. [variableScope]
-    int size;
-        ^
-main.c:14584:9: style: The scope of the variable 'argb' can be reduced. [variableScope]
-    int argb;
-        ^
-main.c:14586:9: style: The scope of the variable 'namelen' can be reduced. [variableScope]
-    int namelen;
-        ^
-main.c:14587:9: style: The scope of the variable 'repetitions' can be reduced. [variableScope]
-    int repetitions;
-        ^
-main.c:14591:10: style: The scope of the variable 'type' can be reduced. [variableScope]
-    char type;
-         ^
-main.c:14593:11: style: The scope of the variable 'name' can be reduced. [variableScope]
-    char* name;
-          ^
-main.c:12214:26: portability: 'array->buffer' is of type 'void *'. When using void pointers in calculations, the behaviour is undefined. [arithOperationsOnVoidPointer]
-    memcpy(array->buffer + array->length, array2->buffer, array2->length);
-                         ^
-Checking main.c: __BYTE_ORDER...
-main.c:10217:0: style: The function 'bind_user_modules' is never used. [unusedFunction]
-
-^
-main.c:2951:0: style: The function 'bl_hashtable_print' is never used. [unusedFunction]
-
-^
-main.c:1172:0: style: The function 'bl_util_utf8decodenumbytes' is never used. [unusedFunction]
-
-^
-main.c:11325:0: style: The function 'modfn_array_int16remove' is never used. [unusedFunction]
-
-^
-nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
-
+g++ -Wall -Wextra -Wshadow -Wunused-macros -Wunused-local-typedefs -I. -O0 -g3 -ggdb3 -xc++ ktre.c -MM -MT ktre.o -MF ktre.d
+g++ -Wall -Wextra -Wshadow -Wunused-macros -Wunused-local-typedefs -I. -O0 -g3 -ggdb3 -xc++ main.c -MM -MT main.o -MF main.d
+rm -f main.o ktre.o run
+rm -f main.d ktre.d
+g++ -Wall -Wextra -Wshadow -Wunused-macros -Wunused-local-typedefs -I. -O0 -g3 -ggdb3 -xc++ -c  -o main.o main.c
+main.c: In function ‘char* bl_util_getexepath()’:
+main.c:1354:12: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 1354 |     return "";
+      |            ^~
+main.c: In function ‘char* bl_util_mergepaths(char*, char*)’:
+main.c:1084:30: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 1084 | #define BLADE_PATH_SEPARATOR "/"
+      |                              ^~~
+main.c:1387:53: note: in expansion of macro ‘BLADE_PATH_SEPARATOR’
+ 1387 |         finalpath = bl_util_appendstring(finalpath, BLADE_PATH_SEPARATOR);
+      |                                                     ^~~~~~~~~~~~~~~~~~~~
+main.c: In function ‘char* bl_util_getbladefilename(char*)’:
+main.c:34:25: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   34 | #define BLADE_EXTENSION ".b"
+      |                         ^~~~
+main.c:1400:41: note: in expansion of macro ‘BLADE_EXTENSION’
+ 1400 |     return bl_util_mergepaths(filename, BLADE_EXTENSION);
+      |                                         ^~~~~~~~~~~~~~~
+main.c: In function ‘char* bl_util_resolveimportpath(char*, const char*, bool)’:
+main.c:40:34: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   40 | #define LOCAL_PACKAGES_DIRECTORY ".blade"
+      |                                  ^
+main.c:1425:75: note: in expansion of macro ‘LOCAL_PACKAGES_DIRECTORY’
+ 1425 |         char* vendorfile = bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), bladefilename);
+      |                                                                           ^~~~~~~~~~~~~~~~~~~~~~~~
+main.c:40:34: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   40 | #define LOCAL_PACKAGES_DIRECTORY ".blade"
+      |                                  ^
+main.c:1440:99: note: in expansion of macro ‘LOCAL_PACKAGES_DIRECTORY’
+ 1440 |         char* vendorindexfile = bl_util_mergepaths(bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename),
+      |                                                                                                   ^~~~~~~~~~~~~~~~~~~~~~~~
+main.c:38:33: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   38 | #define LIBRARY_DIRECTORY_INDEX "index"
+      |                                 ^
+main.c:1441:52: note: in expansion of macro ‘LIBRARY_DIRECTORY_INDEX’
+ 1441 |                                                    LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+      |                                                    ^~~~~~~~~~~~~~~~~~~~~~~
+main.c:37:27: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   37 | #define LIBRARY_DIRECTORY "libs"
+      |                           ^~~~~~
+main.c:1457:59: note: in expansion of macro ‘LIBRARY_DIRECTORY’
+ 1457 |         char* bladedirectory = bl_util_mergepaths(exedir, LIBRARY_DIRECTORY);
+      |                                                           ^~~~~~~~~~~~~~~~~
+main.c:38:33: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   38 | #define LIBRARY_DIRECTORY_INDEX "index"
+      |                                 ^~~~~~~
+main.c:1474:126: note: in expansion of macro ‘LIBRARY_DIRECTORY_INDEX’
+ 1474 |         char* libraryindexfile = bl_util_mergepaths(bl_util_mergepaths(bladedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
+      |                                                                                                                              ^~~~~~~~~~~~~~~~~~~~~~~
+main.c:39:28: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   39 | #define PACKAGES_DIRECTORY "vendor"
+      |                            ^~~~~~~~
+main.c:1488:66: note: in expansion of macro ‘PACKAGES_DIRECTORY’
+ 1488 |         char* bladepackagedirectory = bl_util_mergepaths(exedir, PACKAGES_DIRECTORY);
+      |                                                                  ^~~~~~~~~~~~~~~~~~
+main.c:38:33: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   38 | #define LIBRARY_DIRECTORY_INDEX "index"
+      |                                 ^
+main.c:1503:108: note: in expansion of macro ‘LIBRARY_DIRECTORY_INDEX’
+ 1503 |         char* packageindexfile = bl_util_mergepaths(bl_util_mergepaths(bladepackagedirectory, modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+      |                                                                                                            ^~~~~~~~~~~~~~~~~~~~~~~
+main.c:38:33: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+   38 | #define LIBRARY_DIRECTORY_INDEX "index"
+      |                                 ^~~~~~~
+main.c:1535:126: note: in expansion of macro ‘LIBRARY_DIRECTORY_INDEX’
+ 1535 |         char* relativeindexfile = bl_util_mergepaths(bl_util_mergepaths(filedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
+      |                                                                                                                              ^~~~~~~~~~~~~~~~~~~~~~~
+main.c: In function ‘uint32_t bl_util_hashdouble(double)’:
+main.c:1573:32: warning: declaration of ‘bdoubleunion’ shadows a previous local [-Wshadow]
+ 1573 |     typedef union bdoubleunion bdoubleunion;
+      |                                ^~~~~~~~~~~~
+main.c:1573:19: note: shadowed declaration is here
+ 1573 |     typedef union bdoubleunion bdoubleunion;
+      |                   ^~~~~~~~~~~~
+main.c: In function ‘char* number_to_string(VMState*, double)’:
+main.c:2221:12: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 2221 |     return "";
+      |            ^~
+main.c: In function ‘char* bl_value_tostring(VMState*, Value)’:
+main.c:2369:20: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 2369 |             return "nil";
+      |                    ^~~~~
+main.c:2377:20: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 2377 |             return "";
+      |                    ^~
+main.c: In function ‘ObjPointer* bl_dict_makeptr(VMState*, void*)’:
+main.c:3372:17: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3372 |     ptr->name = "<void *>";
+      |                 ^~~~~~~~~~
+main.c: In function ‘char* bl_writer_listtostring(VMState*, ValArray*)’:
+main.c:3791:45: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3791 |             str = bl_util_appendstring(str, ", ");
+      |                                             ^~~~
+main.c:3794:37: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3794 |     str = bl_util_appendstring(str, "]");
+      |                                     ^~~
+main.c: In function ‘char* bl_writer_bytestostring(VMState*, ByteArray*)’:
+main.c:3811:45: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3811 |             str = bl_util_appendstring(str, " ");
+      |                                             ^~~
+main.c:3814:37: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3814 |     str = bl_util_appendstring(str, ")");
+      |                                     ^~~
+main.c: In function ‘char* bl_writer_dicttostring(VMState*, ObjDict*)’:
+main.c:3830:41: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3830 |         str = bl_util_appendstring(str, ": ");
+      |                                         ^~~~
+main.c:3840:45: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3840 |             str = bl_util_appendstring(str, ", ");
+      |                                             ^~~~
+main.c:3843:37: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 3843 |     str = bl_util_appendstring(str, "}");
+      |                                     ^~~
+main.c: In function ‘bool objfn_list_length(VMState*, int, Value*)’:
+main.c:4013:49: warning: narrowing conversion of ‘((ObjArray*)(args + 18446744073709551600)->Value::as.Value::<unnamed union>::obj)->ObjArray::items.ValArray::count’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4013 |     RETURN_NUMBER(AS_LIST(METHOD_OBJECT)->items.count);
+      |                                                 ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:4013:5: note: in expansion of macro ‘RETURN_NUMBER’
+ 4013 |     RETURN_NUMBER(AS_LIST(METHOD_OBJECT)->items.count);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_list_count(VMState*, int, Value*)’:
+main.c:4049:19: warning: narrowing conversion of ‘count’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4049 |     RETURN_NUMBER(count);
+      |                   ^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:4049:5: note: in expansion of macro ‘RETURN_NUMBER’
+ 4049 |     RETURN_NUMBER(count);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_list_indexof(VMState*, int, Value*)’:
+main.c:4074:27: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4074 |             RETURN_NUMBER(i);
+      |                           ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:4074:13: note: in expansion of macro ‘RETURN_NUMBER’
+ 4074 |             RETURN_NUMBER(i);
+      |             ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_list_todict(VMState*, int, Value*)’:
+main.c:4393:47: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4393 |         bl_dict_setentry(vm, dict, NUMBER_VAL(i), list->items.values[i]);
+      |                                               ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘bool objfn_string_length(VMState*, int, Value*)’:
+main.c:4439:35: warning: narrowing conversion of ‘(string->ObjString::isascii ?  string->ObjString::length :  string->ObjString::utf8length)’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4439 |     RETURN_NUMBER(string->isascii ? string->length : string->utf8length);
+      |                   ~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:4439:5: note: in expansion of macro ‘RETURN_NUMBER’
+ 4439 |     RETURN_NUMBER(string->isascii ? string->length : string->utf8length);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_string_indexof(VMState*, int, Value*)’:
+main.c:4799:23: warning: narrowing conversion of ‘(int)((result - str) <unknown operator> 1)’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4799 |         RETURN_NUMBER((int)(result - str));
+      |                       ^~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:4799:9: note: in expansion of macro ‘RETURN_NUMBER’
+ 4799 |         RETURN_NUMBER((int)(result - str));
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_string_count(VMState*, int, Value*)’:
+main.c:4841:19: warning: narrowing conversion of ‘count’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4841 |     RETURN_NUMBER(count);
+      |                   ^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:4841:5: note: in expansion of macro ‘RETURN_NUMBER’
+ 4841 |     RETURN_NUMBER(count);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_string_match(VMState*, int, Value*)’:
+main.c:4996:49: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 4996 |         bl_dict_setentry(vm, result, NUMBER_VAL(i), GC_L_STRING((char*)substringstart, (int)substringlength));
+      |                                                 ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘bool objfn_string_matches(VMState*, int, Value*)’:
+main.c:5093:49: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 5093 |         bl_dict_setentry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
+      |                                                 ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:5202:52: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 5202 |             if(bl_dict_getentry(result, NUMBER_VAL(i), &vlist))
+      |                                                    ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:5210:57: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 5210 |                 bl_dict_setentry(vm, result, NUMBER_VAL(i), OBJ_VAL(list));
+      |                                                         ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘bool objfn_bytes_length(VMState*, int, Value*)’:
+main.c:5387:50: warning: narrowing conversion of ‘((ObjBytes*)(args + 18446744073709551600)->Value::as.Value::<unnamed union>::obj)->ObjBytes::bytes.ByteArray::count’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 5387 |     RETURN_NUMBER(AS_BYTES(METHOD_OBJECT)->bytes.count);
+      |                                                  ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:5387:5: note: in expansion of macro ‘RETURN_NUMBER’
+ 5387 |     RETURN_NUMBER(AS_BYTES(METHOD_OBJECT)->bytes.count);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_bytes_iter(VMState*, int, Value*)’:
+main.c:5694:23: warning: narrowing conversion of ‘(int)(*(bytes->ObjBytes::bytes.ByteArray::bytes + ((sizetype)index)))’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 5694 |         RETURN_NUMBER((int)bytes->bytes.bytes[index]);
+      |                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:5694:9: note: in expansion of macro ‘RETURN_NUMBER’
+ 5694 |         RETURN_NUMBER((int)bytes->bytes.bytes[index]);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_dict_length(VMState*, int, Value*)’:
+main.c:5724:49: warning: narrowing conversion of ‘((ObjDict*)(args + 18446744073709551600)->Value::as.Value::<unnamed union>::obj)->ObjDict::names.ValArray::count’ from ‘int’ to ‘double’ [-Wnarrowing]
+ 5724 |     RETURN_NUMBER(AS_DICT(METHOD_OBJECT)->names.count);
+      |                                                 ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:5724:5: note: in expansion of macro ‘RETURN_NUMBER’
+ 5724 |     RETURN_NUMBER(AS_DICT(METHOD_OBJECT)->names.count);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘Value bl_parser_compilenumber(AstParser*)’:
+main.c:7727:27: warning: narrowing conversion of ‘value’ from ‘long long int’ to ‘double’ [-Wnarrowing]
+ 7727 |         return NUMBER_VAL(value);
+      |                           ^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:7732:27: warning: narrowing conversion of ‘value’ from ‘long int’ to ‘double’ [-Wnarrowing]
+ 7732 |         return NUMBER_VAL(value);
+      |                           ^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:7737:27: warning: narrowing conversion of ‘value’ from ‘long int’ to ‘double’ [-Wnarrowing]
+ 7737 |         return NUMBER_VAL(value);
+      |                           ^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘void bl_parser_parseimportstmt(AstParser*)’:
+main.c:9217:63: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 9217 |                 modulefile = bl_util_appendstring(modulefile, "/../");
+      |                                                               ^~~~~~
+main.c:1084:30: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+ 1084 | #define BLADE_PATH_SEPARATOR "/"
+      |                              ^~~
+main.c:9244:63: note: in expansion of macro ‘BLADE_PATH_SEPARATOR’
+ 9244 |                 modulefile = bl_util_appendstring(modulefile, BLADE_PATH_SEPARATOR);
+      |                                                               ^~~~~~~~~~~~~~~~~~~~
+main.c: In function ‘bool objfn_file_number(VMState*, int, Value*)’:
+main.c:10364:29: warning: narrowing conversion of ‘fileno(file->ObjFile::file)’ from ‘int’ to ‘double’ [-Wnarrowing]
+10364 |         RETURN_NUMBER(fileno(file->file));
+      |                       ~~~~~~^~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:10364:9: note: in expansion of macro ‘RETURN_NUMBER’
+10364 |         RETURN_NUMBER(fileno(file->file));
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_file_stats(VMState*, int, Value*)’:
+main.c:10427:67: warning: narrowing conversion of ‘stats.stat::st_size’ from ‘__off_t’ {aka ‘long int’} to ‘double’ [-Wnarrowing]
+10427 |                 SET_DICT_STRING(dict, "size", 4, NUMBER_VAL(stats.st_size));
+      |                                                             ~~~~~~^~~~~~~
+main.c:9958:80: note: in definition of macro ‘SET_DICT_STRING’
+ 9958 | #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
+      |                                                                                ^
+main.c:10427:50: note: in expansion of macro ‘NUMBER_VAL’
+10427 |                 SET_DICT_STRING(dict, "size", 4, NUMBER_VAL(stats.st_size));
+      |                                                  ^~~~~~~~~~
+main.c:10428:67: warning: narrowing conversion of ‘stats.stat::st_mode’ from ‘__mode_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+10428 |                 SET_DICT_STRING(dict, "mode", 4, NUMBER_VAL(stats.st_mode));
+      |                                                             ~~~~~~^~~~~~~
+main.c:9958:80: note: in definition of macro ‘SET_DICT_STRING’
+ 9958 | #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
+      |                                                                                ^
+main.c:10428:50: note: in expansion of macro ‘NUMBER_VAL’
+10428 |                 SET_DICT_STRING(dict, "mode", 4, NUMBER_VAL(stats.st_mode));
+      |                                                  ^~~~~~~~~~
+main.c:10429:66: warning: narrowing conversion of ‘stats.stat::st_dev’ from ‘__dev_t’ {aka ‘long unsigned int’} to ‘double’ [-Wnarrowing]
+10429 |                 SET_DICT_STRING(dict, "dev", 3, NUMBER_VAL(stats.st_dev));
+      |                                                            ~~~~~~^~~~~~
+main.c:9958:80: note: in definition of macro ‘SET_DICT_STRING’
+ 9958 | #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
+      |                                                                                ^
+main.c:10429:49: note: in expansion of macro ‘NUMBER_VAL’
+10429 |                 SET_DICT_STRING(dict, "dev", 3, NUMBER_VAL(stats.st_dev));
+      |                                                 ^~~~~~~~~~
+main.c:10430:66: warning: narrowing conversion of ‘stats.stat::st_ino’ from ‘__ino_t’ {aka ‘long unsigned int’} to ‘double’ [-Wnarrowing]
+10430 |                 SET_DICT_STRING(dict, "ino", 3, NUMBER_VAL(stats.st_ino));
+      |                                                            ~~~~~~^~~~~~
+main.c:9958:80: note: in definition of macro ‘SET_DICT_STRING’
+ 9958 | #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
+      |                                                                                ^
+main.c:10430:49: note: in expansion of macro ‘NUMBER_VAL’
+10430 |                 SET_DICT_STRING(dict, "ino", 3, NUMBER_VAL(stats.st_ino));
+      |                                                 ^~~~~~~~~~
+main.c:10431:68: warning: narrowing conversion of ‘stats.stat::st_nlink’ from ‘__nlink_t’ {aka ‘long unsigned int’} to ‘double’ [-Wnarrowing]
+10431 |                 SET_DICT_STRING(dict, "nlink", 5, NUMBER_VAL(stats.st_nlink));
+      |                                                              ~~~~~~^~~~~~~~
+main.c:9958:80: note: in definition of macro ‘SET_DICT_STRING’
+ 9958 | #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
+      |                                                                                ^
+main.c:10431:51: note: in expansion of macro ‘NUMBER_VAL’
+10431 |                 SET_DICT_STRING(dict, "nlink", 5, NUMBER_VAL(stats.st_nlink));
+      |                                                   ^~~~~~~~~~
+main.c:10432:66: warning: narrowing conversion of ‘stats.stat::st_uid’ from ‘__uid_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+10432 |                 SET_DICT_STRING(dict, "uid", 3, NUMBER_VAL(stats.st_uid));
+      |                                                            ~~~~~~^~~~~~
+main.c:9958:80: note: in definition of macro ‘SET_DICT_STRING’
+ 9958 | #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
+      |                                                                                ^
+main.c:10432:49: note: in expansion of macro ‘NUMBER_VAL’
+10432 |                 SET_DICT_STRING(dict, "uid", 3, NUMBER_VAL(stats.st_uid));
+      |                                                 ^~~~~~~~~~
+main.c:10433:66: warning: narrowing conversion of ‘stats.stat::st_gid’ from ‘__gid_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+10433 |                 SET_DICT_STRING(dict, "gid", 3, NUMBER_VAL(stats.st_gid));
+      |                                                            ~~~~~~^~~~~~
+main.c:9958:80: note: in definition of macro ‘SET_DICT_STRING’
+ 9958 | #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
+      |                                                                                ^
+main.c:10433:49: note: in expansion of macro ‘NUMBER_VAL’
+10433 |                 SET_DICT_STRING(dict, "gid", 3, NUMBER_VAL(stats.st_gid));
+      |                                                 ^~~~~~~~~~
+main.c: In function ‘bool objfn_file_copy(VMState*, int, Value*)’:
+main.c:10566:22: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+10566 |         char* mode = "w";
+      |                      ^~~
+main.c:10570:20: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+10570 |             mode = "wb";
+      |                    ^~~~
+main.c: In function ‘bool objfn_file_tell(VMState*, int, Value*)’:
+main.c:10715:24: warning: narrowing conversion of ‘ftell(file->ObjFile::file)’ from ‘long int’ to ‘double’ [-Wnarrowing]
+10715 |     RETURN_NUMBER(ftell(file->file));
+      |                   ~~~~~^~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:10715:5: note: in expansion of macro ‘RETURN_NUMBER’
+10715 |     RETURN_NUMBER(ftell(file->file));
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘char* load_user_module(VMState*, const char*, char*)’:
+main.c:10924:16: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+10924 |         return "failed to load module";
+      |                ^~~~~~~~~~~~~~~~~~~~~~~
+main.c:10946:16: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+10946 |         return "failed to call module loader";
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+main.c: In function ‘bool cfn_microtime(VMState*, int, Value*)’:
+main.c:11042:39: warning: narrowing conversion of ‘((1000000 * tv.timeval::tv_sec) + tv.timeval::tv_usec)’ from ‘__time_t’ {aka ‘long int’} to ‘double’ [-Wnarrowing]
+11042 |     RETURN_NUMBER(1000000 * tv.tv_sec + tv.tv_usec);
+      |                   ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11042:5: note: in expansion of macro ‘RETURN_NUMBER’
+11042 |     RETURN_NUMBER(1000000 * tv.tv_sec + tv.tv_usec);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool cfn_id(VMState*, int, Value*)’:
+main.c:11059:19: warning: narrowing conversion of ‘(long int)args’ from ‘long int’ to ‘double’ [-Wnarrowing]
+11059 |     RETURN_NUMBER((long)&args[0]);
+      |                   ^~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11059:5: note: in expansion of macro ‘RETURN_NUMBER’
+11059 |     RETURN_NUMBER((long)&args[0]);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool cfn_tonumber(VMState*, int, Value*)’:
+main.c:11334:40: warning: narrowing conversion of ‘(args->Value::as.Value::<unnamed union>::boolean ? 1 : 0)’ from ‘int’ to ‘double’ [-Wnarrowing]
+11334 |         RETURN_NUMBER(AS_BOOL(args[0]) ? 1 : 0);
+      |                                        ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11334:9: note: in expansion of macro ‘RETURN_NUMBER’
+11334 |         RETURN_NUMBER(AS_BOOL(args[0]) ? 1 : 0);
+      |         ^~~~~~~~~~~~~
+main.c:11357:38: warning: narrowing conversion of ‘(((long long int)multiplier) * strtoll(((const char*)t), 0, 2))’ from ‘long long int’ to ‘double’ [-Wnarrowing]
+11357 |             RETURN_NUMBER(multiplier * strtoll(t, NULL, 2));
+      |                           ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11357:13: note: in expansion of macro ‘RETURN_NUMBER’
+11357 |             RETURN_NUMBER(multiplier * strtoll(t, NULL, 2));
+      |             ^~~~~~~~~~~~~
+main.c:11361:38: warning: narrowing conversion of ‘(((long int)multiplier) * strtol(((const char*)t), 0, 16))’ from ‘long int’ to ‘double’ [-Wnarrowing]
+11361 |             RETURN_NUMBER(multiplier * strtol(t, NULL, 16));
+      |                           ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11361:13: note: in expansion of macro ‘RETURN_NUMBER’
+11361 |             RETURN_NUMBER(multiplier * strtol(t, NULL, 16));
+      |             ^~~~~~~~~~~~~
+main.c:11365:38: warning: narrowing conversion of ‘(((long int)multiplier) * strtol(((const char*)t), 0, 8))’ from ‘long int’ to ‘double’ [-Wnarrowing]
+11365 |             RETURN_NUMBER(multiplier * strtol(t, NULL, 8));
+      |                           ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11365:13: note: in expansion of macro ‘RETURN_NUMBER’
+11365 |             RETURN_NUMBER(multiplier * strtol(t, NULL, 8));
+      |             ^~~~~~~~~~~~~
+main.c: In function ‘bool cfn_toint(VMState*, int, Value*)’:
+main.c:11384:19: warning: narrowing conversion of ‘(int)(args)->Value::as.Value::._anon_116::number’ from ‘int’ to ‘double’ [-Wnarrowing]
+11384 |     RETURN_NUMBER((int)AS_NUMBER(args[0]));
+      |                   ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11384:5: note: in expansion of macro ‘RETURN_NUMBER’
+11384 |     RETURN_NUMBER((int)AS_NUMBER(args[0]));
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool cfn_tolist(VMState*, int, Value*)’:
+main.c:11435:52: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+11435 |                 bl_array_push(vm, list, NUMBER_VAL(i));
+      |                                                    ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11442:52: warning: narrowing conversion of ‘i’ from ‘int’ to ‘double’ [-Wnarrowing]
+11442 |                 bl_array_push(vm, list, NUMBER_VAL(i));
+      |                                                    ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘bool cfn_ord(VMState*, int, Value*)’:
+main.c:11510:37: warning: narrowing conversion of ‘bl_util_utf8decode(((const uint8_t*)((uint8_t*)string->ObjString::chars)), ((uint32_t)string->ObjString::length))’ from ‘int’ to ‘double’ [-Wnarrowing]
+11510 |     RETURN_NUMBER(bl_util_utf8decode((uint8_t*)string->chars, string->length));
+      |                   ~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11510:5: note: in expansion of macro ‘RETURN_NUMBER’
+11510 |     RETURN_NUMBER(bl_util_utf8decode((uint8_t*)string->chars, string->length));
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_range_lower(VMState*, int, Value*)’:
+main.c:11776:44: warning: narrowing conversion of ‘((ObjRange*)(args + 18446744073709551600)->Value::as.Value::<unnamed union>::obj)->ObjRange::lower’ from ‘int’ to ‘double’ [-Wnarrowing]
+11776 |     RETURN_NUMBER(AS_RANGE(METHOD_OBJECT)->lower);
+      |                                            ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11776:5: note: in expansion of macro ‘RETURN_NUMBER’
+11776 |     RETURN_NUMBER(AS_RANGE(METHOD_OBJECT)->lower);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_range_upper(VMState*, int, Value*)’:
+main.c:11782:44: warning: narrowing conversion of ‘((ObjRange*)(args + 18446744073709551600)->Value::as.Value::<unnamed union>::obj)->ObjRange::upper’ from ‘int’ to ‘double’ [-Wnarrowing]
+11782 |     RETURN_NUMBER(AS_RANGE(METHOD_OBJECT)->upper);
+      |                                            ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11782:5: note: in expansion of macro ‘RETURN_NUMBER’
+11782 |     RETURN_NUMBER(AS_RANGE(METHOD_OBJECT)->upper);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_range_iter(VMState*, int, Value*)’:
+main.c:11794:34: warning: narrowing conversion of ‘range->ObjRange::lower’ from ‘int’ to ‘double’ [-Wnarrowing]
+11794 |             RETURN_NUMBER(range->lower);
+      |                           ~~~~~~~^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11794:13: note: in expansion of macro ‘RETURN_NUMBER’
+11794 |             RETURN_NUMBER(range->lower);
+      |             ^~~~~~~~~~~~~
+main.c:11795:51: warning: narrowing conversion of ‘((range->ObjRange::lower > range->ObjRange::upper) ? (-- range->ObjRange::lower) : (++ range->ObjRange::lower))’ from ‘int’ to ‘double’ [-Wnarrowing]
+11795 |         RETURN_NUMBER(range->lower > range->upper ? --range->lower : ++range->lower);
+      |                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11795:9: note: in expansion of macro ‘RETURN_NUMBER’
+11795 |         RETURN_NUMBER(range->lower > range->upper ? --range->lower : ++range->lower);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool objfn_range_itern(VMState*, int, Value*)’:
+main.c:11819:23: warning: narrowing conversion of ‘index’ from ‘int’ to ‘double’ [-Wnarrowing]
+11819 |         RETURN_NUMBER(index);
+      |                       ^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11819:9: note: in expansion of macro ‘RETURN_NUMBER’
+11819 |         RETURN_NUMBER(index);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_int16pop(VMState*, int, Value*)’:
+main.c:11957:19: warning: narrowing conversion of ‘last’ from ‘int16_t’ {aka ‘short int’} to ‘double’ [-Wnarrowing]
+11957 |     RETURN_NUMBER(last);
+      |                   ^~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11957:5: note: in expansion of macro ‘RETURN_NUMBER’
+11957 |     RETURN_NUMBER(last);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_int16iter_(VMState*, int, Value*)’:
+main.c:11994:35: warning: narrowing conversion of ‘*(values + ((sizetype)(((long unsigned int)index) * 2)))’ from ‘int16_t’ {aka ‘short int’} to ‘double’ [-Wnarrowing]
+11994 |         RETURN_NUMBER(values[index]);
+      |                       ~~~~~~~~~~~~^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:11994:9: note: in expansion of macro ‘RETURN_NUMBER’
+11994 |         RETURN_NUMBER(values[index]);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_int32pop(VMState*, int, Value*)’:
+main.c:12117:19: warning: narrowing conversion of ‘last’ from ‘int32_t’ {aka ‘int’} to ‘double’ [-Wnarrowing]
+12117 |     RETURN_NUMBER(last);
+      |                   ^~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12117:5: note: in expansion of macro ‘RETURN_NUMBER’
+12117 |     RETURN_NUMBER(last);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_int32iter_(VMState*, int, Value*)’:
+main.c:12154:35: warning: narrowing conversion of ‘*(values + ((sizetype)(((long unsigned int)index) * 4)))’ from ‘int32_t’ {aka ‘int’} to ‘double’ [-Wnarrowing]
+12154 |         RETURN_NUMBER(values[index]);
+      |                       ~~~~~~~~~~~~^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12154:9: note: in expansion of macro ‘RETURN_NUMBER’
+12154 |         RETURN_NUMBER(values[index]);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_int64pop(VMState*, int, Value*)’:
+main.c:12277:19: warning: narrowing conversion of ‘last’ from ‘int64_t’ {aka ‘long int’} to ‘double’ [-Wnarrowing]
+12277 |     RETURN_NUMBER(last);
+      |                   ^~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12277:5: note: in expansion of macro ‘RETURN_NUMBER’
+12277 |     RETURN_NUMBER(last);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_int64iter_(VMState*, int, Value*)’:
+main.c:12314:35: warning: narrowing conversion of ‘*(values + ((sizetype)(((long unsigned int)index) * 8)))’ from ‘int64_t’ {aka ‘long int’} to ‘double’ [-Wnarrowing]
+12314 |         RETURN_NUMBER(values[index]);
+      |                       ~~~~~~~~~~~~^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12314:9: note: in expansion of macro ‘RETURN_NUMBER’
+12314 |         RETURN_NUMBER(values[index]);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_uint16pop(VMState*, int, Value*)’:
+main.c:12437:19: warning: narrowing conversion of ‘last’ from ‘uint16_t’ {aka ‘short unsigned int’} to ‘double’ [-Wnarrowing]
+12437 |     RETURN_NUMBER(last);
+      |                   ^~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12437:5: note: in expansion of macro ‘RETURN_NUMBER’
+12437 |     RETURN_NUMBER(last);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_uint16iter_(VMState*, int, Value*)’:
+main.c:12474:35: warning: narrowing conversion of ‘*(values + ((sizetype)(((long unsigned int)index) * 2)))’ from ‘uint16_t’ {aka ‘short unsigned int’} to ‘double’ [-Wnarrowing]
+12474 |         RETURN_NUMBER(values[index]);
+      |                       ~~~~~~~~~~~~^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12474:9: note: in expansion of macro ‘RETURN_NUMBER’
+12474 |         RETURN_NUMBER(values[index]);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_uint32pop(VMState*, int, Value*)’:
+main.c:12597:19: warning: narrowing conversion of ‘last’ from ‘uint32_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+12597 |     RETURN_NUMBER(last);
+      |                   ^~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12597:5: note: in expansion of macro ‘RETURN_NUMBER’
+12597 |     RETURN_NUMBER(last);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_uint32iter_(VMState*, int, Value*)’:
+main.c:12634:35: warning: narrowing conversion of ‘*(values + ((sizetype)(((long unsigned int)index) * 4)))’ from ‘uint32_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+12634 |         RETURN_NUMBER(values[index]);
+      |                       ~~~~~~~~~~~~^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12634:9: note: in expansion of macro ‘RETURN_NUMBER’
+12634 |         RETURN_NUMBER(values[index]);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_uint64pop(VMState*, int, Value*)’:
+main.c:12757:19: warning: narrowing conversion of ‘last’ from ‘uint64_t’ {aka ‘long unsigned int’} to ‘double’ [-Wnarrowing]
+12757 |     RETURN_NUMBER(last);
+      |                   ^~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12757:5: note: in expansion of macro ‘RETURN_NUMBER’
+12757 |     RETURN_NUMBER(last);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_uint64iter_(VMState*, int, Value*)’:
+main.c:12794:35: warning: narrowing conversion of ‘*(values + ((sizetype)(((long unsigned int)index) * 8)))’ from ‘uint64_t’ {aka ‘long unsigned int’} to ‘double’ [-Wnarrowing]
+12794 |         RETURN_NUMBER(values[index]);
+      |                       ~~~~~~~~~~~~^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12794:9: note: in expansion of macro ‘RETURN_NUMBER’
+12794 |         RETURN_NUMBER(values[index]);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_length(VMState*, int, Value*)’:
+main.c:12805:46: warning: narrowing conversion of ‘((DynArray*)ptr->ObjPointer::pointer)->DynArray::length’ from ‘int’ to ‘double’ [-Wnarrowing]
+12805 |     RETURN_NUMBER(((DynArray*)ptr->pointer)->length);
+      |                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:12805:5: note: in expansion of macro ‘RETURN_NUMBER’
+12805 |     RETURN_NUMBER(((DynArray*)ptr->pointer)->length);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_array_extend(VMState*, int, Value*)’:
+main.c:12831:26: warning: pointer of type ‘void *’ used in arithmetic [-Wpointer-arith]
+12831 |     memcpy(array->buffer + array->length, array2->buffer, array2->length);
+      |            ~~~~~~~~~~~~~~^~~~~~~~~~~~~~~
+main.c: In function ‘bool modfn_io_mktime(VMState*, int, Value*)’:
+main.c:13010:19: warning: narrowing conversion of ‘mktime((& t))’ from ‘long int’ to ‘double’ [-Wnarrowing]
+13010 |     RETURN_NUMBER((long)mktime(&t));
+      |                   ^~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13010:5: note: in expansion of macro ‘RETURN_NUMBER’
+13010 |     RETURN_NUMBER((long)mktime(&t));
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_io_localtime(VMState*, int, Value*)’:
+main.c:13024:28: warning: narrowing conversion of ‘now.tm::tm_mday’ from ‘int’ to ‘double’ [-Wnarrowing]
+13024 |     ADD_TIME("day", 3, now.tm_mday);
+      |                        ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13024:5: note: in expansion of macro ‘ADD_TIME’
+13024 |     ADD_TIME("day", 3, now.tm_mday);
+      |     ^~~~~~~~
+main.c:13025:32: warning: narrowing conversion of ‘now.tm::tm_wday’ from ‘int’ to ‘double’ [-Wnarrowing]
+13025 |     ADD_TIME("weekday", 8, now.tm_wday);
+      |                            ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13025:5: note: in expansion of macro ‘ADD_TIME’
+13025 |     ADD_TIME("weekday", 8, now.tm_wday);
+      |     ^~~~~~~~
+main.c:13026:32: warning: narrowing conversion of ‘now.tm::tm_yday’ from ‘int’ to ‘double’ [-Wnarrowing]
+13026 |     ADD_TIME("yearday", 8, now.tm_yday);
+      |                            ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13026:5: note: in expansion of macro ‘ADD_TIME’
+13026 |     ADD_TIME("yearday", 8, now.tm_yday);
+      |     ^~~~~~~~
+main.c:13027:29: warning: narrowing conversion of ‘now.tm::tm_hour’ from ‘int’ to ‘double’ [-Wnarrowing]
+13027 |     ADD_TIME("hour", 4, now.tm_hour);
+      |                         ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13027:5: note: in expansion of macro ‘ADD_TIME’
+13027 |     ADD_TIME("hour", 4, now.tm_hour);
+      |     ^~~~~~~~
+main.c:13028:31: warning: narrowing conversion of ‘now.tm::tm_min’ from ‘int’ to ‘double’ [-Wnarrowing]
+13028 |     ADD_TIME("minute", 6, now.tm_min);
+      |                           ~~~~^~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13028:5: note: in expansion of macro ‘ADD_TIME’
+13028 |     ADD_TIME("minute", 6, now.tm_min);
+      |     ^~~~~~~~
+main.c:13031:36: warning: narrowing conversion of ‘now.tm::tm_sec’ from ‘int’ to ‘double’ [-Wnarrowing]
+13031 |         ADD_TIME("seconds", 7, now.tm_sec);
+      |                                ~~~~^~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13031:9: note: in expansion of macro ‘ADD_TIME’
+13031 |         ADD_TIME("seconds", 7, now.tm_sec);
+      |         ^~~~~~~~
+main.c:13043:35: warning: narrowing conversion of ‘now.tm::tm_gmtoff’ from ‘long int’ to ‘double’ [-Wnarrowing]
+13043 |     ADD_TIME("gmtoffset", 10, now.tm_gmtoff);
+      |                               ~~~~^~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13043:5: note: in expansion of macro ‘ADD_TIME’
+13043 |     ADD_TIME("gmtoffset", 10, now.tm_gmtoff);
+      |     ^~~~~~~~
+main.c: In function ‘bool modfn_io_gmtime(VMState*, int, Value*)’:
+main.c:13064:28: warning: narrowing conversion of ‘now.tm::tm_mday’ from ‘int’ to ‘double’ [-Wnarrowing]
+13064 |     ADD_TIME("day", 3, now.tm_mday);
+      |                        ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13064:5: note: in expansion of macro ‘ADD_TIME’
+13064 |     ADD_TIME("day", 3, now.tm_mday);
+      |     ^~~~~~~~
+main.c:13065:32: warning: narrowing conversion of ‘now.tm::tm_wday’ from ‘int’ to ‘double’ [-Wnarrowing]
+13065 |     ADD_TIME("weekday", 8, now.tm_wday);
+      |                            ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13065:5: note: in expansion of macro ‘ADD_TIME’
+13065 |     ADD_TIME("weekday", 8, now.tm_wday);
+      |     ^~~~~~~~
+main.c:13066:32: warning: narrowing conversion of ‘now.tm::tm_yday’ from ‘int’ to ‘double’ [-Wnarrowing]
+13066 |     ADD_TIME("yearday", 8, now.tm_yday);
+      |                            ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13066:5: note: in expansion of macro ‘ADD_TIME’
+13066 |     ADD_TIME("yearday", 8, now.tm_yday);
+      |     ^~~~~~~~
+main.c:13067:29: warning: narrowing conversion of ‘now.tm::tm_hour’ from ‘int’ to ‘double’ [-Wnarrowing]
+13067 |     ADD_TIME("hour", 4, now.tm_hour);
+      |                         ~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13067:5: note: in expansion of macro ‘ADD_TIME’
+13067 |     ADD_TIME("hour", 4, now.tm_hour);
+      |     ^~~~~~~~
+main.c:13068:31: warning: narrowing conversion of ‘now.tm::tm_min’ from ‘int’ to ‘double’ [-Wnarrowing]
+13068 |     ADD_TIME("minute", 6, now.tm_min);
+      |                           ~~~~^~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13068:5: note: in expansion of macro ‘ADD_TIME’
+13068 |     ADD_TIME("minute", 6, now.tm_min);
+      |     ^~~~~~~~
+main.c:13071:36: warning: narrowing conversion of ‘now.tm::tm_sec’ from ‘int’ to ‘double’ [-Wnarrowing]
+13071 |         ADD_TIME("seconds", 7, now.tm_sec);
+      |                                ~~~~^~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13071:9: note: in expansion of macro ‘ADD_TIME’
+13071 |         ADD_TIME("seconds", 7, now.tm_sec);
+      |         ^~~~~~~~
+main.c:13083:35: warning: narrowing conversion of ‘now.tm::tm_gmtoff’ from ‘long int’ to ‘double’ [-Wnarrowing]
+13083 |     ADD_TIME("gmtoffset", 10, now.tm_gmtoff);
+      |                               ~~~~^~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13083:5: note: in expansion of macro ‘ADD_TIME’
+13083 |     ADD_TIME("gmtoffset", 10, now.tm_gmtoff);
+      |     ^~~~~~~~
+main.c: In function ‘bool modfn_io_ttytcgetattr(VMState*, int, Value*)’:
+main.c:13196:66: warning: narrowing conversion of ‘rawattr.termios::c_iflag’ from ‘tcflag_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+13196 |     bl_dict_addentry(vm, dict, NUMBER_VAL(0), NUMBER_VAL(rawattr.c_iflag));
+      |                                                          ~~~~~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13197:66: warning: narrowing conversion of ‘rawattr.termios::c_oflag’ from ‘tcflag_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+13197 |     bl_dict_addentry(vm, dict, NUMBER_VAL(1), NUMBER_VAL(rawattr.c_oflag));
+      |                                                          ~~~~~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13198:66: warning: narrowing conversion of ‘rawattr.termios::c_cflag’ from ‘tcflag_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+13198 |     bl_dict_addentry(vm, dict, NUMBER_VAL(2), NUMBER_VAL(rawattr.c_cflag));
+      |                                                          ~~~~~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13199:66: warning: narrowing conversion of ‘rawattr.termios::c_lflag’ from ‘tcflag_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+13199 |     bl_dict_addentry(vm, dict, NUMBER_VAL(3), NUMBER_VAL(rawattr.c_lflag));
+      |                                                          ~~~~~~~~^~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13200:66: warning: narrowing conversion of ‘rawattr.termios::c_ispeed’ from ‘speed_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+13200 |     bl_dict_addentry(vm, dict, NUMBER_VAL(4), NUMBER_VAL(rawattr.c_ispeed));
+      |                                                          ~~~~~~~~^~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:13201:66: warning: narrowing conversion of ‘rawattr.termios::c_ospeed’ from ‘speed_t’ {aka ‘unsigned int’} to ‘double’ [-Wnarrowing]
+13201 |     bl_dict_addentry(vm, dict, NUMBER_VAL(5), NUMBER_VAL(rawattr.c_ospeed));
+      |                                                          ~~~~~~~~^~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘bool modfn_process_process(VMState*, int, Value*)’:
+main.c:14249:17: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+14249 |     ptr->name = "<*Process::Process>";
+      |                 ^~~~~~~~~~~~~~~~~~~~~
+main.c: In function ‘bool modfn_process_create(VMState*, int, Value*)’:
+main.c:14269:25: warning: narrowing conversion of ‘getpid()’ from ‘__pid_t’ {aka ‘int’} to ‘double’ [-Wnarrowing]
+14269 |     RETURN_NUMBER(getpid());
+      |                   ~~~~~~^~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:14269:5: note: in expansion of macro ‘RETURN_NUMBER’
+14269 |     RETURN_NUMBER(getpid());
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_process_wait(VMState*, int, Value*)’:
+main.c:14310:23: warning: narrowing conversion of ‘status’ from ‘int’ to ‘double’ [-Wnarrowing]
+14310 |         RETURN_NUMBER(status);
+      |                       ^~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:14310:9: note: in expansion of macro ‘RETURN_NUMBER’
+14310 |         RETURN_NUMBER(status);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_process_id(VMState*, int, Value*)’:
+main.c:14320:28: warning: narrowing conversion of ‘process->BProcess::pid’ from ‘pid_t’ {aka ‘int’} to ‘double’ [-Wnarrowing]
+14320 |     RETURN_NUMBER(process->pid);
+      |                   ~~~~~~~~~^~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:14320:5: note: in expansion of macro ‘RETURN_NUMBER’
+14320 |     RETURN_NUMBER(process->pid);
+      |     ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_process_newshared(VMState*, int, Value*)’:
+main.c:14334:17: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+14334 |     ptr->name = "<*Process::SharedValue>";
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~
+main.c: In function ‘bool modfn_process_sharedwrite(VMState*, int, Value*)’:
+main.c:14359:31: warning: narrowing conversion of ‘shared->BProcessShared::length’ from ‘int’ to ‘double’ [-Wnarrowing]
+14359 |         RETURN_NUMBER(shared->length);
+      |                       ~~~~~~~~^~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:14359:9: note: in expansion of macro ‘RETURN_NUMBER’
+14359 |         RETURN_NUMBER(shared->length);
+      |         ^~~~~~~~~~~~~
+main.c: In function ‘bool modfn_reflect_getfunctionmetadata(VMState*, int, Value*)’:
+main.c:14603:81: warning: narrowing conversion of ‘closure->ObjClosure::fnptr->ObjFunction::arity’ from ‘int’ to ‘double’ [-Wnarrowing]
+14603 |     bl_dict_setentry(vm, result, GC_STRING("arity"), NUMBER_VAL(closure->fnptr->arity));
+      |                                                                 ~~~~~~~~~~~~~~~~^~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:14604:86: warning: narrowing conversion of ‘closure->ObjClosure::fnptr->ObjFunction::isvariadic’ from ‘bool’ to ‘double’ [-Wnarrowing]
+14604 |     bl_dict_setentry(vm, result, GC_STRING("isvariadic"), NUMBER_VAL(closure->fnptr->isvariadic));
+      |                                                                      ~~~~~~~~~~~~~~~~^~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:14605:81: warning: narrowing conversion of ‘closure->ObjClosure::upvaluecount’ from ‘int’ to ‘double’ [-Wnarrowing]
+14605 |     bl_dict_setentry(vm, result, GC_STRING("capturedvars"), NUMBER_VAL(closure->upvaluecount));
+      |                                                                        ~~~~~~~~~^~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘bool modfn_struct_unpack(VMState*, int, Value*)’:
+main.c:15581:90: warning: narrowing conversion of ‘v’ from ‘long int’ to ‘double’ [-Wnarrowing]
+15581 |                         bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+      |                                                                                          ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:15603:90: warning: narrowing conversion of ‘v’ from ‘long int’ to ‘double’ [-Wnarrowing]
+15603 |                         bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+      |                                                                                          ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:15620:90: warning: narrowing conversion of ‘v’ from ‘long int’ to ‘double’ [-Wnarrowing]
+15620 |                         bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+      |                                                                                          ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:15642:90: warning: narrowing conversion of ‘v’ from ‘long int’ to ‘double’ [-Wnarrowing]
+15642 |                         bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+      |                                                                                          ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:15665:90: warning: narrowing conversion of ‘v’ from ‘long int’ to ‘double’ [-Wnarrowing]
+15665 |                         bl_dict_setentry(vm, returnvalue, UNPACK_REAL_NAME(), NUMBER_VAL(v));
+      |                                                                                          ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘bool bl_vmdo_bytesgetindex(VMState*, ObjBytes*, bool)’:
+main.c:16982:40: warning: narrowing conversion of ‘(int)(*(bytes->ObjBytes::bytes.ByteArray::bytes + ((sizetype)index)))’ from ‘int’ to ‘double’ [-Wnarrowing]
+16982 |         bl_vm_pushvalue(vm, NUMBER_VAL((int)bytes->bytes.bytes[index]));
+      |                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c: In function ‘PtrResult bl_vm_run(VMState*)’:
+main.c:17303:36: warning: narrowing conversion of ‘bl_util_floordiv(a, b)’ from ‘int’ to ‘double’ [-Wnarrowing]
+17303 |         bl_vm_pushvalue(vm, type(op(a, b)));                                                                                                                  \
+      |                                    ^
+main.c:289:57: note: in definition of macro ‘NUMBER_VAL’
+  289 | #define NUMBER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                         ^
+main.c:17415:17: note: in expansion of macro ‘BINARY_MOD_OP’
+17415 |                 BINARY_MOD_OP(NUMBER_VAL, bl_util_floordiv);
+      |                 ^~~~~~~~~~~~~
+main.c:17435:49: warning: narrowing conversion of ‘~(int)__builtin_memcpy(&<unnamed>, & bl_vm_popvalue()(vm)).Value::as.Value::._anon_116::number’ from ‘int’ to ‘double’ [-Wnarrowing]
+17435 |                 bl_vm_pushvalue(vm, INTEGER_VAL(~((int)AS_NUMBER(bl_vm_popvalue(vm)))));
+      |                                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+main.c:290:58: note: in definition of macro ‘INTEGER_VAL’
+  290 | #define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                          ^
+main.c:17440:42: warning: narrowing conversion of ‘(a & b)’ from ‘long int’ to ‘double’ [-Wnarrowing]
+17287 |         bl_vm_pushvalue(vm, INTEGER_VAL(a op b));                                                                                                             \
+      |                                         ~~~~~~
+......
+17440 |                 BINARY_BIT_OP(vm, frame, &);
+main.c:290:58: note: in definition of macro ‘INTEGER_VAL’
+  290 | #define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                          ^
+main.c:17440:17: note: in expansion of macro ‘BINARY_BIT_OP’
+17440 |                 BINARY_BIT_OP(vm, frame, &);
+      |                 ^~~~~~~~~~~~~
+main.c:17445:42: warning: narrowing conversion of ‘(a | b)’ from ‘long int’ to ‘double’ [-Wnarrowing]
+17287 |         bl_vm_pushvalue(vm, INTEGER_VAL(a op b));                                                                                                             \
+      |                                         ~~~~~~
+......
+17445 |                 BINARY_BIT_OP(vm, frame, |);
+main.c:290:58: note: in definition of macro ‘INTEGER_VAL’
+  290 | #define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                          ^
+main.c:17445:17: note: in expansion of macro ‘BINARY_BIT_OP’
+17445 |                 BINARY_BIT_OP(vm, frame, |);
+      |                 ^~~~~~~~~~~~~
+main.c:17450:42: warning: narrowing conversion of ‘(a ^ b)’ from ‘long int’ to ‘double’ [-Wnarrowing]
+17287 |         bl_vm_pushvalue(vm, INTEGER_VAL(a op b));                                                                                                             \
+      |                                         ~~~~~~
+......
+17450 |                 BINARY_BIT_OP(vm, frame, ^);
+main.c:290:58: note: in definition of macro ‘INTEGER_VAL’
+  290 | #define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                          ^
+main.c:17450:17: note: in expansion of macro ‘BINARY_BIT_OP’
+17450 |                 BINARY_BIT_OP(vm, frame, ^);
+      |                 ^~~~~~~~~~~~~
+main.c:17455:42: warning: narrowing conversion of ‘(a << b)’ from ‘long int’ to ‘double’ [-Wnarrowing]
+17287 |         bl_vm_pushvalue(vm, INTEGER_VAL(a op b));                                                                                                             \
+      |                                         ~~~~~~
+......
+17455 |                 BINARY_BIT_OP(vm, frame, <<);
+main.c:290:58: note: in definition of macro ‘INTEGER_VAL’
+  290 | #define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                          ^
+main.c:17455:17: note: in expansion of macro ‘BINARY_BIT_OP’
+17455 |                 BINARY_BIT_OP(vm, frame, <<);
+      |                 ^~~~~~~~~~~~~
+main.c:17460:42: warning: narrowing conversion of ‘(a >> b)’ from ‘long int’ to ‘double’ [-Wnarrowing]
+17287 |         bl_vm_pushvalue(vm, INTEGER_VAL(a op b));                                                                                                             \
+      |                                         ~~~~~~
+......
+17460 |                 BINARY_BIT_OP(vm, frame, >>);
+main.c:290:58: note: in definition of macro ‘INTEGER_VAL’
+  290 | #define INTEGER_VAL(v) ((Value){ VAL_NUMBER, { .number = v } })
+      |                                                          ^
+main.c:17460:17: note: in expansion of macro ‘BINARY_BIT_OP’
+17460 |                 BINARY_BIT_OP(vm, frame, >>);
+      |                 ^~~~~~~~~~~~~
+main.c: In function ‘void repl(VMState*)’:
+main.c:18626:51: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+18626 |             source = bl_util_appendstring(source, "\n");
+      |                                                   ^~~~
+main.c: In function ‘void run_file(VMState*, char*)’:
+main.c:18662:58: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+18662 |         file = bl_util_appendstring((char*)strdup(file), "/" LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+      |                                                          ^
+g++ -Wall -Wextra -Wshadow -Wunused-macros -Wunused-local-typedefs -I. -O0 -g3 -ggdb3 -xc++ -c  -o ktre.o ktre.c
+g++ -Wall -Wextra -Wshadow -Wunused-macros -Wunused-local-typedefs -o run main.o ktre.o -flto -ldl -lm  -lreadline -lpthread -lpcre2-8
