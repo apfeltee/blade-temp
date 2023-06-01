@@ -56,7 +56,7 @@ class A {
 
 class B < A {
   getClosure() {
-    def closure() {
+    function closure() {
       parent.say()
     }
     return closure

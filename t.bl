@@ -1,0 +1,7 @@
+
+var nb = 10;
+var i = 0;
+for(i=0; i<nb; i++)
+{
+    print("i = ", i, "\n");
+}

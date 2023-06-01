@@ -1,11 +1,11 @@
 
 
-def bf(src, input)
+function bf(src, input)
 {
     var i
     var memory = []
     /* foreach i in 0..300 */
-    for i=0; i<300; i++
+    for(i=0; i<300; i++)
     {
         memory.append(0)
     }

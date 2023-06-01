@@ -10,30 +10,26 @@
 #include <time.h>
 #include <errno.h>
 #include <math.h>
-#include <assert.h>
+
 #include <sys/stat.h>
-
-#if defined(__linux__) || defined(__unix__)
-    #include <libgen.h>
-    #include <dlfcn.h>
-    #include <unistd.h>
-    #include <dirent.h>
-    #include <termios.h>
-    #include <sys/mman.h>
-    #include <utime.h>
-    #include <sys/utsname.h>
-    #include <sys/param.h>
-    #include <sys/types.h>
-    #include <sys/wait.h>
-    #include <sys/time.h>
-#endif
-
+#include <libgen.h>
+#include <dlfcn.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <termios.h>
+#include <sys/mman.h>
+#include <utime.h>
+#include <sys/utsname.h>
+#include <sys/param.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/time.h>
 #include "xxhash.h"
 #include "ktre.h"
 
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
-//#include <pcre2.h>
+#include <pcre2.h>
 
 #define BLADE_EXTENSION ".b"
 #define BLADE_VERSION_STRING "0.0.74-rc1"
@@ -75,7 +71,7 @@
         #define PDP_ENDIAN 3412
         /* msvc for intel processors */
         /* msvc code on arm executes in little endian mode */
-        #if defined(__i386__) || defined(BIT_ZERO_ON_RIGHT) || defined(_M_IX86) || defined(_M_X64) || defined(_M_IA64) || defined(_M_ARM) || defined(_WIN32) || defined(_WIN64)
+        #if defined(__i386__) defined(BIT_ZERO_ON_RIGHT) || defined(_M_IX86) || defined(_M_X64) || defined(_M_IA64) || defined(_M_ARM) || defined(_WIN32)
             #define BYTE_ORDER LITTLE_ENDIAN
         #endif
         #if defined(BIT_ZERO_ON_LEFT)
@@ -158,11 +154,6 @@
     #define LIBRARY_FILE_EXTENSION ".so"
 #endif
 
-
-#if !defined(PATH_MAX)
-    #define PATH_MAX 1024
-#endif
-
 #define DEFAULT_GC_START (1024 * 1024)
 #define EXIT_COMPILE 10
 #define EXIT_RUNTIME 11
@@ -191,90 +182,90 @@
 */
 #define NORMALIZE(token) #token
 
-#define ENFORCE_ARG_COUNT(name, d) \
-    if(argcount != d) \
-    { \
+#define ENFORCE_ARG_COUNT(name, d)                                            \
+    if(argcount != d)                                                         \
+    {                                                                         \
         RETURN_ERROR(#name "() expects %d arguments, %d given", d, argcount); \
     }
 
-#define ENFORCE_MIN_ARG(name, d) \
-    if(argcount < d) \
-    { \
+#define ENFORCE_MIN_ARG(name, d)                                                         \
+    if(argcount < d)                                                                     \
+    {                                                                                    \
         RETURN_ERROR(#name "() expects minimum of %d arguments, %d given", d, argcount); \
     }
 
-#define ENFORCE_ARG_RANGE(name, low, up) \
-    if(argcount < (low) || argcount > (up)) \
-    { \
+#define ENFORCE_ARG_RANGE(name, low, up)                                                           \
+    if(argcount < (low) || argcount > (up))                                                        \
+    {                                                                                              \
         RETURN_ERROR(#name "() expects between %d and %d arguments, %d given", low, up, argcount); \
     }
 
-#define ENFORCE_ARG_TYPE(name, i, type) \
-    if(!type(args[i])) \
-    { \
+#define ENFORCE_ARG_TYPE(name, i, type)                                                                                     \
+    if(!type(args[i]))                                                                                                      \
+    {                                                                                                                       \
         RETURN_ERROR(#name "() expects argument %d as " NORMALIZE(type) ", %s given", (i) + 1, bl_value_typename(args[i])); \
     }
 
-#define EXCLUDE_ARG_TYPE(methodname, arg_type, index) \
-    if(arg_type(args[index])) \
-    { \
+#define EXCLUDE_ARG_TYPE(methodname, arg_type, index)                                                                       \
+    if(arg_type(args[index]))                                                                                               \
+    {                                                                                                                       \
         RETURN_ERROR("invalid type %s() as argument %d in %s()", bl_value_typename(args[index]), (index) + 1, #methodname); \
     }
 
-#define METHOD_OVERRIDE(override, i) \
-    do \
-    { \
-        if(bl_value_isinstance(args[0])) \
-        { \
-            ObjInstance* instance = AS_INSTANCE(args[0]); \
+#define METHOD_OVERRIDE(override, i)                                                                                  \
+    do                                                                                                                \
+    {                                                                                                                 \
+        if(bl_value_isinstance(args[0]))                                                                              \
+        {                                                                                                             \
+            ObjInstance* instance = AS_INSTANCE(args[0]);                                                             \
             if(bl_instance_invokefromclass(vm, instance->klass, bl_string_copystring(vm, "@" #override, (i) + 1), 0)) \
-            { \
-                args[-1] = TRUE_VAL; \
-                return false; \
-            } \
-        } \
+            {                                                                                                         \
+                args[-1] = TRUE_VAL;                                                                                  \
+                return false;                                                                                         \
+            }                                                                                                         \
+        }                                                                                                             \
     } while(0);
 
-#define REGEX_COMPILATION_ERROR(re, errornumber, erroroffset) \
-    if((re) == NULL) \
-    { \
-        PCRE2_UCHAR8 buffer[256]; \
-        pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer)); \
+#define REGEX_COMPILATION_ERROR(re, errornumber, erroroffset)                                               \
+    if((re) == NULL)                                                                                        \
+    {                                                                                                       \
+        PCRE2_UCHAR8 buffer[256];                                                                           \
+        pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));                                     \
         RETURN_ERROR("regular expression compilation failed at offset %d: %s", (int)(erroroffset), buffer); \
     }
 
-#define REGEX_ASSERTION_ERROR(re, matchdata, ovector) \
-    if((ovector)[0] > (ovector)[1]) \
-    { \
+#define REGEX_ASSERTION_ERROR(re, matchdata, ovector)                                      \
+    if((ovector)[0] > (ovector)[1])                                                        \
+    {                                                                                      \
         RETURN_ERROR("match aborted: regular expression used \\K in an assertion %.*s to " \
-                     "set match start after its end.", \
+                     "set match start after its end.",                                     \
                      (int)((ovector)[0] - (ovector)[1]), (char*)(subject + (ovector)[1])); \
-        pcre2_match_data_free(matchdata); \
-        pcre2_code_free(re); \
-        RETURN_EMPTY; \
+        pcre2_match_data_free(matchdata);                                                  \
+        pcre2_code_free(re);                                                               \
+        RETURN_EMPTY;                                                                      \
     }
 
-#define REGEX_ERR(message, result) \
-    do \
-    { \
-        PCRE2_UCHAR error[255]; \
-        if(pcre2_get_error_message(result, error, 255)) \
-        { \
+#define REGEX_ERR(message, result)                                     \
+    do                                                                 \
+    {                                                                  \
+        PCRE2_UCHAR error[255];                                        \
+        if(pcre2_get_error_message(result, error, 255))                \
+        {                                                              \
             RETURN_ERROR("RegexError: (%d) %s", result, (char*)error); \
-        } \
-        RETURN_ERROR("RegexError: %s", message); \
+        }                                                              \
+        RETURN_ERROR("RegexError: %s", message);                       \
     } while(0)
 
 #define REGEX_RC_ERROR() REGEX_ERR("%d", rc);
 
-#define GET_REGEX_COMPILE_OPTIONS(string, regexshowerror) \
-    uint32_t compileoptions = bl_helper_objstringisregex(string); \
-    if((regexshowerror) && (int)compileoptions == -1) \
-    { \
-        RETURN_ERROR("RegexError: Invalid regex"); \
-    } \
-    else if((regexshowerror) && (int)compileoptions > 1000000) \
-    { \
+#define GET_REGEX_COMPILE_OPTIONS(string, regexshowerror)                                             \
+    uint32_t compileoptions = bl_helper_objstringisregex(string);                                     \
+    if((regexshowerror) && (int)compileoptions == -1)                                                 \
+    {                                                                                                 \
+        RETURN_ERROR("RegexError: Invalid regex");                                                    \
+    }                                                                                                 \
+    else if((regexshowerror) && (int)compileoptions > 1000000)                                        \
+    {                                                                                                 \
         RETURN_ERROR("RegexError: invalid modifier '%c' ", (char)abs(1000000 - (int)compileoptions)); \
     }
 
@@ -345,10 +336,10 @@
 
 #define EXIT_VM() return PTR_RUNTIME_ERR
 
-#define runtime_error(...) \
+#define runtime_error(...)                              \
     if(!bl_vm_throwexception(vm, false, ##__VA_ARGS__)) \
-    { \
-        EXIT_VM(); \
+    {                                                   \
+        EXIT_VM();                                      \
     }
 
 enum ValType
@@ -1031,7 +1022,7 @@ struct DynArray
 
 struct BProcess
 {
-    int pid;
+    pid_t pid;
 };
 
 struct BProcessShared
@@ -1094,175 +1085,6 @@ static void bl_mem_gcclearprotect(VMState* vm)
 #if defined(__linux__) || defined(__CYGWIN__) || defined(__MINGW32_MAJOR_VERSION)
     #define PROC_SELF_EXE "/proc/self/exe"
 #endif
-
-#define pack754_64(f) (pack754((f), 64, 11))
-#define unpack754_64(i) (unpack754((i), 64, 11))
-
-uint64_t pack754(long double f, unsigned bits, unsigned expbits)
-{
-    long double fnorm;
-    int shift;
-    long long sign;
-    long long exp;
-    long long significand;
-    unsigned significandbits;
-    /* -1 for sign bit */
-    significandbits = bits - expbits - 1;
-    /* get this special case out of the way */
-    if(f == 0.0)
-    {
-        return 0;
-    }
-    /* check sign and begin normalization */
-    if(f < 0)
-    {
-        sign = 1;
-        fnorm = -f;
-    }
-    else
-    {
-        sign = 0;
-        fnorm = f;
-    }
-    /* get the normalized form of f and track the exponent */
-    shift = 0;
-    while(fnorm >= 2.0)
-    {
-        fnorm /= 2.0;
-        shift++;
-    }
-    while(fnorm < 1.0)
-    {
-        fnorm *= 2.0;
-        shift--;
-    }
-    fnorm = fnorm - 1.0;
-    /* calculate the binary form (non-float) of the significand data */
-    significand = fnorm * ((1LL << significandbits) + 0.5f);
-    /* get the biased exponent */
-    /* shift + bias */
-    exp = shift + ((1<<(expbits-1)) - 1);
-    /* return the final answer */
-    return (
-        (sign << (bits - 1)) | (exp << (bits - expbits - 1)) | significand
-    );
-}
-
-long double unpack754(uint64_t i, unsigned bits, unsigned expbits)
-{
-    long double result;
-    long long shift;
-    unsigned bias;
-    unsigned significandbits;
-    /* -1 for sign bit */
-    significandbits = bits - expbits - 1;
-    if(i == 0)
-    {
-        return 0.0;
-    }
-    /* pull the significand */
-    /* mask */
-    result = (i&((1LL<<significandbits)-1));
-    /* convert back to float */
-    result /= (1LL<<significandbits);
-    /* add the one back on */
-    result += 1.0f;
-    /* deal with the exponent */
-    bias = ((1 << (expbits - 1)) - 1);
-    shift = (((i >> significandbits) & ((1LL << expbits) - 1)) - bias);
-    while(shift > 0)
-    {
-        result *= 2.0;
-        shift--;
-    }
-    while(shift < 0)
-    {
-        result /= 2.0;
-        shift++;
-    }
-    /* sign it */
-    if(((i>>(bits-1)) & 1) == 1)
-    {
-        result = result * -1.0;
-    }
-    else
-    {
-        result = result * 1.0;
-    }
-    return result;
-}
-
-/* this used to be done via type punning, which may not be portable */
-double bl_util_uinttofloat(unsigned int val)
-{
-    return unpack754_64(val);
-}
-
-unsigned int bl_util_floattouint(double val)
-{
-    return pack754_64(val);
-}
-
-int bl_util_doubletoint(double n)
-{
-    if(n == 0)
-    {
-        return 0;
-    }
-    if(isnan(n))
-    {
-        return 0;
-    }
-    if(n < 0)
-    {
-        n = -floor(-n);
-    }
-    else
-    {
-        n = floor(n);
-    }
-    if(n < INT_MIN)
-    {
-        return INT_MIN;
-    }
-    if(n > INT_MAX)
-    {
-        return INT_MAX;
-    }
-    return (int)n;
-}
-
-int bl_util_numbertoint32(double n)
-{
-    /* magic. no idea. */
-    bool isf;
-    double two32 = 4294967296.0;
-    double two31 = 2147483648.0;
-    isf = isfinite(n);
-    if(!isf || (n == 0))
-    {
-        return 0;
-    }
-    n = fmod(n, two32);
-    if(n >= 0)
-    {
-        n = floor(n);
-    }
-    else
-    {
-        n = ceil(n) + two32;
-    }
-    if(n >= two31)
-    {
-        return n - two32;
-    }
-    return n;
-}
-
-unsigned int bl_util_numbertouint32(double n)
-{
-    return (unsigned int)bl_util_numbertoint32(n);
-}
 
 // returns the number of bytes contained in a unicode character
 int bl_util_utf8numbytes(int value)
@@ -1490,80 +1312,45 @@ void bl_util_utf8slice(char* s, int* start, int* end)
     *end = p != NULL ? (int)(p - s) : (int)strlen(s);
 }
 
-
-char* bl_util_readhandle(FILE* hnd, size_t* dlen)
+char* bl_util_readfile(const char* path)
 {
-    long rawtold;
-    /*
-    * the value returned by ftell() may not necessarily be the same as
-    * the amount that can be read.
-    * since we only ever read a maximum of $toldlen, there will
-    * be no memory trashing.
-    */
-    size_t toldlen;
-    size_t actuallen;
-    char* buf;
-    if(fseek(hnd, 0, SEEK_END) == -1)
+    FILE* fp = fopen(path, "rb");
+    // file not readable (maybe due to permission)
+    if(fp == NULL)
     {
         return NULL;
     }
-    if((rawtold = ftell(hnd)) == -1)
+    fseek(fp, 0L, SEEK_END);
+    size_t filesize = ftell(fp);
+    rewind(fp);
+    char* buffer = (char*)malloc(filesize + 1);
+    // the system might not have enough memory to read the file.
+    if(buffer == NULL)
     {
+        fclose(fp);
         return NULL;
     }
-    toldlen = rawtold;
-    if(fseek(hnd, 0, SEEK_SET) == -1)
+    size_t bytesread = fread(buffer, sizeof(char), filesize, fp);
+    // if we couldn't read the entire file
+    if(bytesread < filesize)
     {
+        fclose(fp);
+        free(buffer);
         return NULL;
     }
-    buf = (char*)malloc(toldlen + 1);
-    memset(buf, 0, toldlen+1);
-    if(buf != NULL)
-    {
-        actuallen = fread(buf, sizeof(char), toldlen, hnd);
-        /*
-        // optionally, read remainder:
-        size_t tmplen;
-        if(actuallen < toldlen)
-        {
-            tmplen = actuallen;
-            actuallen += fread(buf+tmplen, sizeof(char), actuallen-toldlen, hnd);
-            ...
-        }
-        // unlikely to be necessary, so not implemented.
-        */
-        if(dlen != NULL)
-        {
-            *dlen = actuallen;
-        }
-        return buf;
-    }
-    return NULL;
-}
-
-char* bl_util_readfile(const char* filename, size_t* dlen)
-{
-    char* b;
-    FILE* fh;
-    if((fh = fopen(filename, "rb")) == NULL)
-    {
-        return NULL;
-    }
-    b = bl_util_readhandle(fh, dlen);
-    fclose(fh);
-    return b;
+    buffer[bytesread] = '\0';
+    fclose(fp);
+    return buffer;
 }
 
 char* bl_util_getexepath()
 {
-    #if defined(__unix__) || defined(__linux__)
-        char rawpath[PATH_MAX];
-        long readlength;
-        if((readlength = readlink(PROC_SELF_EXE, rawpath, sizeof(rawpath))) > -1 && readlength < PATH_MAX)
-        {
-            return strdup(rawpath);
-        }
-    #endif
+    char rawpath[PATH_MAX];
+    ssize_t readlength;
+    if((readlength = readlink(PROC_SELF_EXE, rawpath, sizeof(rawpath))) > -1 && readlength < PATH_MAX)
+    {
+        return strdup(rawpath);
+    }
     return strdup("");
 }
 
@@ -1605,12 +1392,7 @@ char* bl_util_mergepaths(const char* a, const char* b)
 
 bool bl_util_fileexists(char* filepath)
 {
-    struct stat st;
-    if(stat(filepath, &st) == -1)
-    {
-        return false;
-    }
-    return true;
+    return access(filepath, F_OK) == 0;
 }
 
 char* bl_util_getbladefilename(const char* filename)
@@ -1620,29 +1402,11 @@ char* bl_util_getbladefilename(const char* filename)
 
 char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool isrelative)
 {
-    char* exedir;
-    char* path1;
-    char* path2;
-    char* vendorfile;
-    char* rootdir;
-    char* bladefilename;
-    char* filedirectory;
-    char* vendorindexfile;
-    char* relativeindexfile;
-    char* bladedirectory;
-    char* libraryfile;
-    char* libraryindexfile;
-    char* bladepackagedirectory;
-    char* packagefile;
-    char* packageindexfile;
-    char* relativefile;
-    int rootdirlength;
-    int filedirectorylength;
-    bladefilename = bl_util_getbladefilename(modulename);
+    char* bladefilename = bl_util_getbladefilename(modulename);
     // check relative to the current file...
-    filedirectory = dirname((char*)strdup(currentfile));
+    char* filedirectory = dirname((char*)strdup(currentfile));
     // fixing last path / if exists (looking at windows)...
-    filedirectorylength = (int)strlen(filedirectory);
+    int filedirectorylength = (int)strlen(filedirectory);
     if(filedirectory[filedirectorylength - 1] == '\\')
     {
         filedirectory[filedirectorylength - 1] = '\0';
@@ -1651,20 +1415,19 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
     if(!isrelative)
     {
         // firstly, search the local vendor directory for a matching module
-        rootdir = getcwd(NULL, 0);
+        char* rootdir = getcwd(NULL, 0);
         // fixing last path / if exists (looking at windows)...
-        rootdirlength = (int)strlen(rootdir);
+        int rootdirlength = (int)strlen(rootdir);
         if(rootdir[rootdirlength - 1] == '\\')
         {
             rootdir[rootdirlength - 1] = '\0';
         }
-        vendorfile = bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), bladefilename);
+        char* vendorfile = bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), bladefilename);
         if(bl_util_fileexists(vendorfile))
         {
             // stop a core library from importing itself
- 
-            path1 = realpath(vendorfile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(vendorfile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -1674,13 +1437,13 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             }
         }
         // or a matching package
-        vendorindexfile = bl_util_mergepaths(bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename),
+        char* vendorindexfile = bl_util_mergepaths(bl_util_mergepaths(bl_util_mergepaths(rootdir, LOCAL_PACKAGES_DIRECTORY LOCAL_SRC_DIRECTORY), modulename),
                                                    LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
         if(bl_util_fileexists(vendorindexfile))
         {
             // stop a core library from importing itself
-            path1 = realpath(vendorindexfile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(vendorindexfile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -1690,15 +1453,15 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             }
         }
         // then, check in blade's default locations
-        exedir = bl_util_getexedir();
-        bladedirectory = bl_util_mergepaths(exedir, LIBRARY_DIRECTORY);
+        char* exedir = bl_util_getexedir();
+        char* bladedirectory = bl_util_mergepaths(exedir, LIBRARY_DIRECTORY);
         // check blade libs directory for a matching module...
-        libraryfile = bl_util_mergepaths(bladedirectory, bladefilename);
+        char* libraryfile = bl_util_mergepaths(bladedirectory, bladefilename);
         if(bl_util_fileexists(libraryfile))
         {
             // stop a core library from importing itself
-            path1 = realpath(libraryfile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(libraryfile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -1708,11 +1471,11 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             }
         }
         // check blade libs directory for a matching package...
-        libraryindexfile = bl_util_mergepaths(bl_util_mergepaths(bladedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
+        char* libraryindexfile = bl_util_mergepaths(bl_util_mergepaths(bladedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
         if(bl_util_fileexists(libraryindexfile))
         {
-            path1 = realpath(libraryindexfile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(libraryindexfile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -1722,12 +1485,12 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             }
         }
         // check blade vendor directory installed module...
-        bladepackagedirectory = bl_util_mergepaths(exedir, PACKAGES_DIRECTORY);
-        packagefile = bl_util_mergepaths(bladepackagedirectory, bladefilename);
+        char* bladepackagedirectory = bl_util_mergepaths(exedir, PACKAGES_DIRECTORY);
+        char* packagefile = bl_util_mergepaths(bladepackagedirectory, bladefilename);
         if(bl_util_fileexists(packagefile))
         {
-            path1 = realpath(packagefile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(packagefile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -1737,11 +1500,11 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             }
         }
         // check blade vendor directory installed package...
-        packageindexfile = bl_util_mergepaths(bl_util_mergepaths(bladepackagedirectory, modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
+        char* packageindexfile = bl_util_mergepaths(bl_util_mergepaths(bladepackagedirectory, modulename), LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
         if(bl_util_fileexists(packageindexfile))
         {
-            path1 = realpath(packageindexfile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(packageindexfile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -1754,12 +1517,12 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
     else
     {
         // otherwise, search the relative path for a matching module
-        relativefile = bl_util_mergepaths(filedirectory, bladefilename);
+        char* relativefile = bl_util_mergepaths(filedirectory, bladefilename);
         if(bl_util_fileexists(relativefile))
         {
             // stop a user module from importing itself
-            path1 = realpath(relativefile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(relativefile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -1769,11 +1532,11 @@ char* bl_util_resolveimportpath(char* modulename, const char* currentfile, bool 
             }
         }
         // or a matching package
-        relativeindexfile = bl_util_mergepaths(bl_util_mergepaths(filedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
+        char* relativeindexfile = bl_util_mergepaths(bl_util_mergepaths(filedirectory, modulename), bl_util_getbladefilename(LIBRARY_DIRECTORY_INDEX));
         if(bl_util_fileexists(relativeindexfile))
         {
-            path1 = realpath(relativeindexfile, NULL);
-            path2 = realpath(currentfile, NULL);
+            char* path1 = realpath(relativeindexfile, NULL);
+            char* path2 = realpath(currentfile, NULL);
             if(path1 != NULL)
             {
                 if(path2 == NULL || memcmp(path1, path2, (int)strlen(path2)) != 0)
@@ -2423,6 +2186,13 @@ void bl_mem_collectgarbage(VMState* vm)
     size_t before = vm->bytesallocated;
 #endif
     vm->allowgc = false;
+    /*
+        tin_gcmem_vmmarkroots(vm);
+    tin_gcmem_vmtracerefs(vm);
+    tin_strreg_remwhite(vm->state);
+    tin_gcmem_vmsweep(vm);
+    vm->state->gcnext = vm->state->gcbytescount * TIN_GC_HEAP_GROW_FACTOR;
+    */
     bl_mem_markroots(vm);
     bl_mem_tracerefs(vm);
     bl_hashtable_removewhites(vm, &vm->strings);
@@ -2946,65 +2716,65 @@ bool bl_value_returnnil(VMState* vm, Value* args)
     return bl_value_returnvalue(vm, args, NIL_VAL, true);
 }
 
-#define RETURN_EMPTY \
-    { \
+#define RETURN_EMPTY        \
+    {                       \
         args[-1] = NIL_VAL; \
-        return false; \
+        return false;       \
     }
 
-#define RETURN_ERROR(...) \
-    { \
-        bl_vm_popvaluen(vm, argcount); \
+#define RETURN_ERROR(...)                               \
+    {                                                   \
+        bl_vm_popvaluen(vm, argcount);                  \
         bl_vm_throwexception(vm, false, ##__VA_ARGS__); \
-        args[-1] = FALSE_VAL; \
-        return false; \
+        args[-1] = FALSE_VAL;                           \
+        return false;                                   \
     }
 
-#define RETURN_BOOL(v) \
-    { \
+#define RETURN_BOOL(v)          \
+    {                           \
         args[-1] = BOOL_VAL(v); \
-        return true; \
+        return true;            \
     }
-#define RETURN_TRUE \
-    { \
+#define RETURN_TRUE          \
+    {                        \
         args[-1] = TRUE_VAL; \
-        return true; \
+        return true;         \
     }
-#define RETURN_FALSE \
-    { \
+#define RETURN_FALSE          \
+    {                         \
         args[-1] = FALSE_VAL; \
-        return true; \
+        return true;          \
     }
-#define RETURN_NUMBER(v) \
-    { \
+#define RETURN_NUMBER(v)          \
+    {                             \
         args[-1] = NUMBER_VAL(v); \
-        return true; \
+        return true;              \
     }
-#define RETURN_OBJ(v) \
-    { \
+#define RETURN_OBJ(v)          \
+    {                          \
         args[-1] = OBJ_VAL(v); \
-        return true; \
+        return true;           \
     }
 
-#define RETURN_L_STRING(v, l) \
-    { \
+#define RETURN_L_STRING(v, l)                               \
+    {                                                       \
         args[-1] = OBJ_VAL(bl_string_copystring(vm, v, l)); \
-        return true; \
+        return true;                                        \
     }
-#define RETURN_T_STRING(v, l) \
-    { \
+#define RETURN_T_STRING(v, l)                               \
+    {                                                       \
         args[-1] = OBJ_VAL(bl_string_takestring(vm, v, l)); \
-        return true; \
+        return true;                                        \
     }
-#define RETURN_TT_STRING(v) \
-    { \
+#define RETURN_TT_STRING(v)                                              \
+    {                                                                    \
         args[-1] = OBJ_VAL(bl_string_takestring(vm, v, (int)strlen(v))); \
-        return true; \
+        return true;                                                     \
     }
 #define RETURN_VALUE(v) \
-    { \
-        args[-1] = v; \
-        return true; \
+    {                   \
+        args[-1] = v;   \
+        return true;    \
     }
 
 void bl_hashtable_reset(HashTable* table)
@@ -3377,15 +3147,10 @@ int bl_blob_addconst(VMState* vm, BinaryBlob* blob, Value value)
  */
 uint32_t bl_helper_objstringisregex(ObjString* string)
 {
-    int i;
-    uint32_t coptions;
-    bool matchfound;
-    char start;
-    start = string->chars[0];
-    matchfound = false;
-    // pcre2 options
-    coptions = 0;
-    for(i = 1; i < string->length; i++)
+    char start = string->chars[0];
+    bool matchfound = false;
+    uint32_t coptions = 0;// pcre2 options
+    for(int i = 1; i < string->length; i++)
     {
         if(string->chars[i] == start)
         {
@@ -3397,7 +3162,6 @@ uint32_t bl_helper_objstringisregex(ObjString* string)
             // compile the delimiters
             switch(string->chars[i])
             {
-                #if 0
                 /* Perl compatible options */
                 case 'i':
                     coptions |= PCRE2_CASELESS;
@@ -3423,19 +3187,16 @@ uint32_t bl_helper_objstringisregex(ObjString* string)
                     break;
                 case 'u':
                     coptions |= PCRE2_UTF;
-                    /*
-                    * In  PCRE,  by  default, \d, \D, \s, \S, \w, and \W recognize only
-                    * ASCII characters, even in UTF-8 mode. However, this can be changed by
-                    * setting the PCRE2_UCP option.
-                    */
-                    #ifdef PCRE2_UCP
-                        coptions |= PCRE2_UCP;
-                    #endif
+                    /* In  PCRE,  by  default, \d, \D, \s, \S, \w, and \W recognize only
+         ASCII characters, even in UTF-8 mode. However, this can be changed by
+         setting the PCRE2_UCP option. */
+#ifdef PCRE2_UCP
+                    coptions |= PCRE2_UCP;
+#endif
                     break;
                 case 'J':
                     coptions |= PCRE2_DUPNAMES;
                     break;
-                #endif
                 case ' ':
                 case '\n':
                 case '\r':
@@ -3569,9 +3330,9 @@ ObjArray* bl_array_copy(VMState* vm, ObjArray* list, int start, int length)
     return nl;
 }
 
-#define ENFORCE_VALID_DICT_KEY(name, index) \
+#define ENFORCE_VALID_DICT_KEY(name, index)          \
     EXCLUDE_ARG_TYPE(name, bl_value_isarray, index); \
-    EXCLUDE_ARG_TYPE(name, bl_value_isdict, index); \
+    EXCLUDE_ARG_TYPE(name, bl_value_isdict, index);  \
     EXCLUDE_ARG_TYPE(name, bl_value_isfile, index);
 
 void bl_dict_addentry(VMState* vm, ObjDict* dict, Value key, Value value)
@@ -5203,7 +4964,6 @@ bool objfn_string_rpad(VMState* vm, int argcount, Value* args)
 
 bool objfn_string_match(VMState* vm, int argcount, Value* args)
 {
-    #if 0
     ENFORCE_ARG_COUNT(match, 1);
     ENFORCE_ARG_TYPE(match, 0, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
@@ -5285,13 +5045,10 @@ bool objfn_string_match(VMState* vm, int argcount, Value* args)
     pcre2_match_data_free(matchdata);
     pcre2_code_free(re);
     RETURN_OBJ(result);
-    #endif
-    RETURN_NUMBER(0);
 }
 
 bool objfn_string_matches(VMState* vm, int argcount, Value* args)
 {
-    #if 0
     ENFORCE_ARG_COUNT(matches, 1);
     ENFORCE_ARG_TYPE(matches, 0, bl_value_isstring);
     ObjString* string = AS_STRING(METHOD_OBJECT);
@@ -5513,13 +5270,10 @@ bool objfn_string_matches(VMState* vm, int argcount, Value* args)
     pcre2_match_data_free(matchdata);
     pcre2_code_free(re);
     RETURN_OBJ(result);
-    #endif
-    RETURN_NUMBER(0);
 }
 
 bool objfn_string_replace(VMState* vm, int argcount, Value* args)
 {
-    #if 0
     ENFORCE_ARG_COUNT(replace, 2);
     ENFORCE_ARG_TYPE(replace, 0, bl_value_isstring);
     ENFORCE_ARG_TYPE(replace, 1, bl_value_isstring);
@@ -5567,8 +5321,6 @@ bool objfn_string_replace(VMState* vm, int argcount, Value* args)
     pcre2_match_context_free(matchcontext);
     pcre2_code_free(re);
     RETURN_OBJ(response);
-    #endif
-    RETURN_NUMBER(0);
 }
 
 bool objfn_string_tobytes(VMState* vm, int argcount, Value* args)
@@ -6526,43 +6278,41 @@ static TokType bl_scanner_scanidenttype(AstScanner* s)
     {
         int tokid;
         const char* str;
-    } keywords[] = {
-        { TOK_AND, "and" },
-        { TOK_ASSERT, "assert" },
-        { TOK_AS, "as" },
-        { TOK_BREAK, "break" },
-        { TOK_CATCH, "catch" },
-        { TOK_CLASS, "class" },
-        { TOK_CONTINUE, "continue" },
-        { TOK_DEFAULT, "default" },
-        { TOK_DEF, "function" },
+    } keywords[] = { { TOK_AND, "and" },
+                     { TOK_ASSERT, "assert" },
+                     { TOK_AS, "as" },
+                     { TOK_BREAK, "break" },
+                     { TOK_CATCH, "catch" },
+                     { TOK_CLASS, "class" },
+                     { TOK_CONTINUE, "continue" },
+                     { TOK_DEFAULT, "default" },
+                     { TOK_DEF, "def" },
+                     { TOK_DIE, "die" },
+                     { TOK_DO, "do" },
+                     { TOK_ECHO, "echo" },
+                     { TOK_ELSE, "else" },
+                     { TOK_EMPTY, "empty" },
+                     { TOK_FALSE, "false" },
+                     { TOK_FINALLY, "finally" },
+                     { TOK_FOREACH, "foreach" },
+                     { TOK_IF, "if" },
+                     { TOK_IMPORT, "import" },
+                     { TOK_IN, "in" },
+                     { TOK_FORLOOP, "for" },
+                     { TOK_NIL, "nil" },
+                     { TOK_OR, "or" },
+                     { TOK_PARENT, "parent" },
+                     { TOK_RETURN, "return" },
+                     { TOK_SELF, "self" },
+                     { TOK_STATIC, "static" },
+                     { TOK_TRUE, "true" },
+                     { TOK_TRY, "try" },
+                     { TOK_USING, "using" },
+                     { TOK_VAR, "var" },
+                     { TOK_WHILE, "while" },
+                     { TOK_WHEN, "when" },
+                     { 0, NULL } };
 
-        { TOK_DIE, "die" },
-        { TOK_DO, "do" },
-        { TOK_ECHO, "echo" },
-        { TOK_ELSE, "else" },
-        { TOK_EMPTY, "empty" },
-        { TOK_FALSE, "false" },
-        { TOK_FINALLY, "finally" },
-        { TOK_FOREACH, "foreach" },
-        { TOK_IF, "if" },
-        { TOK_IMPORT, "import" },
-        { TOK_IN, "in" },
-        { TOK_FORLOOP, "for" },
-        { TOK_NIL, "nil" },
-        { TOK_OR, "or" },
-        { TOK_PARENT, "parent" },
-        { TOK_RETURN, "return" },
-        { TOK_SELF, "self" },
-        { TOK_STATIC, "static" },
-        { TOK_TRUE, "true" },
-        { TOK_TRY, "try" },
-        { TOK_USING, "using" },
-        { TOK_VAR, "var" },
-        { TOK_WHILE, "while" },
-        { TOK_WHEN, "when" },
-        { 0, NULL }
-    };
     size_t i;
     size_t kwlen;
     size_t ofs;
@@ -6875,7 +6625,7 @@ static void bl_parser_errorat(AstParser* p, AstToken* t, const char* message, va
         }
         else
         {
-            fprintf(stderr, " at '%.*s' (previous: '%.*s')", t->length, t->start, p->previous.length, p->previous.start);
+            fprintf(stderr, " at '%.*s'", t->length, t->start);
         }
     }
     fprintf(stderr, ": ");
@@ -8391,6 +8141,112 @@ static inline AstRule* bl_parser_makerule(AstRule* dest, bparseprefixfn prefix, 
 
 static AstRule* bl_parser_getrule(TokType type)
 {
+    #if 0
+    // clang-format off
+    static AstRule parserules[] = {
+        // symbols
+        [TOK_NEWLINE] = { NULL, NULL, PREC_NONE },// (
+        [TOK_LPAREN] = { bl_parser_rulegrouping, bl_parser_rulecall, PREC_CALL },// (
+        [TOK_RPAREN] = { NULL, NULL, PREC_NONE },// )
+        [TOK_LBRACKET] = { bl_parser_rulelist, bl_parser_ruleindexing, PREC_CALL },// [
+        [TOK_RBRACKET] = { NULL, NULL, PREC_NONE },// ]
+        [TOK_LBRACE] = { bl_parser_ruledict, NULL, PREC_NONE },// {
+        [TOK_RBRACE] = { NULL, NULL, PREC_NONE },// }
+        [TOK_SEMICOLON] = { NULL, NULL, PREC_NONE },// ;
+        [TOK_COMMA] = { NULL, NULL, PREC_NONE },// ,
+        [TOK_BACKSLASH] = { NULL, NULL, PREC_NONE },// '\'
+        [TOK_BANG] = { bl_parser_ruleunary, NULL, PREC_NONE },// !
+        [TOK_BANGEQ] = { NULL, bl_parser_rulebinary, PREC_EQUALITY },// !=
+        [TOK_COLON] = { NULL, NULL, PREC_NONE },// :
+        [TOK_AT] = { NULL, NULL, PREC_NONE },// @
+        [TOK_DOT] = { NULL, bl_parser_ruledot, PREC_CALL },// .
+        [TOK_RANGE] = { NULL, bl_parser_rulebinary, PREC_RANGE },// ..
+        [TOK_TRIDOT] = { NULL, NULL, PREC_NONE },// ...
+        [TOK_PLUS] = { bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM },// +
+        [TOK_PLUSEQ] = { NULL, NULL, PREC_NONE },// +=
+        [TOK_INCREMENT] = { NULL, NULL, PREC_NONE },// ++
+        [TOK_MINUS] = { bl_parser_ruleunary, bl_parser_rulebinary, PREC_TERM },// -
+        [TOK_MINUSEQ] = { NULL, NULL, PREC_NONE },// -=
+        [TOK_DECREMENT] = { NULL, NULL, PREC_NONE },// --
+        [TOK_MULTIPLY] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// *
+        [TOK_MULTIPLYEQ] = { NULL, NULL, PREC_NONE },// *=
+        [TOK_POW] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// **
+        [TOK_POWEQ] = { NULL, NULL, PREC_NONE },// **=
+        [TOK_DIVIDE] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// '/'
+        [TOK_DIVIDEEQ] = { NULL, NULL, PREC_NONE },// '/='
+        [TOK_FLOOR] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// '//'
+        [TOK_FLOOREQ] = { NULL, NULL, PREC_NONE },// '//='
+        [TOK_EQUAL] = { NULL, NULL, PREC_NONE },// =
+        [TOK_EQUALEQ] = { NULL, bl_parser_rulebinary, PREC_EQUALITY },// ==
+        [TOK_LESS] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// <
+        [TOK_LESSEQ] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// <=
+        [TOK_LSHIFT] = { NULL, bl_parser_rulebinary, PREC_SHIFT },// <<
+        [TOK_LSHIFTEQ] = { NULL, NULL, PREC_NONE },// <<=
+        [TOK_GREATER] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// >
+        [TOK_GREATEREQ] = { NULL, bl_parser_rulebinary, PREC_COMPARISON },// >=
+        [TOK_RSHIFT] = { NULL, bl_parser_rulebinary, PREC_SHIFT },// >>
+        [TOK_RSHIFTEQ] = { NULL, NULL, PREC_NONE },// >>=
+        [TOK_PERCENT] = { NULL, bl_parser_rulebinary, PREC_FACTOR },// %
+        [TOK_PERCENTEQ] = { NULL, NULL, PREC_NONE },// %=
+        [TOK_AMP] = { NULL, bl_parser_rulebinary, PREC_BIT_AND },// &
+        [TOK_AMPEQ] = { NULL, NULL, PREC_NONE },// &=
+        [TOK_BAR] = { bl_parser_ruleanon, bl_parser_rulebinary, PREC_BIT_OR },// |
+        [TOK_BAREQ] = { NULL, NULL, PREC_NONE },// |=
+        [TOK_TILDE] = { bl_parser_ruleunary, NULL, PREC_UNARY },// ~
+        [TOK_TILDEEQ] = { NULL, NULL, PREC_NONE },// ~=
+        [TOK_XOR] = { NULL, bl_parser_rulebinary, PREC_BIT_XOR },// ^
+        [TOK_XOREQ] = { NULL, NULL, PREC_NONE },// ^=
+        [TOK_QUESTION] = { NULL, bl_parser_ruleconditional, PREC_CONDITIONAL },// ??
+        // keywords
+        [TOK_AND] = { NULL, bl_parser_ruleand, PREC_AND },
+        [TOK_AS] = { NULL, NULL, PREC_NONE },
+        [TOK_ASSERT] = { NULL, NULL, PREC_NONE },
+        [TOK_BREAK] = { NULL, NULL, PREC_NONE },
+        [TOK_CLASS] = { NULL, NULL, PREC_NONE },
+        [TOK_CONTINUE] = { NULL, NULL, PREC_NONE },
+        [TOK_DEF] = { NULL, NULL, PREC_NONE },
+        [TOK_DEFAULT] = { NULL, NULL, PREC_NONE },
+        [TOK_DIE] = { NULL, NULL, PREC_NONE },
+        [TOK_DO] = { NULL, NULL, PREC_NONE },
+        [TOK_ECHO] = { NULL, NULL, PREC_NONE },
+        [TOK_ELSE] = { NULL, NULL, PREC_NONE },
+        [TOK_FALSE] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_FOREACH] = { NULL, NULL, PREC_NONE },
+        [TOK_IF] = { NULL, NULL, PREC_NONE },
+        [TOK_IMPORT] = { NULL, NULL, PREC_NONE },
+        [TOK_IN] = { NULL, NULL, PREC_NONE },
+        [TOK_FORLOOP] = { NULL, NULL, PREC_NONE },
+        [TOK_VAR] = { NULL, NULL, PREC_NONE },
+        [TOK_NIL] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_OR] = { NULL, bl_parser_ruleor, PREC_OR },
+        [TOK_PARENT] = { bl_parser_ruleparent, NULL, PREC_NONE },
+        [TOK_RETURN] = { NULL, NULL, PREC_NONE },
+        [TOK_SELF] = { bl_parser_ruleself, NULL, PREC_NONE },
+        [TOK_STATIC] = { NULL, NULL, PREC_NONE },
+        [TOK_TRUE] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_USING] = { NULL, NULL, PREC_NONE },
+        [TOK_WHEN] = { NULL, NULL, PREC_NONE },
+        [TOK_WHILE] = { NULL, NULL, PREC_NONE },
+        [TOK_TRY] = { NULL, NULL, PREC_NONE },
+        [TOK_CATCH] = { NULL, NULL, PREC_NONE },
+        [TOK_FINALLY] = { NULL, NULL, PREC_NONE },
+        // types token
+        [TOK_LITERAL] = { bl_parser_rulestring, NULL, PREC_NONE },
+        [TOK_REGNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// regular numbers
+        [TOK_BINNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// binary numbers
+        [TOK_OCTNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// octal numbers
+        [TOK_HEXNUMBER] = { bl_parser_rulenumber, NULL, PREC_NONE },// hexadecimal numbers
+        [TOK_IDENTIFIER] = { bl_parser_rulevariable, NULL, PREC_NONE },
+        [TOK_INTERPOLATION] = { bl_parser_rulestrinterpol, NULL, PREC_NONE },
+        [TOK_EOF] = { NULL, NULL, PREC_NONE },
+        // error
+        [TOK_ERROR] = { NULL, NULL, PREC_NONE },
+        [TOK_EMPTY] = { bl_parser_ruleliteral, NULL, PREC_NONE },
+        [TOK_UNDEFINED] = { NULL, NULL, PREC_NONE },
+    };
+    // clang-format on
+    return &parserules[type];
+    #else
     static AstRule rule;
     switch(type)
     {
@@ -8576,7 +8432,6 @@ static AstRule* bl_parser_getrule(TokType type)
             return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
             break;
         // |
-        // fixme: this breaks '||'
         case TOK_BAR:
             return bl_parser_makerule(&rule, bl_parser_ruleanon, bl_parser_rulebinary, PREC_BIT_OR);
             break;
@@ -8741,6 +8596,7 @@ static AstRule* bl_parser_getrule(TokType type)
             break;
     }
     return bl_parser_makerule(&rule, NULL, NULL, PREC_NONE);
+    #endif
 }
 
 static void bl_parser_parseexpr(AstParser* p)
@@ -8995,7 +8851,7 @@ static void bl_parser_parseexprstmt(AstParser* p, bool isinitializer, bool semi)
  *
  * i.e.
  *
- * for i = 0; i < 10; i++ {
+ * iter i = 0; i < 10; i++ {
  *    ...
  * }
  *
@@ -9009,13 +8865,6 @@ static void bl_parser_parseexprstmt(AstParser* p, bool isinitializer, bool semi)
  */
 static void bl_parser_parseforloopstmt(AstParser* p)
 {
-    /*
-    if(!bl_parser_match(p, TOK_LPAREN))
-    {
-    }
-    */
-    bl_parser_consume(p, TOK_LPAREN, "expected '(' after 'for' keyword");
-
     bl_parser_beginscope(p);
     // parse initializer...
     if(bl_parser_match(p, TOK_SEMICOLON))
@@ -9046,12 +8895,6 @@ static void bl_parser_parseforloopstmt(AstParser* p)
         exitjump = bl_parser_emitjump(p, OP_JUMP_IF_FALSE);
         bl_parser_emitbyte(p, OP_POP);// pop the condition
     }
-    /*if(!bl_parser_match(p, TOK_RPAREN))
-    {
-
-    }
-    */
-
     // the iterator...
     if(!bl_parser_check(p, TOK_LBRACE))
     {
@@ -9064,14 +8907,7 @@ static void bl_parser_parseforloopstmt(AstParser* p)
         p->innermostloopstart = incrementstart;
         bl_parser_patchjump(p, bodyjump);
     }
-
-    bl_parser_consume(p, TOK_RPAREN, "expected ')' after 'for' conditionals");
-
-
     bl_parser_parsestmt(p);
-
-
-
     bl_parser_emitloop(p, p->innermostloopstart);
     if(exitjump != -1)
     {
@@ -9399,28 +9235,13 @@ static void bl_parser_parsespecificimport(AstParser* p, char* modulename, int im
 
 static void bl_parser_parseimportstmt(AstParser* p)
 {
-    int modconst;
-    int partcount;
-    int importconstant;
-    size_t srclen;
-    bool wasrenamed;
-    bool isrelative;
-    char* source;
-    char* modulename;
-    char* modulefile;
-    char* modulepath;
-    BinaryBlob blob;
-    ObjFunction* function;
-    ObjModule* modobj;
-    ObjClosure* closure;
-    (void)srclen;
     //  bl_parser_consume(p, TOK_LITERAL, "expected module name");
     //  int modulenamelength;
     //  char *modulename = bl_parser_compilestring(p, &modulenamelength);
-    modulename = NULL;
-    modulefile = NULL;
-    partcount = 0;
-    isrelative = bl_parser_match(p, TOK_DOT);
+    char* modulename = NULL;
+    char* modulefile = NULL;
+    int partcount = 0;
+    bool isrelative = bl_parser_match(p, TOK_DOT);
     // allow for import starting with ..
     if(!isrelative)
     {
@@ -9461,9 +9282,9 @@ static void bl_parser_parseimportstmt(AstParser* p)
         // handle native modules
         if(partcount == 0 && modulename[0] == '_' && !isrelative)
         {
-            modconst = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystring(p->vm, modulename, (int)strlen(modulename))));
-            bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, modconst);
-            bl_parser_parsespecificimport(p, modulename, modconst, false, true);
+            int module = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystring(p->vm, modulename, (int)strlen(modulename))));
+            bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, module);
+            bl_parser_parsespecificimport(p, modulename, module, false, true);
             return;
         }
         if(modulefile == NULL)
@@ -9480,7 +9301,7 @@ static void bl_parser_parseimportstmt(AstParser* p)
         }
         partcount++;
     } while(bl_parser_match(p, TOK_DOT) || bl_parser_match(p, TOK_RANGE));
-    wasrenamed = false;
+    bool wasrenamed = false;
     if(bl_parser_match(p, TOK_AS))
     {
         bl_parser_consume(p, TOK_IDENTIFIER, "module name expected");
@@ -9495,7 +9316,7 @@ static void bl_parser_parseimportstmt(AstParser* p)
         modulename[p->previous.length] = '\0';
         wasrenamed = true;
     }
-    modulepath = bl_util_resolveimportpath(modulefile, p->module->file, isrelative);
+    char* modulepath = bl_util_resolveimportpath(modulefile, p->module->file, isrelative);
     if(modulepath == NULL)
     {
         // check if there is one in the vm's registry
@@ -9504,9 +9325,9 @@ static void bl_parser_parseimportstmt(AstParser* p)
         ObjString* finalmodulename = bl_string_copystring(p->vm, modulename, (int)strlen(modulename));
         if(bl_hashtable_get(&p->vm->modules, OBJ_VAL(finalmodulename), &md))
         {
-            modconst = bl_parser_makeconstant(p, OBJ_VAL(finalmodulename));
-            bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, modconst);
-            bl_parser_parsespecificimport(p, modulename, modconst, false, true);
+            int module = bl_parser_makeconstant(p, OBJ_VAL(finalmodulename));
+            bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, module);
+            bl_parser_parsespecificimport(p, modulename, module, false, true);
             return;
         }
         free(modulepath);
@@ -9518,16 +9339,17 @@ static void bl_parser_parseimportstmt(AstParser* p)
         bl_parser_consumestmtend(p);
     }
     // do the import here...
-    source = bl_util_readfile(modulepath, &srclen);
+    char* source = bl_util_readfile(modulepath);
     if(source == NULL)
     {
         bl_parser_raiseerror(p, "could not read import file %s", modulepath);
         return;
     }
+    BinaryBlob blob;
     bl_blob_init(&blob);
-    modobj = bl_object_makemodule(p->vm, modulename, modulepath);
-    bl_vm_pushvalue(p->vm, OBJ_VAL(modobj));
-    function = bl_compiler_compilesource(p->vm, modobj, source, &blob);
+    ObjModule* module = bl_object_makemodule(p->vm, modulename, modulepath);
+    bl_vm_pushvalue(p->vm, OBJ_VAL(module));
+    ObjFunction* function = bl_compiler_compilesource(p->vm, module, source, &blob);
     bl_vm_popvalue(p->vm);
     free(source);
     if(function == NULL)
@@ -9537,9 +9359,9 @@ static void bl_parser_parseimportstmt(AstParser* p)
     }
     function->name = NULL;
     bl_vm_pushvalue(p->vm, OBJ_VAL(function));
-    closure = bl_object_makeclosure(p->vm, function);
+    ObjClosure* closure = bl_object_makeclosure(p->vm, function);
     bl_vm_popvalue(p->vm);
-    importconstant = bl_parser_makeconstant(p, OBJ_VAL(closure));
+    int importconstant = bl_parser_makeconstant(p, OBJ_VAL(closure));
     bl_parser_emitbyte_and_short(p, OP_CALL_IMPORT, importconstant);
     bl_parser_parsespecificimport(p, modulename, importconstant, wasrenamed, false);
 }
@@ -10173,23 +9995,20 @@ int bl_blob_disassembleinst(BinaryBlob* blob, int offset)
 }
 
 #define FILE_ERROR(type, message) \
-    file_close(file); \
+    file_close(file);             \
     RETURN_ERROR(#type " -> %s", message, file->path->chars);
-
-#define RETURN_STATUS(status) \
-    if((status) == 0) \
-    { \
-        RETURN_TRUE; \
-    } \
-    else \
-    { \
+#define RETURN_STATUS(status)              \
+    if((status) == 0)                      \
+    {                                      \
+        RETURN_TRUE;                       \
+    }                                      \
+    else                                   \
+    {                                      \
         FILE_ERROR(File, strerror(errno)); \
     }
-
-#define DENY_STD() \
+#define DENY_STD()              \
     if(file->mode->length == 0) \
         RETURN_ERROR("method not supported for std files");
-
 #define SET_DICT_STRING(d, n, l, v) bl_dict_addentry(vm, d, GC_L_STRING(n, l), v)
 
 static int file_close(ObjFile* file)
@@ -11992,7 +11811,7 @@ bool cfn_instanceof(VMState* vm, int argcount, Value* args)
  *
  * prints values to the standard output
  */
-bool bl_util_wrapprintfunc(VMState* vm, int argcount, Value* args, bool doreturn)
+bool cfn_print(VMState* vm, int argcount, Value* args)
 {
     for(int i = 0; i < argcount; i++)
     {
@@ -12006,22 +11825,6 @@ bool bl_util_wrapprintfunc(VMState* vm, int argcount, Value* args, bool doreturn
     {
         printf("\n");
     }
-    if(doreturn)
-    {
-        RETURN_NUMBER(0);
-    }
-    return true;
-}
-
-bool cfn_print(VMState* vm, int argcount, Value* args)
-{
-    return bl_util_wrapprintfunc(vm, argcount, args, true);
-}
-
-bool cfn_println(VMState* vm, int argcount, Value* args)
-{
-    bl_util_wrapprintfunc(vm, argcount, args, false);
-    printf("\n");
     RETURN_NUMBER(0);
 }
 
@@ -14511,7 +14314,7 @@ bool modfn_process_create(VMState* vm, int argcount, Value* args)
     ENFORCE_ARG_COUNT(create, 1);
     ENFORCE_ARG_TYPE(create, 0, bl_value_ispointer);
     BProcess* process = (BProcess*)AS_PTR(args[0])->pointer;
-    int pid = fork();
+    pid_t pid = fork();
     if(pid == -1)
     {
         RETURN_NUMBER(-1);
@@ -14547,7 +14350,7 @@ bool modfn_process_wait(VMState* vm, int argcount, Value* args)
     BProcess* process = (BProcess*)AS_PTR(args[0])->pointer;
     int status;
     waitpid(process->pid, &status, 0);
-    int p;
+    pid_t p;
     do
     {
         p = waitpid(process->pid, &status, 0);
@@ -14907,13 +14710,13 @@ RegModule* bl_modload_reflect(VMState* vm)
    | Author: Chris Schneider <cschneid@relog.ch>                          |
    +----------------------------------------------------------------------+
  */
-#define INC_OUTPUTPOS(a, b) \
-    if((a) < 0 || ((INT_MAX - outputpos) / ((int)b)) < (a)) \
-    { \
-        free(formatcodes); \
-        free(formatargs); \
+#define INC_OUTPUTPOS(a, b)                                               \
+    if((a) < 0 || ((INT_MAX - outputpos) / ((int)b)) < (a))               \
+    {                                                                     \
+        free(formatcodes);                                                \
+        free(formatargs);                                                 \
         RETURN_ERROR("Type %c: integer overflow in format string", code); \
-    } \
+    }                                                                     \
     outputpos += (a) * (b);
 #define MAX_LENGTH_OF_LONG 20
 //#define LONG_FMT "%" PRId64
@@ -16453,7 +16256,6 @@ static void init_builtin_functions(VMState* vm)
     define_native(vm, "oct", cfn_oct);
     define_native(vm, "ord", cfn_ord);
     define_native(vm, "print", cfn_print);
-    define_native(vm, "println", cfn_println);
     define_native(vm, "rand", cfn_rand);
     define_native(vm, "setprop", cfn_setprop);
     define_native(vm, "sum", cfn_sum);
@@ -17513,215 +17315,55 @@ static inline uint16_t READ_SHORT(CallFrame* frame)
 
 #define READ_STRING(frame) (AS_STRING(READ_CONSTANT(frame)))
 
-#define BINARY_BIT_OP(vm, frame, op) \
-    do \
-    { \
-        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) \
-           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
-        { \
+#define BINARY_OP(vm, frame, type, op)                                                                                                                        \
+    do                                                                                                                                                        \
+    {                                                                                                                                                         \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0)))                                                           \
+           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1))))                                                       \
+        {                                                                                                                                                     \
             runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
-            break; \
-        } \
-        long b = AS_NUMBER(bl_vm_popvalue(vm)); \
-        long a = AS_NUMBER(bl_vm_popvalue(vm)); \
-        bl_vm_pushvalue(vm, INTEGER_VAL(a op b)); \
+            break;                                                                                                                                            \
+        }                                                                                                                                                     \
+        Value _b = bl_vm_popvalue(vm);                                                                                                                        \
+        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b);                                                                               \
+        Value _a = bl_vm_popvalue(vm);                                                                                                                        \
+        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a);                                                                               \
+        bl_vm_pushvalue(vm, type(a op b));                                                                                                                    \
     } while(false)
 
-#define BINARY_MOD_OP(type, op) \
-    do \
-    { \
-        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0))) \
-           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1)))) \
-        { \
+#define BINARY_BIT_OP(vm, frame, op)                                                                                                                          \
+    do                                                                                                                                                        \
+    {                                                                                                                                                         \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0)))                                                           \
+           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1))))                                                       \
+        {                                                                                                                                                     \
             runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
-            break; \
-        } \
-        Value _b = bl_vm_popvalue(vm); \
-        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b); \
-        Value _a = bl_vm_popvalue(vm); \
-        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a); \
-        bl_vm_pushvalue(vm, type(op(a, b))); \
+            break;                                                                                                                                            \
+        }                                                                                                                                                     \
+        long b = AS_NUMBER(bl_vm_popvalue(vm));                                                                                                               \
+        long a = AS_NUMBER(bl_vm_popvalue(vm));                                                                                                               \
+        bl_vm_pushvalue(vm, INTEGER_VAL(a op b));                                                                                                             \
     } while(false)
 
-
-int vmutil_numtoint32(Value val)
-{
-    if(bl_value_isbool(val))
-    {
-        return (AS_BOOL(val) ? 1 : 0);
-    }
-    return bl_util_numbertoint32(AS_NUMBER(val));
-}
-
-unsigned int vmutil_numtouint32(Value val)
-{
-    if(bl_value_isbool(val))
-    {
-        return (AS_BOOL(val) ? 1 : 0);
-    }
-    return bl_util_numbertouint32(AS_NUMBER(val));
-}
-
-double to_num(Value val)
-{
-    if(bl_value_isbool(val))
-    {
-        return (AS_BOOL(val) ? 1 : 0);
-    }
-    return AS_NUMBER(val);
-}
-
-long to_int(Value val)
-{
-    if(bl_value_isbool(val))
-    {
-        return (AS_BOOL(val) ? 1 : 0);
-    }
-    return AS_NUMBER(val);
-}
-
-typedef double(*ModFuncFn)(double, double);
-static inline bool BINARY_OP(VMState* vm, CallFrame* frame, bool asbool, int op, ModFuncFn fn)
-{
-    long intleft;
-    long intright;
-    double nval;
-    double innleft;
-    double innright;
-    
-    bool inbleft;
-    bool inbright;
-    Value val;
-    Value invleft;
-    Value invright;
-    Value peekleft;
-    Value peekright;
-    peekleft = bl_vm_peekvalue(vm, 0);
-    peekright = bl_vm_peekvalue(vm, 1);
-    if((!bl_value_isnumber(peekleft) && !bl_value_isbool(peekleft)) || (!bl_value_isnumber(peekright) && !bl_value_isbool(peekright)))
-    {
-        runtime_error("unsupported operand %d for %s and %s", op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1)));
-        return false;
-    }
-    invright = bl_vm_popvalue(vm);
-    invleft = bl_vm_popvalue(vm);
-    if(fn != NULL)
-    {
-        innleft = to_num(invleft);
-        innright = to_num(invright);
-        nval = fn(innleft, innright);
-    }
-    else
-    {
-        switch(op)
-        {
-            case OP_ADD:
-                {
-                    innleft = to_num(invleft);
-                    innright = to_num(invright);
-                    nval = (innleft + innright);
-                }
-                break;
-            case OP_SUBTRACT:
-                {
-                    innleft = to_num(invleft);
-                    innright = to_num(invright);
-                    nval = (innleft - innright);
-                }
-                break;
-            case OP_MULTIPLY:
-                {
-                    innleft = to_num(invleft);
-                    innright = to_num(invright);
-                    nval = (innleft * innright);
-                }
-                break;
-            case OP_DIVIDE:
-                {
-                    innleft = to_num(invleft);
-                    innright = to_num(invright);
-                    nval = (innleft / innright);
-                }
-                break;
-            case OP_RSHIFT:
-                {
-                    int uleft;
-                    unsigned int uright;
-                    uleft = vmutil_numtoint32(invleft);
-                    uright = vmutil_numtouint32(invright);
-                    nval = uleft >> (uright & 0x1F);
-                }
-                break;
-            case OP_LSHIFT:
-                {
-                    int uleft;
-                    unsigned int uright;
-                    uleft = vmutil_numtoint32(invleft);
-                    uright = vmutil_numtouint32(invright);
-                    nval = uleft << (uright & 0x1F);
-                }
-                break;
-            case OP_XOR:
-                {
-                    intleft = to_int(invleft);
-                    intright = to_int(invright);
-                    nval = (intleft ^ intright);
-                }
-                break;
-            case OP_OR:
-                {
-                    intleft = to_int(invleft);
-                    intright = to_int(invright);
-                    nval = (intleft | intright);
-                }
-                break;
-            case OP_AND:
-                {
-                    intleft = to_int(invleft);
-                    intright = to_int(invright);
-                    nval = (intleft & intright);
-                }
-                break;
-            case OP_GREATER:
-                {
-                    innleft = to_num(invleft);
-                    innright = to_num(invright);
-                    nval = (innleft > innright);
-                }
-                break;
-            case OP_LESS:
-                {
-                    innleft = to_num(invleft);
-                    innright = to_num(invright);
-                    nval = (innleft < innright);
-                }
-                break;
-            default:
-                {
-                    fprintf(stderr, "missed an opcode here?\n");
-                    assert(false);
-                }
-                break;
-        }
-    }
-    if(asbool)
-    {
-        val = BOOL_VAL(nval);
-    }
-    else
-    {
-        val = NUMBER_VAL(nval);
-    }
-    bl_vm_pushvalue(vm, val);
-    return true;
-}
-
+#define BINARY_MOD_OP(type, op)                                                                                                                               \
+    do                                                                                                                                                        \
+    {                                                                                                                                                         \
+        if((!bl_value_isnumber(bl_vm_peekvalue(vm, 0)) && !bl_value_isbool(bl_vm_peekvalue(vm, 0)))                                                           \
+           || (!bl_value_isnumber(bl_vm_peekvalue(vm, 1)) && !bl_value_isbool(bl_vm_peekvalue(vm, 1))))                                                       \
+        {                                                                                                                                                     \
+            runtime_error("unsupported operand %s for %s and %s", #op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1))); \
+            break;                                                                                                                                            \
+        }                                                                                                                                                     \
+        Value _b = bl_vm_popvalue(vm);                                                                                                                        \
+        double b = bl_value_isbool(_b) ? (AS_BOOL(_b) ? 1 : 0) : AS_NUMBER(_b);                                                                               \
+        Value _a = bl_vm_popvalue(vm);                                                                                                                        \
+        double a = bl_value_isbool(_a) ? (AS_BOOL(_a) ? 1 : 0) : AS_NUMBER(_a);                                                                               \
+        bl_vm_pushvalue(vm, type(op(a, b)));                                                                                                                  \
+    } while(false)
 
 PtrResult bl_vm_run(VMState* vm)
 {
-    uint8_t instruction;
-    CallFrame* frame;
-    frame = &vm->frames[vm->framecount - 1];
+    CallFrame* frame = &vm->frames[vm->framecount - 1];
     for(;;)
     {
         // try...finally... (i.e. try without a catch but a finally
@@ -17744,48 +17386,48 @@ PtrResult bl_vm_run(VMState* vm)
             printf("\n");
             bl_blob_disassembleinst(&frame->closure->fnptr->blob, (int)(frame->ip - frame->closure->fnptr->blob.code));
         }
+        uint8_t instruction;
         switch(instruction = READ_BYTE(frame))
         {
             case OP_CONSTANT:
-                {
-                    Value constant = READ_CONSTANT(frame);
-                    bl_vm_pushvalue(vm, constant);
-                }
+            {
+                Value constant = READ_CONSTANT(frame);
+                bl_vm_pushvalue(vm, constant);
                 break;
+            }
             case OP_ADD:
+            {
+                if(bl_value_isstring(bl_vm_peekvalue(vm, 0)) || bl_value_isstring(bl_vm_peekvalue(vm, 1)))
                 {
-                    if(bl_value_isstring(bl_vm_peekvalue(vm, 0)) || bl_value_isstring(bl_vm_peekvalue(vm, 1)))
+                    if(!bl_vmdo_concat(vm))
                     {
-                        if(!bl_vmdo_concat(vm))
-                        {
-                            runtime_error("unsupported operand + for %s and %s", bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1)));
-                            break;
-                        }
-                    }
-                    else if(bl_value_isarray(bl_vm_peekvalue(vm, 0)) && bl_value_isarray(bl_vm_peekvalue(vm, 1)))
-                    {
-                        Value result = OBJ_VAL(bl_array_addarray(vm, AS_LIST(bl_vm_peekvalue(vm, 1)), AS_LIST(bl_vm_peekvalue(vm, 0))));
-                        bl_vm_popvaluen(vm, 2);
-                        bl_vm_pushvalue(vm, result);
-                    }
-                    else if(bl_value_isbytes(bl_vm_peekvalue(vm, 0)) && bl_value_isbytes(bl_vm_peekvalue(vm, 1)))
-                    {
-                        Value result = OBJ_VAL(bl_bytes_addbytes(vm, AS_BYTES(bl_vm_peekvalue(vm, 1)), AS_BYTES(bl_vm_peekvalue(vm, 0))));
-                        bl_vm_popvaluen(vm, 2);
-                        bl_vm_pushvalue(vm, result);
-                    }
-                    else
-                    {
-                        BINARY_OP(vm, frame, false, OP_ADD, NULL);
+                        runtime_error("unsupported operand + for %s and %s", bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1)));
                         break;
                     }
                 }
-                break;
-            case OP_SUBTRACT:
+                else if(bl_value_isarray(bl_vm_peekvalue(vm, 0)) && bl_value_isarray(bl_vm_peekvalue(vm, 1)))
                 {
-                    BINARY_OP(vm, frame, false, OP_SUBTRACT, NULL);
+                    Value result = OBJ_VAL(bl_array_addarray(vm, AS_LIST(bl_vm_peekvalue(vm, 1)), AS_LIST(bl_vm_peekvalue(vm, 0))));
+                    bl_vm_popvaluen(vm, 2);
+                    bl_vm_pushvalue(vm, result);
+                }
+                else if(bl_value_isbytes(bl_vm_peekvalue(vm, 0)) && bl_value_isbytes(bl_vm_peekvalue(vm, 1)))
+                {
+                    Value result = OBJ_VAL(bl_bytes_addbytes(vm, AS_BYTES(bl_vm_peekvalue(vm, 1)), AS_BYTES(bl_vm_peekvalue(vm, 0))));
+                    bl_vm_popvaluen(vm, 2);
+                    bl_vm_pushvalue(vm, result);
+                }
+                else
+                {
+                    BINARY_OP(vm, frame, NUMBER_VAL, +);
                 }
                 break;
+            }
+            case OP_SUBTRACT:
+            {
+                BINARY_OP(vm, frame, NUMBER_VAL, -);
+                break;
+            }
             case OP_MULTIPLY:
             {
                 if(bl_value_isstring(bl_vm_peekvalue(vm, 1)) && bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
@@ -17808,27 +17450,27 @@ PtrResult bl_vm_run(VMState* vm)
                     bl_vm_pushvalue(vm, OBJ_VAL(nlist));
                     break;
                 }
-                BINARY_OP(vm, frame, false, OP_MULTIPLY, NULL);
+                BINARY_OP(vm, frame, NUMBER_VAL, *);
                 break;
             }
             case OP_DIVIDE:
             {
-                BINARY_OP(vm, frame, false, OP_DIVIDE, NULL);
+                BINARY_OP(vm, frame, NUMBER_VAL, /);
                 break;
             }
             case OP_REMINDER:
             {
-                BINARY_OP(vm, frame, false, OP_REMINDER, bl_util_modulo);
+                BINARY_MOD_OP(NUMBER_VAL, bl_util_modulo);
                 break;
             }
             case OP_POW:
             {
-                BINARY_OP(vm, frame, false, OP_POW, pow);
+                BINARY_MOD_OP(NUMBER_VAL, pow);
                 break;
             }
             case OP_F_DIVIDE:
             {
-                BINARY_OP(vm, frame, false, OP_F_DIVIDE, bl_util_floordiv);
+                BINARY_MOD_OP(NUMBER_VAL, bl_util_floordiv);
                 break;
             }
             case OP_NEGATE:
@@ -17853,32 +17495,27 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_AND:
             {
-                //BINARY_BIT_OP(vm, frame, &);
-                BINARY_OP(vm, frame, false, OP_AND, NULL);
+                BINARY_BIT_OP(vm, frame, &);
                 break;
             }
             case OP_OR:
             {
-                //BINARY_BIT_OP(vm, frame, |);
-                BINARY_OP(vm, frame, false, OP_OR, NULL);
+                BINARY_BIT_OP(vm, frame, |);
                 break;
             }
             case OP_XOR:
             {
-                //BINARY_BIT_OP(vm, frame, ^);
-                BINARY_OP(vm, frame, false, OP_XOR, NULL);
+                BINARY_BIT_OP(vm, frame, ^);
                 break;
             }
             case OP_LSHIFT:
             {
-                //BINARY_BIT_OP(vm, frame, <<);
-                BINARY_OP(vm, frame, false, OP_LSHIFT, NULL);
+                BINARY_BIT_OP(vm, frame, <<);
                 break;
             }
             case OP_RSHIFT:
             {
-                //BINARY_BIT_OP(vm, frame, >>);
-                BINARY_OP(vm, frame, false, OP_RSHIFT, NULL);
+                BINARY_BIT_OP(vm, frame, >>);
                 break;
             }
             case OP_ONE:
@@ -17896,12 +17533,12 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_GREATER:
             {
-                BINARY_OP(vm, frame, true, OP_GREATER, NULL);
+                BINARY_OP(vm, frame, BOOL_VAL, >);
                 break;
             }
             case OP_LESS:
             {
-                BINARY_OP(vm, frame, true, OP_LESS, NULL);
+                BINARY_OP(vm, frame, BOOL_VAL, <);
                 break;
             }
             case OP_NOT:
@@ -18889,6 +18526,8 @@ PtrResult bl_vm_run(VMState* vm)
         }
     }
 
+#undef BINARY_OP
+#undef BINARY_MOD_OP
 }
 
 PtrResult bl_vm_interpsource(VMState* vm, ObjModule* module, const char* source)
@@ -19073,17 +18712,13 @@ static void run_source(VMState* vm, const char* source, const char* filename)
 
 static void run_file(VMState* vm, char* file)
 {
-    size_t srclen;
-    char* source;
-    char* oldfile;
-    (void)srclen;
-    source = bl_util_readfile(file, &srclen);
+    char* source = bl_util_readfile(file);
     if(source == NULL)
     {
         // check if it's a Blade library directory by attempting to read the index file.
-        oldfile = file;
+        char* oldfile = file;
         file = bl_util_appendstring((char*)strdup(file), "/" LIBRARY_DIRECTORY_INDEX BLADE_EXTENSION);
-        source = bl_util_readfile(file, &srclen);
+        source = bl_util_readfile(file);
         if(source == NULL)
         {
             fprintf(stderr, "(Blade):\n  Launch aborted for %s\n  Reason: %s\n", oldfile, strerror(errno));

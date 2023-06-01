@@ -30,7 +30,7 @@ class Tree {
     }
 }
 
-def clock()
+function clock()
 {
     return 0
 }
