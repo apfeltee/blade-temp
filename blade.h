@@ -234,7 +234,7 @@
         if(bl_value_isinstance(args[0])) \
         { \
             ObjInstance* instance = AS_INSTANCE(args[0]); \
-            if(bl_vmdo_instanceinvokefromclass(vm, instance->klass, bl_string_copystringlen(vm, "@" #override, (i) + 1), 0)) \
+            if(bl_vm_instanceinvokefromclass(vm, instance->klass, bl_string_copystringlen(vm, "@" #override, (i) + 1), 0)) \
             { \
                 args[-1] = TRUE_VAL; \
                 return false; \
@@ -349,14 +349,6 @@
 #define AS_C_STRING(v) (((ObjString*)AS_OBJ(v))->chars)
 
 #define IS_CHAR(v) (bl_value_isstring(v) && (AS_STRING(v)->length == 1 || AS_STRING(v)->length == 0))
-
-#define EXIT_VM() return PTR_RUNTIME_ERR
-
-#define runtime_error(...) \
-    if(!bl_vm_throwexception(vm, false, ##__VA_ARGS__)) \
-    { \
-        EXIT_VM(); \
-    }
 
 
 #define RETURN_EMPTY \

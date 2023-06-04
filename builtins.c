@@ -1,20 +1,25 @@
 
+
 #include "blade.h"
 
-static void define_native(VMState* vm, const char* name, NativeCallbackFunc function)
+void bl_state_defineglobal(VMState* vm, ObjString* name, Value val)
 {
-    bl_vm_pushvalue(vm, STRING_VAL(name));
-    bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makenativefunction(vm, function, name)));
+    bl_vm_pushvalue(vm, OBJ_VAL(name));
+    bl_vm_pushvalue(vm, val);
     bl_hashtable_set(vm, &vm->globals, vm->stack[0], vm->stack[1]);
     bl_vm_popvaluen(vm, 2);
 }
 
-void bl_object_defnativemethod(VMState* vm, HashTable* table, const char* name, NativeCallbackFunc function)
+static void define_userglobal(VMState* vm, const char* name, Value val)
 {
-    bl_vm_pushvalue(vm, STRING_VAL(name));
-    bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makenativefunction(vm, function, name)));
-    bl_hashtable_set(vm, table, vm->stack[0], vm->stack[1]);
-    bl_vm_popvaluen(vm, 2);
+    ObjString* objn;
+    objn = bl_string_copystringlen(vm, name, (int)strlen(name));
+    bl_state_defineglobal(vm, objn, val);
+}
+
+static void define_usernative(VMState* vm, const char* name, NativeCallbackFunc function)
+{
+    define_userglobal(vm, name, OBJ_VAL(bl_object_makenativefunction(vm, function, name)));
 }
 
 static ObjString* bin_to_string(VMState* vm, long n)
@@ -881,50 +886,50 @@ static bool cfn_println(VMState* vm, int argcount, Value* args)
 
 void bl_state_initbuiltinfunctions(VMState* vm)
 {
-    define_native(vm, "abs", cfn_abs);
-    define_native(vm, "bin", cfn_bin);
-    define_native(vm, "bytes", cfn_bytes);
-    define_native(vm, "chr", cfn_chr);
-    define_native(vm, "delprop", cfn_delprop);
-    define_native(vm, "file", cfn_file);
-    define_native(vm, "getprop", cfn_getprop);
-    define_native(vm, "hasprop", cfn_hasprop);
-    define_native(vm, "hex", cfn_hex);
-    define_native(vm, "id", cfn_id);
-    define_native(vm, "int", cfn_int);
-    define_native(vm, "is_bool", cfn_isbool);
-    define_native(vm, "is_callable", cfn_iscallable);
-    define_native(vm, "is_class", cfn_isclass);
-    define_native(vm, "is_dict", cfn_isdict);
-    define_native(vm, "is_function", cfn_isfunction);
-    define_native(vm, "is_instance", cfn_isinstance);
-    define_native(vm, "is_int", cfn_isint);
-    define_native(vm, "is_list", cfn_islist);
-    define_native(vm, "is_number", cfn_isnumber);
-    define_native(vm, "is_object", cfn_isobject);
-    define_native(vm, "is_string", cfn_isstring);
-    define_native(vm, "is_bytes", cfn_isbytes);
-    define_native(vm, "is_file", cfn_isfile);
-    define_native(vm, "is_iterable", cfn_isiterable);
-    define_native(vm, "instance_of", cfn_instanceof);
-    define_native(vm, "max", cfn_max);
-    define_native(vm, "microtime", cfn_microtime);
-    define_native(vm, "min", cfn_min);
-    define_native(vm, "oct", cfn_oct);
-    define_native(vm, "ord", cfn_ord);
-    define_native(vm, "print", cfn_print);
-    define_native(vm, "println", cfn_println);
-    define_native(vm, "rand", cfn_rand);
-    define_native(vm, "setprop", cfn_setprop);
-    define_native(vm, "sum", cfn_sum);
-    define_native(vm, "time", cfn_time);
-    define_native(vm, "to_bool", cfn_tobool);
-    define_native(vm, "to_dict", cfn_todict);
-    define_native(vm, "to_int", cfn_toint);
-    define_native(vm, "to_list", cfn_tolist);
-    define_native(vm, "to_number", cfn_tonumber);
-    define_native(vm, "to_string", cfn_tostring);
-    define_native(vm, "typeof", cfn_typeof);
+    define_usernative(vm, "abs", cfn_abs);
+    define_usernative(vm, "bin", cfn_bin);
+    define_usernative(vm, "bytes", cfn_bytes);
+    define_usernative(vm, "chr", cfn_chr);
+    define_usernative(vm, "delprop", cfn_delprop);
+    define_usernative(vm, "file", cfn_file);
+    define_usernative(vm, "getprop", cfn_getprop);
+    define_usernative(vm, "hasprop", cfn_hasprop);
+    define_usernative(vm, "hex", cfn_hex);
+    define_usernative(vm, "id", cfn_id);
+    define_usernative(vm, "int", cfn_int);
+    define_usernative(vm, "is_bool", cfn_isbool);
+    define_usernative(vm, "is_callable", cfn_iscallable);
+    define_usernative(vm, "is_class", cfn_isclass);
+    define_usernative(vm, "is_dict", cfn_isdict);
+    define_usernative(vm, "is_function", cfn_isfunction);
+    define_usernative(vm, "is_instance", cfn_isinstance);
+    define_usernative(vm, "is_int", cfn_isint);
+    define_usernative(vm, "is_list", cfn_islist);
+    define_usernative(vm, "is_number", cfn_isnumber);
+    define_usernative(vm, "is_object", cfn_isobject);
+    define_usernative(vm, "is_string", cfn_isstring);
+    define_usernative(vm, "is_bytes", cfn_isbytes);
+    define_usernative(vm, "is_file", cfn_isfile);
+    define_usernative(vm, "is_iterable", cfn_isiterable);
+    define_usernative(vm, "instance_of", cfn_instanceof);
+    define_usernative(vm, "max", cfn_max);
+    define_usernative(vm, "microtime", cfn_microtime);
+    define_usernative(vm, "min", cfn_min);
+    define_usernative(vm, "oct", cfn_oct);
+    define_usernative(vm, "ord", cfn_ord);
+    define_usernative(vm, "print", cfn_print);
+    define_usernative(vm, "println", cfn_println);
+    define_usernative(vm, "rand", cfn_rand);
+    define_usernative(vm, "setprop", cfn_setprop);
+    define_usernative(vm, "sum", cfn_sum);
+    define_usernative(vm, "time", cfn_time);
+    define_usernative(vm, "to_bool", cfn_tobool);
+    define_usernative(vm, "to_dict", cfn_todict);
+    define_usernative(vm, "to_int", cfn_toint);
+    define_usernative(vm, "to_list", cfn_tolist);
+    define_usernative(vm, "to_number", cfn_tonumber);
+    define_usernative(vm, "to_string", cfn_tostring);
+    define_usernative(vm, "typeof", cfn_typeof);
 }
 
 void bl_state_initbuiltinmethods(VMState* vm)

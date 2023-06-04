@@ -1,8 +1,13 @@
 /* builtins.c */
-void bl_object_defnativemethod(VMState *vm, HashTable *table, const char *name, NativeCallbackFunc function);
+void bl_state_defineglobal(VMState *vm, ObjString *name, Value val);
 bool bl_util_wrapprintfunc(VMState *vm, int argcount, Value *args, bool doreturn);
 void bl_state_initbuiltinfunctions(VMState *vm);
 void bl_state_initbuiltinmethods(VMState *vm);
+/* class.c */
+void bl_class_defhashtabfield(VMState *vm, ObjClass *klass, HashTable *tbl, ObjString *name, Object *objval);
+void bl_class_defuserhashtabfield(VMState *vm, ObjClass *klass, HashTable *tbl, const char *name, Object *objval);
+void bl_class_defnativemethod(VMState *vm, ObjClass *klass, const char *name, NativeCallbackFunc function);
+void bl_class_defstaticnativemethod(VMState *vm, ObjClass *klass, const char *name, NativeCallbackFunc function);
 /* debug.c */
 void bl_blob_disassembleitem(BinaryBlob *blob, const char *name);
 int bl_blob_disaspriminst(const char *name, int offset);
@@ -304,10 +309,7 @@ PtrResult bl_vm_interpsource(VMState *vm, ObjModule *module, const char *source)
 void bl_vm_runtimeerror(VMState *vm, const char *format, ...);
 FuncType bl_vmutil_getmethodtype(Value method);
 Value bl_vm_getstacktrace(VMState *vm);
-bool bl_vmdo_instanceinvokefromclass(VMState *vm, ObjClass *klass, ObjString *name, int argcount);
-bool bl_vmdo_classbindmethod(VMState *vm, ObjClass *klass, ObjString *name);
-bool bl_vmdo_dictgetindex(VMState *vm, ObjDict *dict, bool willassign);
-void bl_vmdo_dictsetindex(VMState *vm, ObjDict *dict, Value index, Value value);
-bool bl_vmdo_docall(VMState *vm, ObjClosure *closure, int argcount);
-bool bl_vmdo_callvalue(VMState *vm, Value callee, int argcount);
+bool bl_vm_instanceinvokefromclass(VMState *vm, ObjClass *klass, ObjString *name, int argcount);
+bool bl_vm_callvalue(VMState *vm, Value callee, int argcount);
+PtrResult bl_vmdo_rungetproperty(VMState *vm, CallFrame *frame);
 PtrResult bl_vm_run(VMState *vm);

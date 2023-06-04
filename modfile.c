@@ -788,32 +788,32 @@ static bool objfn_file_tell(VMState* vm, int argcount, Value* args)
 void bl_state_initfilemethods(VMState* vm)
 {
     // file methods
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "exists", objfn_file_exists);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "close", objfn_file_close);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "open", objfn_file_open);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "read", objfn_file_read);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "gets", objfn_file_gets);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "write", objfn_file_write);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "puts", objfn_file_puts);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "number", objfn_file_number);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "istty", objfn_file_istty);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "isopen", objfn_file_isopen);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "isclosed", objfn_file_isclosed);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "flush", objfn_file_flush);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "stats", objfn_file_stats);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "symlink", objfn_file_symlink);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "delete", objfn_file_delete);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "rename", objfn_file_rename);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "path", objfn_file_path);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "abspath", objfn_file_abspath);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "copy", objfn_file_copy);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "truncate", objfn_file_truncate);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "chmod", objfn_file_chmod);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "settimes", objfn_file_settimes);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "seek", objfn_file_seek);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "tell", objfn_file_tell);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "mode", objfn_file_mode);
-    bl_object_defnativemethod(vm, &vm->classobjfile->methods, "name", objfn_file_name);
+    bl_class_defnativemethod(vm, vm->classobjfile, "exists", objfn_file_exists);
+    bl_class_defnativemethod(vm, vm->classobjfile, "close", objfn_file_close);
+    bl_class_defnativemethod(vm, vm->classobjfile, "open", objfn_file_open);
+    bl_class_defnativemethod(vm, vm->classobjfile, "read", objfn_file_read);
+    bl_class_defnativemethod(vm, vm->classobjfile, "gets", objfn_file_gets);
+    bl_class_defnativemethod(vm, vm->classobjfile, "write", objfn_file_write);
+    bl_class_defnativemethod(vm, vm->classobjfile, "puts", objfn_file_puts);
+    bl_class_defnativemethod(vm, vm->classobjfile, "number", objfn_file_number);
+    bl_class_defnativemethod(vm, vm->classobjfile, "istty", objfn_file_istty);
+    bl_class_defnativemethod(vm, vm->classobjfile, "isopen", objfn_file_isopen);
+    bl_class_defnativemethod(vm, vm->classobjfile, "isclosed", objfn_file_isclosed);
+    bl_class_defnativemethod(vm, vm->classobjfile, "flush", objfn_file_flush);
+    bl_class_defnativemethod(vm, vm->classobjfile, "stats", objfn_file_stats);
+    bl_class_defnativemethod(vm, vm->classobjfile, "symlink", objfn_file_symlink);
+    bl_class_defnativemethod(vm, vm->classobjfile, "delete", objfn_file_delete);
+    bl_class_defnativemethod(vm, vm->classobjfile, "rename", objfn_file_rename);
+    bl_class_defnativemethod(vm, vm->classobjfile, "path", objfn_file_path);
+    bl_class_defnativemethod(vm, vm->classobjfile, "abspath", objfn_file_abspath);
+    bl_class_defnativemethod(vm, vm->classobjfile, "copy", objfn_file_copy);
+    bl_class_defnativemethod(vm, vm->classobjfile, "truncate", objfn_file_truncate);
+    bl_class_defnativemethod(vm, vm->classobjfile, "chmod", objfn_file_chmod);
+    bl_class_defnativemethod(vm, vm->classobjfile, "settimes", objfn_file_settimes);
+    bl_class_defnativemethod(vm, vm->classobjfile, "seek", objfn_file_seek);
+    bl_class_defnativemethod(vm, vm->classobjfile, "tell", objfn_file_tell);
+    bl_class_defnativemethod(vm, vm->classobjfile, "mode", objfn_file_mode);
+    bl_class_defnativemethod(vm, vm->classobjfile, "name", objfn_file_name);
 }
 
 

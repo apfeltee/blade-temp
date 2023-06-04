@@ -352,28 +352,28 @@ static bool objfn_bytes_itern(VMState* vm, int argcount, Value* args)
 void bl_state_initbytesmethods(VMState* vm)
 {
     // bytes
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "length", objfn_bytes_length);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "append", objfn_bytes_append);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "clone", objfn_bytes_clone);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "extend", objfn_bytes_extend);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "pop", objfn_bytes_pop);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "remove", objfn_bytes_remove);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "reverse", objfn_bytes_reverse);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "first", objfn_bytes_first);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "last", objfn_bytes_last);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "get", objfn_bytes_get);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "split", objfn_bytes_split);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "dispose", objfn_bytes_dispose);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "bl_scanutil_isalpha", objfn_bytes_isalpha);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "isalnum", objfn_bytes_isalnum);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "is_number", objfn_bytes_isnumber);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "islower", objfn_bytes_islower);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "isupper", objfn_bytes_isupper);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "isspace", objfn_bytes_isspace);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "to_list", objfn_bytes_tolist);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "to_string", objfn_bytes_tostring);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "@iter", objfn_bytes_iter);
-    bl_object_defnativemethod(vm, &vm->classobjbytes->methods, "@itern", objfn_bytes_itern);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "length", objfn_bytes_length);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "append", objfn_bytes_append);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "clone", objfn_bytes_clone);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "extend", objfn_bytes_extend);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "pop", objfn_bytes_pop);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "remove", objfn_bytes_remove);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "reverse", objfn_bytes_reverse);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "first", objfn_bytes_first);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "last", objfn_bytes_last);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "get", objfn_bytes_get);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "split", objfn_bytes_split);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "dispose", objfn_bytes_dispose);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "bl_scanutil_isalpha", objfn_bytes_isalpha);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "isalnum", objfn_bytes_isalnum);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "is_number", objfn_bytes_isnumber);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "islower", objfn_bytes_islower);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "isupper", objfn_bytes_isupper);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "isspace", objfn_bytes_isspace);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "to_list", objfn_bytes_tolist);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "to_string", objfn_bytes_tostring);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "@iter", objfn_bytes_iter);
+    bl_class_defnativemethod(vm, vm->classobjbytes, "@itern", objfn_bytes_itern);
 }
 
 

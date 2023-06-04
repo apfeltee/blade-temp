@@ -311,22 +311,22 @@ static bool objfn_dict_itern(VMState* vm, int argcount, Value* args)
 void bl_state_initdictmethods(VMState* vm)
 {
     // dictionary methods
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "length", objfn_dict_length);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "add", objfn_dict_add);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "set", objfn_dict_set);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "clear", objfn_dict_clear);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "clone", objfn_dict_clone);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "compact", objfn_dict_compact);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "contains", objfn_dict_contains);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "extend", objfn_dict_extend);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "get", objfn_dict_get);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "keys", objfn_dict_keys);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "values", objfn_dict_values);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "remove", objfn_dict_remove);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "isempty", objfn_dict_isempty);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "findkey", objfn_dict_findkey);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "to_list", objfn_dict_tolist);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "@iter", objfn_dict_iter);
-    bl_object_defnativemethod(vm, &vm->classobjdict->methods, "@itern", objfn_dict_itern);
+    bl_class_defnativemethod(vm, vm->classobjdict, "length", objfn_dict_length);
+    bl_class_defnativemethod(vm, vm->classobjdict, "add", objfn_dict_add);
+    bl_class_defnativemethod(vm, vm->classobjdict, "set", objfn_dict_set);
+    bl_class_defnativemethod(vm, vm->classobjdict, "clear", objfn_dict_clear);
+    bl_class_defnativemethod(vm, vm->classobjdict, "clone", objfn_dict_clone);
+    bl_class_defnativemethod(vm, vm->classobjdict, "compact", objfn_dict_compact);
+    bl_class_defnativemethod(vm, vm->classobjdict, "contains", objfn_dict_contains);
+    bl_class_defnativemethod(vm, vm->classobjdict, "extend", objfn_dict_extend);
+    bl_class_defnativemethod(vm, vm->classobjdict, "get", objfn_dict_get);
+    bl_class_defnativemethod(vm, vm->classobjdict, "keys", objfn_dict_keys);
+    bl_class_defnativemethod(vm, vm->classobjdict, "values", objfn_dict_values);
+    bl_class_defnativemethod(vm, vm->classobjdict, "remove", objfn_dict_remove);
+    bl_class_defnativemethod(vm, vm->classobjdict, "isempty", objfn_dict_isempty);
+    bl_class_defnativemethod(vm, vm->classobjdict, "findkey", objfn_dict_findkey);
+    bl_class_defnativemethod(vm, vm->classobjdict, "to_list", objfn_dict_tolist);
+    bl_class_defnativemethod(vm, vm->classobjdict, "@iter", objfn_dict_iter);
+    bl_class_defnativemethod(vm, vm->classobjdict, "@itern", objfn_dict_itern);
 }
 

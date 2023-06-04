@@ -1,29 +1,62 @@
 
 #include "blade.h"
 
-void bl_vm_pushvalue(VMState* vm, Value value)
+#define EXIT_VM() return PTR_RUNTIME_ERR
+
+#define runtime_error(...) \
+    { \
+        if(!bl_vm_throwexception(vm, false, ##__VA_ARGS__)) \
+        { \
+            EXIT_VM(); \
+        } \
+    }
+
+
+
+static inline bool bl_vmdo_docall(VMState* vm, ObjClosure* closure, int argcount);
+
+static inline void bl_vmdo_pushvalue(VMState* vm, Value value)
 {
     *vm->stacktop = value;
     vm->stacktop++;
 }
 
-Value bl_vm_popvalue(VMState* vm)
+void bl_vm_pushvalue(VMState* vm, Value value)
+{
+    return bl_vmdo_pushvalue(vm, value);
+}
+
+static inline Value bl_vmdo_popvalue(VMState* vm)
 {
     vm->stacktop--;
     return *vm->stacktop;
 }
 
-Value bl_vm_popvaluen(VMState* vm, int n)
+Value bl_vm_popvalue(VMState* vm)
+{
+    return bl_vmdo_popvalue(vm);
+}
+
+static inline Value bl_vmdo_popvaluen(VMState* vm, int n)
 {
     vm->stacktop -= n;
     return *vm->stacktop;
 }
 
-Value bl_vm_peekvalue(VMState* vm, int distance)
+Value bl_vm_popvaluen(VMState* vm, int n)
+{
+    return bl_vmdo_popvaluen(vm, n);
+}
+
+static inline Value bl_vmdo_peekvalue(VMState* vm, int distance)
 {
     return vm->stacktop[-1 - distance];
 }
 
+Value bl_vm_peekvalue(VMState* vm, int distance)
+{
+    return bl_vmdo_peekvalue(vm, distance);
+}
 
 void bl_vm_resetstack(VMState* vm)
 {
@@ -108,10 +141,10 @@ PtrResult bl_vm_interpsource(VMState* vm, ObjModule* module, const char* source)
         bl_blob_free(vm, &blob);
         return PTR_COMPILE_ERR;
     }
-    bl_vm_pushvalue(vm, OBJ_VAL(function));
+    bl_vmdo_pushvalue(vm, OBJ_VAL(function));
     closure = bl_object_makeclosure(vm, function);
-    bl_vm_popvalue(vm);
-    bl_vm_pushvalue(vm, OBJ_VAL(closure));
+    bl_vmdo_popvalue(vm);
+    bl_vmdo_pushvalue(vm, OBJ_VAL(closure));
     bl_vmdo_docall(vm, closure, 0);
     PtrResult result = bl_vm_run(vm);
     return result;
@@ -222,8 +255,7 @@ Value bl_vm_getstacktrace(VMState* vm)
     return STRING_L_VAL("", 0);
 }
 
-
-bool bl_vmdo_instanceinvokefromclass(VMState* vm, ObjClass* klass, ObjString* name, int argcount)
+bool bl_vm_instanceinvokefromclass(VMState* vm, ObjClass* klass, ObjString* name, int argcount)
 {
     Value method;
     if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &method))
@@ -232,13 +264,12 @@ bool bl_vmdo_instanceinvokefromclass(VMState* vm, ObjClass* klass, ObjString* na
         {
             return bl_vm_throwexception(vm, false, "cannot call private method '%s' from instance of %s", name->chars, klass->name->chars);
         }
-        return bl_vmdo_callvalue(vm, method, argcount);
+        return bl_vm_callvalue(vm, method, argcount);
     }
     return bl_vm_throwexception(vm, false, "undefined method '%s' in %s", name->chars, klass->name->chars);
 }
 
-
-bool bl_vmdo_classbindmethod(VMState* vm, ObjClass* klass, ObjString* name)
+static inline bool bl_vmdo_classbindmethod(VMState* vm, ObjClass* klass, ObjString* name)
 {
     Value method;
     if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &method))
@@ -247,40 +278,41 @@ bool bl_vmdo_classbindmethod(VMState* vm, ObjClass* klass, ObjString* name)
         {
             return bl_vm_throwexception(vm, false, "cannot get private property '%s' from instance", name->chars);
         }
-        ObjBoundMethod* bound = bl_object_makeboundmethod(vm, bl_vm_peekvalue(vm, 0), AS_CLOSURE(method));
-        bl_vm_popvalue(vm);
-        bl_vm_pushvalue(vm, OBJ_VAL(bound));
+        ObjBoundMethod* bound = bl_object_makeboundmethod(vm, bl_vmdo_peekvalue(vm, 0), AS_CLOSURE(method));
+        bl_vmdo_popvalue(vm);
+        bl_vmdo_pushvalue(vm, OBJ_VAL(bound));
         return true;
     }
     return bl_vm_throwexception(vm, false, "undefined property '%s'", name->chars);
 }
 
 
-bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool willassign)
+static inline bool bl_vmdo_dictgetindex(VMState* vm, ObjDict* dict, bool willassign)
 {
     Value index;
     Value result;
-    index = bl_vm_peekvalue(vm, 0);
+    index = bl_vmdo_peekvalue(vm, 0);
     if(bl_dict_getentry(dict, index, &result))
     {
         if(!willassign)
         {
-            bl_vm_popvaluen(vm, 2);// we can safely get rid of the index from the stack
+            bl_vmdo_popvaluen(vm, 2);// we can safely get rid of the index from the stack
         }
-        bl_vm_pushvalue(vm, result);
+        bl_vmdo_pushvalue(vm, result);
         return true;
     }
-    bl_vm_popvaluen(vm, 1);
+    bl_vmdo_popvaluen(vm, 1);
     return bl_vm_throwexception(vm, false, "invalid index %s", bl_value_tostring(vm, index));
 }
 
-void bl_vmdo_dictsetindex(VMState* vm, ObjDict* dict, Value index, Value value)
+static inline void bl_vmdo_dictsetindex(VMState* vm, ObjDict* dict, Value index, Value value)
 {
     bl_dict_setentry(vm, dict, index, value);
-    bl_vm_popvaluen(vm, 3);// pop the value, index and dict out
+    // pop the value, index and dict out
+    bl_vmdo_popvaluen(vm, 3);
     // leave the value on the stack for consumption
     // e.g. variable = dict[index] = 10
-    bl_vm_pushvalue(vm, value);
+    bl_vmdo_pushvalue(vm, value);
 }
 
 
@@ -305,7 +337,7 @@ static bool bl_vmdo_callnativemethod(VMState* vm, ObjNativeFunction* native, int
     return true;
 }
 
-bool bl_vmdo_docall(VMState* vm, ObjClosure* closure, int argcount)
+static inline bool bl_vmdo_docall(VMState* vm, ObjClosure* closure, int argcount)
 {
     int i;
     int vaargsstart;
@@ -314,25 +346,26 @@ bool bl_vmdo_docall(VMState* vm, ObjClosure* closure, int argcount)
     // fill empty parameters if not variadic
     for(; !closure->fnptr->isvariadic && argcount < closure->fnptr->arity; argcount++)
     {
-        bl_vm_pushvalue(vm, NIL_VAL);
+        bl_vmdo_pushvalue(vm, NIL_VAL);
     }
     // handle variadic arguments...
     if(closure->fnptr->isvariadic && argcount >= closure->fnptr->arity - 1)
     {
         vaargsstart = argcount - closure->fnptr->arity;
         argslist = bl_object_makelist(vm);
-        bl_vm_pushvalue(vm, OBJ_VAL(argslist));
+        bl_vmdo_pushvalue(vm, OBJ_VAL(argslist));
         for(i = vaargsstart; i >= 0; i--)
         {
-            bl_valarray_push(vm, &argslist->items, bl_vm_peekvalue(vm, i + 1));
+            bl_valarray_push(vm, &argslist->items, bl_vmdo_peekvalue(vm, i + 1));
         }
         argcount -= vaargsstart;
-        bl_vm_popvaluen(vm, vaargsstart + 2);// +1 for the gc protection push above
-        bl_vm_pushvalue(vm, OBJ_VAL(argslist));
+        bl_vmdo_popvaluen(vm, vaargsstart + 2);// +1 for the gc protection push above
+        bl_vmdo_pushvalue(vm, OBJ_VAL(argslist));
     }
+    
     if(argcount != closure->fnptr->arity)
     {
-        bl_vm_popvaluen(vm, argcount);
+        bl_vmdo_popvaluen(vm, argcount);
         if(closure->fnptr->isvariadic)
         {
             return bl_vm_throwexception(vm, false, "expected at least %d arguments but got %d", closure->fnptr->arity - 1, argcount);
@@ -342,9 +375,10 @@ bool bl_vmdo_docall(VMState* vm, ObjClosure* closure, int argcount)
             return bl_vm_throwexception(vm, false, "expected %d arguments but got %d", closure->fnptr->arity, argcount);
         }
     }
+    
     if(vm->framecount == FRAMES_MAX)
     {
-        bl_vm_popvaluen(vm, argcount);
+        bl_vmdo_popvaluen(vm, argcount);
         return bl_vm_throwexception(vm, false, "stack overflow");
     }
     frame = &vm->frames[vm->framecount++];
@@ -354,8 +388,7 @@ bool bl_vmdo_docall(VMState* vm, ObjClosure* closure, int argcount)
     return true;
 }
 
-
-bool bl_vmdo_callvalue(VMState* vm, Value callee, int argcount)
+bool bl_vm_callvalue(VMState* vm, Value callee, int argcount)
 {
     if(bl_value_isobject(callee))
     {
@@ -393,7 +426,7 @@ bool bl_vmdo_callvalue(VMState* vm, Value callee, int argcount)
                     Value callable;
                     if(bl_hashtable_get(&module->values, STRING_VAL(module->name), &callable))
                     {
-                        return bl_vmdo_callvalue(vm, callable, argcount);
+                        return bl_vm_callvalue(vm, callable, argcount);
                     }
                 }
                 break;
@@ -419,18 +452,18 @@ static bool bl_instance_invokefromself(VMState* vm, ObjString* name, int argcoun
     Value value;
     Value receiver;
     ObjInstance* instance;
-    receiver = bl_vm_peekvalue(vm, argcount);
+    receiver = bl_vmdo_peekvalue(vm, argcount);
     if(bl_value_isinstance(receiver))
     {
         instance = AS_INSTANCE(receiver);
         if(bl_hashtable_get(&instance->klass->methods, OBJ_VAL(name), &value))
         {
-            return bl_vmdo_callvalue(vm, value, argcount);
+            return bl_vm_callvalue(vm, value, argcount);
         }
         if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
         {
             vm->stacktop[-argcount - 1] = value;
-            return bl_vmdo_callvalue(vm, value, argcount);
+            return bl_vm_callvalue(vm, value, argcount);
         }
     }
     else if(bl_value_isclass(receiver))
@@ -439,7 +472,7 @@ static bool bl_instance_invokefromself(VMState* vm, ObjString* name, int argcoun
         {
             if(bl_vmutil_getmethodtype(value) == TYPE_STATIC)
             {
-                return bl_vmdo_callvalue(vm, value, argcount);
+                return bl_vm_callvalue(vm, value, argcount);
             }
             return bl_vm_throwexception(vm, false, "cannot call non-static method %s() on non instance", name->chars);
         }
@@ -447,11 +480,61 @@ static bool bl_instance_invokefromself(VMState* vm, ObjString* name, int argcoun
     return bl_vm_throwexception(vm, false, "cannot call method %s on object of type %s", name->chars, bl_value_typename(receiver));
 }
 
-static bool blade_vm_invokemethod(VMState* vm, ObjString* name, int argcount)
+static inline bool bl_vm_invokemodulemethod(VMState* vm, ObjString* name, int argcount, Value receiver)
+{
+    Value value;
+    ObjModule* module;
+    module = AS_MODULE(receiver);
+    if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
+    {
+        if(name->length > 0 && name->chars[0] == '_')
+        {
+            return bl_vm_throwexception(vm, false, "cannot call private module method '%s'", name->chars);
+        }
+        return bl_vm_callvalue(vm, value, argcount);
+    }
+    return bl_vm_throwexception(vm, false, "module %s does not define class or method %s()", module->name, name->chars);
+}
+
+static inline bool bl_vm_invokeclassmethod(VMState* vm, ObjString* name, int argcount, Value receiver)
+{
+    Value value;
+    if(bl_hashtable_get(&AS_CLASS(receiver)->methods, OBJ_VAL(name), &value))
+    {
+        if(bl_vmutil_getmethodtype(value) == TYPE_PRIVATE)
+        {
+            return bl_vm_throwexception(vm, false, "cannot call private method %s() on %s", name->chars, AS_CLASS(receiver)->name->chars);
+        }
+        return bl_vm_callvalue(vm, value, argcount);
+    }
+    else if(bl_hashtable_get(&AS_CLASS(receiver)->staticproperties, OBJ_VAL(name), &value))
+    {
+        return bl_vm_callvalue(vm, value, argcount);
+    }
+    return bl_vm_throwexception(vm, false, "unknown method %s() in class %s", name->chars, AS_CLASS(receiver)->name->chars);
+}
+
+static inline bool bl_vm_invokeinstancemethod(VMState* vm, ObjString* name, int argcount, Value receiver)
+{
+    Value value;
+    ObjInstance* instance;
+    instance = AS_INSTANCE(receiver);
+    if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
+    {
+        vm->stacktop[-argcount - 1] = value;
+        return bl_vm_callvalue(vm, value, argcount);
+    }
+    return bl_vm_instanceinvokefromclass(vm, instance->klass, name, argcount);
+}
+
+static inline bool bl_vm_invokemethod(VMState* vm, ObjString* name, int argcount)
 {
     Value value;
     Value receiver;
-    receiver = bl_vm_peekvalue(vm, argcount);
+    Object* recobj;
+    ObjClass* klass;
+    klass = NULL;
+    receiver = bl_vmdo_peekvalue(vm, argcount);
     if(!bl_value_isobject(receiver))
     {
         // @TODO: have methods for non objects as well.
@@ -459,108 +542,63 @@ static bool blade_vm_invokemethod(VMState* vm, ObjString* name, int argcount)
     }
     else
     {
-        switch(AS_OBJ(receiver)->type)
+        recobj = AS_OBJ(receiver);
+        if(recobj->type == OBJ_MODULE)
         {
-            case OBJ_MODULE:
-                {
-                    ObjModule* module = AS_MODULE(receiver);
-                    if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
-                    {
-                        if(name->length > 0 && name->chars[0] == '_')
-                        {
-                            return bl_vm_throwexception(vm, false, "cannot call private module method '%s'", name->chars);
-                        }
-                        return bl_vmdo_callvalue(vm, value, argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "module %s does not define class or method %s()", module->name, name->chars);
-                }
-                break;
-            case OBJ_CLASS:
-                {
-                    if(bl_hashtable_get(&AS_CLASS(receiver)->methods, OBJ_VAL(name), &value))
-                    {
-                        if(bl_vmutil_getmethodtype(value) == TYPE_PRIVATE)
-                        {
-                            return bl_vm_throwexception(vm, false, "cannot call private method %s() on %s", name->chars, AS_CLASS(receiver)->name->chars);
-                        }
-                        return bl_vmdo_callvalue(vm, value, argcount);
-                    }
-                    else if(bl_hashtable_get(&AS_CLASS(receiver)->staticproperties, OBJ_VAL(name), &value))
-                    {
-                        return bl_vmdo_callvalue(vm, value, argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "unknown method %s() in class %s", name->chars, AS_CLASS(receiver)->name->chars);
-                }
-                break;
-            case OBJ_INSTANCE:
-                {
-                    ObjInstance* instance = AS_INSTANCE(receiver);
-                    if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
-                    {
-                        vm->stacktop[-argcount - 1] = value;
-                        return bl_vmdo_callvalue(vm, value, argcount);
-                    }
-                    return bl_vmdo_instanceinvokefromclass(vm, instance->klass, name, argcount);
-                }
-                break;
+            return bl_vm_invokemodulemethod(vm, name, argcount, receiver);
+        }
+        else if(recobj->type == OBJ_CLASS)
+        {
+            return bl_vm_invokeclassmethod(vm, name, argcount, receiver);
+        }
+        else if(recobj->type == OBJ_INSTANCE)
+        {
+            return bl_vm_invokeinstancemethod(vm, name, argcount, receiver);    
+        }
+        switch(recobj->type)
+        {
             case OBJ_STRING:
                 {
-                    if(bl_hashtable_get(&vm->classobjstring->methods, OBJ_VAL(name), &value))
-                    {
-                        return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "String has no method %s()", name->chars);
+                    klass = vm->classobjstring;
                 }
                 break;
             case OBJ_ARRAY:
                 {
-                    if(bl_hashtable_get(&vm->classobjlist->methods, OBJ_VAL(name), &value))
-                    {
-                        return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "List has no method %s()", name->chars);
+                    klass = vm->classobjlist;
                 }
                 break;
             case OBJ_RANGE:
                 {
-                    if(bl_hashtable_get(&vm->classobjrange->methods, OBJ_VAL(name), &value))
-                    {
-                        return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "Range has no method %s()", name->chars);
+                    klass = vm->classobjrange;
                 }
                 break;
             case OBJ_DICT:
                 {
-                    if(bl_hashtable_get(&vm->classobjdict->methods, OBJ_VAL(name), &value))
-                    {
-                        return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "Dict has no method %s()", name->chars);
+                    klass = vm->classobjdict;
                 }
                 break;
             case OBJ_FILE:
                 {
-                    if(bl_hashtable_get(&vm->classobjfile->methods, OBJ_VAL(name), &value))
-                    {
-                        return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "File has no method %s()", name->chars);
+                    klass = vm->classobjfile;
                 }
                 break;
             case OBJ_BYTES:
                 {
-                    if(bl_hashtable_get(&vm->classobjbytes->methods, OBJ_VAL(name), &value))
-                    {
-                        return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
-                    }
-                    return bl_vm_throwexception(vm, false, "Bytes has no method %s()", name->chars);
+                    klass = vm->classobjbytes;
                 }
                 break;
             default:
                 {
                 }
                 break;
+        }
+        if(klass != NULL)
+        {
+            if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
+            {
+                return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
+            }
+            return bl_vm_throwexception(vm, false, "class %s has no method %s()", klass->name->chars, name->chars);
         }
     }
     return bl_vm_throwexception(vm, false, "cannot call method %s on object of type %s", name->chars, bl_value_typename(receiver));
@@ -611,22 +649,22 @@ static void bl_vm_classdefmethod(VMState* vm, ObjString* name)
 {
     Value method;
     ObjClass* klass;
-    method = bl_vm_peekvalue(vm, 0);
-    klass = AS_CLASS(bl_vm_peekvalue(vm, 1));
+    method = bl_vmdo_peekvalue(vm, 0);
+    klass = AS_CLASS(bl_vmdo_peekvalue(vm, 1));
     bl_hashtable_set(vm, &klass->methods, OBJ_VAL(name), method);
     if(bl_vmutil_getmethodtype(method) == TYPE_INITIALIZER)
     {
         klass->initializer = method;
     }
-    bl_vm_popvalue(vm);
+    bl_vmdo_popvalue(vm);
 }
 
 static void bl_vm_classdefproperty(VMState* vm, ObjString* name, bool isstatic)
 {
     Value property;
     ObjClass* klass;
-    property = bl_vm_peekvalue(vm, 0);
-    klass = AS_CLASS(bl_vm_peekvalue(vm, 1));
+    property = bl_vmdo_peekvalue(vm, 0);
+    klass = AS_CLASS(bl_vmdo_peekvalue(vm, 1));
     if(!isstatic)
     {
         bl_hashtable_set(vm, &klass->properties, OBJ_VAL(name), property);
@@ -635,7 +673,7 @@ static void bl_vm_classdefproperty(VMState* vm, ObjString* name, bool isstatic)
     {
         bl_hashtable_set(vm, &klass->staticproperties, OBJ_VAL(name), property);
     }
-    bl_vm_popvalue(vm);
+    bl_vmdo_popvalue(vm);
 }
 
 
@@ -671,7 +709,7 @@ static inline ObjArray* bl_array_addarray(VMState* vm, ObjArray* a, ObjArray* b)
     int i;
     ObjArray* list;
     list = bl_object_makelist(vm);
-    bl_vm_pushvalue(vm, OBJ_VAL(list));
+    bl_vmdo_pushvalue(vm, OBJ_VAL(list));
     for(i = 0; i < a->items.count; i++)
     {
         bl_valarray_push(vm, &list->items, a->items.values[i]);
@@ -680,7 +718,7 @@ static inline ObjArray* bl_array_addarray(VMState* vm, ObjArray* a, ObjArray* b)
     {
         bl_valarray_push(vm, &list->items, b->items.values[i]);
     }
-    bl_vm_popvalue(vm);
+    bl_vmdo_popvalue(vm);
     return list;
 }
 
@@ -701,17 +739,17 @@ static inline bool bl_vmdo_modulegetindex(VMState* vm, ObjModule* module, bool w
 {
     Value index;
     Value result;
-    index = bl_vm_peekvalue(vm, 0);
+    index = bl_vmdo_peekvalue(vm, 0);
     if(bl_hashtable_get(&module->values, index, &result))
     {
         if(!willassign)
         {
-            bl_vm_popvaluen(vm, 2);// we can safely get rid of the index from the stack
+            bl_vmdo_popvaluen(vm, 2);// we can safely get rid of the index from the stack
         }
-        bl_vm_pushvalue(vm, result);
+        bl_vmdo_pushvalue(vm, result);
         return true;
     }
-    bl_vm_popvaluen(vm, 1);
+    bl_vmdo_popvaluen(vm, 1);
     return bl_vm_throwexception(vm, false, "%s is undefined in module %s", bl_value_tostring(vm, index), module->name);
 }
 
@@ -721,16 +759,17 @@ static inline bool bl_vmdo_stringgetindex(VMState* vm, ObjString* string, bool w
     int start;
     int index;
     int length;
+    int realindex;
     Value lower;
-    lower = bl_vm_peekvalue(vm, 0);
+    lower = bl_vmdo_peekvalue(vm, 0);
     if(!bl_value_isnumber(lower))
     {
-        bl_vm_popvaluen(vm, 1);
+        bl_vmdo_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "strings are numerically indexed");
     }
     index = AS_NUMBER(lower);
     length = string->isascii ? string->length : string->utf8length;
-    int realindex = index;
+    realindex = index;
     if(index < 0)
     {
         index = length + index;
@@ -746,12 +785,12 @@ static inline bool bl_vmdo_stringgetindex(VMState* vm, ObjString* string, bool w
         if(!willassign)
         {
             // we can safely get rid of the index from the stack
-            bl_vm_popvaluen(vm, 2);// +1 for the string itself
+            bl_vmdo_popvaluen(vm, 2);// +1 for the string itself
         }
-        bl_vm_pushvalue(vm, STRING_L_VAL(string->chars + start, end - start));
+        bl_vmdo_pushvalue(vm, STRING_L_VAL(string->chars + start, end - start));
         return true;
     }
-    bl_vm_popvaluen(vm, 1);
+    bl_vmdo_popvaluen(vm, 1);
     return bl_vm_throwexception(vm, false, "string index %d out of range", realindex);
 }
 
@@ -764,11 +803,11 @@ static inline bool bl_vmdo_stringgetrangedindex(VMState* vm, ObjString* string, 
     int upperindex;
     Value upper;
     Value lower;
-    upper = bl_vm_peekvalue(vm, 0);
-    lower = bl_vm_peekvalue(vm, 1);
+    upper = bl_vmdo_peekvalue(vm, 0);
+    lower = bl_vmdo_peekvalue(vm, 1);
     if(!(bl_value_isnil(lower) || bl_value_isnumber(lower)) || !(bl_value_isnumber(upper) || bl_value_isnil(upper)))
     {
-        bl_vm_popvaluen(vm, 2);
+        bl_vmdo_popvaluen(vm, 2);
         return bl_vm_throwexception(vm, false, "string are numerically indexed");
     }
     length = string->isascii ? string->length : string->utf8length;
@@ -779,9 +818,9 @@ static inline bool bl_vmdo_stringgetrangedindex(VMState* vm, ObjString* string, 
         // always return an empty string...
         if(!willassign)
         {
-            bl_vm_popvaluen(vm, 3);// +1 for the string itself
+            bl_vmdo_popvaluen(vm, 3);// +1 for the string itself
         }
-        bl_vm_pushvalue(vm, STRING_L_VAL("", 0));
+        bl_vmdo_pushvalue(vm, STRING_L_VAL("", 0));
         return true;
     }
     if(upperindex < 0)
@@ -800,24 +839,25 @@ static inline bool bl_vmdo_stringgetrangedindex(VMState* vm, ObjString* string, 
     }
     if(!willassign)
     {
-        bl_vm_popvaluen(vm, 3);// +1 for the string itself
+        bl_vmdo_popvaluen(vm, 3);// +1 for the string itself
     }
-    bl_vm_pushvalue(vm, STRING_L_VAL(string->chars + start, end - start));
+    bl_vmdo_pushvalue(vm, STRING_L_VAL(string->chars + start, end - start));
     return true;
 }
 
 static inline bool bl_vmdo_bytesgetindex(VMState* vm, ObjBytes* bytes, bool willassign)
 {
     int index;
+    int realindex;
     Value lower;
-    lower = bl_vm_peekvalue(vm, 0);
+    lower = bl_vmdo_peekvalue(vm, 0);
     if(!bl_value_isnumber(lower))
     {
-        bl_vm_popvaluen(vm, 1);
+        bl_vmdo_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "bytes are numerically indexed");
     }
     index = AS_NUMBER(lower);
-    int realindex = index;
+    realindex = index;
     if(index < 0)
     {
         index = bytes->bytes.count + index;
@@ -827,37 +867,38 @@ static inline bool bl_vmdo_bytesgetindex(VMState* vm, ObjBytes* bytes, bool will
         if(!willassign)
         {
             // we can safely get rid of the index from the stack
-            bl_vm_popvaluen(vm, 2);// +1 for the bytes itself
+            bl_vmdo_popvaluen(vm, 2);// +1 for the bytes itself
         }
-        bl_vm_pushvalue(vm, NUMBER_VAL((int)bytes->bytes.bytes[index]));
+        bl_vmdo_pushvalue(vm, NUMBER_VAL((int)bytes->bytes.bytes[index]));
         return true;
     }
-    else
-    {
-        bl_vm_popvaluen(vm, 1);
-        return bl_vm_throwexception(vm, false, "bytes index %d out of range", realindex);
-    }
+    bl_vmdo_popvaluen(vm, 1);
+    return bl_vm_throwexception(vm, false, "bytes index %d out of range", realindex);
 }
 
 static inline bool bl_vmdo_bytesgetrangedindex(VMState* vm, ObjBytes* bytes, bool willassign)
 {
-    Value upper = bl_vm_peekvalue(vm, 0);
-    Value lower = bl_vm_peekvalue(vm, 1);
+    int upperindex;
+    int lowerindex;
+    Value upper;
+    Value lower;
+    upper = bl_vmdo_peekvalue(vm, 0);
+    lower = bl_vmdo_peekvalue(vm, 1);
     if(!(bl_value_isnil(lower) || bl_value_isnumber(lower)) || !(bl_value_isnumber(upper) || bl_value_isnil(upper)))
     {
-        bl_vm_popvaluen(vm, 2);
+        bl_vmdo_popvaluen(vm, 2);
         return bl_vm_throwexception(vm, false, "bytes are numerically indexed");
     }
-    int lowerindex = bl_value_isnumber(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = bl_value_isnil(upper) ? bytes->bytes.count : AS_NUMBER(upper);
+    lowerindex = bl_value_isnumber(lower) ? AS_NUMBER(lower) : 0;
+    upperindex = bl_value_isnil(upper) ? bytes->bytes.count : AS_NUMBER(upper);
     if(lowerindex < 0 || (upperindex < 0 && ((bytes->bytes.count + upperindex) < 0)))
     {
         // always return an empty bytes...
         if(!willassign)
         {
-            bl_vm_popvaluen(vm, 3);// +1 for the bytes itself
+            bl_vmdo_popvaluen(vm, 3);// +1 for the bytes itself
         }
-        bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makebytes(vm, 0)));
+        bl_vmdo_pushvalue(vm, OBJ_VAL(bl_object_makebytes(vm, 0)));
         return true;
     }
     if(upperindex < 0)
@@ -870,22 +911,25 @@ static inline bool bl_vmdo_bytesgetrangedindex(VMState* vm, ObjBytes* bytes, boo
     }
     if(!willassign)
     {
-        bl_vm_popvaluen(vm, 3);// +1 for the list itself
+        bl_vmdo_popvaluen(vm, 3);// +1 for the list itself
     }
-    bl_vm_pushvalue(vm, OBJ_VAL(bl_bytes_copybytes(vm, bytes->bytes.bytes + lowerindex, upperindex - lowerindex)));
+    bl_vmdo_pushvalue(vm, OBJ_VAL(bl_bytes_copybytes(vm, bytes->bytes.bytes + lowerindex, upperindex - lowerindex)));
     return true;
 }
 
 static inline bool bl_vmdo_listgetindex(VMState* vm, ObjArray* list, bool willassign)
 {
-    Value lower = bl_vm_peekvalue(vm, 0);
+    int index;
+    int realindex;
+    Value lower;
+    lower = bl_vmdo_peekvalue(vm, 0);
     if(!bl_value_isnumber(lower))
     {
-        bl_vm_popvaluen(vm, 1);
+        bl_vmdo_popvaluen(vm, 1);
         return bl_vm_throwexception(vm, false, "list are numerically indexed");
     }
-    int index = AS_NUMBER(lower);
-    int realindex = index;
+    index = AS_NUMBER(lower);
+    realindex = index;
     if(index < 0)
     {
         index = list->items.count + index;
@@ -895,37 +939,40 @@ static inline bool bl_vmdo_listgetindex(VMState* vm, ObjArray* list, bool willas
         if(!willassign)
         {
             // we can safely get rid of the index from the stack
-            bl_vm_popvaluen(vm, 2);// +1 for the list itself
+            bl_vmdo_popvaluen(vm, 2);// +1 for the list itself
         }
-        bl_vm_pushvalue(vm, list->items.values[index]);
+        bl_vmdo_pushvalue(vm, list->items.values[index]);
         return true;
-    }
-    else
-    {
-        bl_vm_popvaluen(vm, 1);
-        return bl_vm_throwexception(vm, false, "list index %d out of range", realindex);
-    }
+    }    
+    bl_vmdo_popvaluen(vm, 1);
+    return bl_vm_throwexception(vm, false, "list index %d out of range", realindex);
 }
 
 static inline bool bl_vmdo_listgetrangedindex(VMState* vm, ObjArray* list, bool willassign)
 {
-    Value upper = bl_vm_peekvalue(vm, 0);
-    Value lower = bl_vm_peekvalue(vm, 1);
+    int i;
+    int upperindex;
+    int lowerindex;
+    Value upper;
+    Value lower;
+    ObjArray* nlist;
+    upper = bl_vmdo_peekvalue(vm, 0);
+    lower = bl_vmdo_peekvalue(vm, 1);
     if(!(bl_value_isnil(lower) || bl_value_isnumber(lower)) || !(bl_value_isnumber(upper) || bl_value_isnil(upper)))
     {
-        bl_vm_popvaluen(vm, 2);
+        bl_vmdo_popvaluen(vm, 2);
         return bl_vm_throwexception(vm, false, "list are numerically indexed");
     }
-    int lowerindex = bl_value_isnumber(lower) ? AS_NUMBER(lower) : 0;
-    int upperindex = bl_value_isnil(upper) ? list->items.count : AS_NUMBER(upper);
+    lowerindex = bl_value_isnumber(lower) ? AS_NUMBER(lower) : 0;
+    upperindex = bl_value_isnil(upper) ? list->items.count : AS_NUMBER(upper);
     if(lowerindex < 0 || (upperindex < 0 && ((list->items.count + upperindex) < 0)))
     {
         // always return an empty list...
         if(!willassign)
         {
-            bl_vm_popvaluen(vm, 3);// +1 for the list itself
+            bl_vmdo_popvaluen(vm, 3);// +1 for the list itself
         }
-        bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makelist(vm)));
+        bl_vmdo_pushvalue(vm, OBJ_VAL(bl_object_makelist(vm)));
         return true;
     }
     if(upperindex < 0)
@@ -936,139 +983,161 @@ static inline bool bl_vmdo_listgetrangedindex(VMState* vm, ObjArray* list, bool 
     {
         upperindex = list->items.count;
     }
-    ObjArray* nlist = bl_object_makelist(vm);
-    bl_vm_pushvalue(vm, OBJ_VAL(nlist));// gc protect
-    for(int i = lowerindex; i < upperindex; i++)
+    nlist = bl_object_makelist(vm);
+    bl_vmdo_pushvalue(vm, OBJ_VAL(nlist));// gc protect
+    for(i = lowerindex; i < upperindex; i++)
     {
         bl_valarray_push(vm, &nlist->items, list->items.values[i]);
     }
-    bl_vm_popvalue(vm);// clear gc protect
+    bl_vmdo_popvalue(vm);// clear gc protect
     if(!willassign)
     {
-        bl_vm_popvaluen(vm, 3);// +1 for the list itself
+        bl_vmdo_popvaluen(vm, 3);// +1 for the list itself
     }
-    bl_vm_pushvalue(vm, OBJ_VAL(nlist));
+    bl_vmdo_pushvalue(vm, OBJ_VAL(nlist));
     return true;
 }
 
 static inline void bl_vmdo_modulesetindex(VMState* vm, ObjModule* module, Value index, Value value)
 {
     bl_hashtable_set(vm, &module->values, index, value);
-    bl_vm_popvaluen(vm, 3);// pop the value, index and dict out
+    // pop the value, index and dict out
+    bl_vmdo_popvaluen(vm, 3);
     // leave the value on the stack for consumption
     // e.g. variable = dict[index] = 10
-    bl_vm_pushvalue(vm, value);
+    bl_vmdo_pushvalue(vm, value);
 }
 
 static inline bool bl_vmdo_listsetindex(VMState* vm, ObjArray* list, Value index, Value value)
 {
+    int rawpos;
+    int position;
     if(!bl_value_isnumber(index))
     {
-        bl_vm_popvaluen(vm, 3);// pop the value, index and list out
+        // pop the value, index and list out
+        bl_vmdo_popvaluen(vm, 3);
         return bl_vm_throwexception(vm, false, "list are numerically indexed");
     }
-    int _position = AS_NUMBER(index);
-    int position = _position < 0 ? list->items.count + _position : _position;
+    rawpos = AS_NUMBER(index);
+    position = rawpos < 0 ? list->items.count + rawpos : rawpos;
     if(position < list->items.count && position > -(list->items.count))
     {
         list->items.values[position] = value;
-        bl_vm_popvaluen(vm, 3);// pop the value, index and list out
+        // pop the value, index and list out
+        bl_vmdo_popvaluen(vm, 3);
         // leave the value on the stack for consumption
         // e.g. variable = list[index] = 10
-        bl_vm_pushvalue(vm, value);
+        bl_vmdo_pushvalue(vm, value);
         return true;
     }
-    bl_vm_popvaluen(vm, 3);// pop the value, index and list out
-    return bl_vm_throwexception(vm, false, "lists index %d out of range", _position);
+    // pop the value, index and list out
+    bl_vmdo_popvaluen(vm, 3);
+    return bl_vm_throwexception(vm, false, "lists index %d out of range", rawpos);
 }
 
 
 static inline bool bl_vmdo_bytessetindex(VMState* vm, ObjBytes* bytes, Value index, Value value)
 {
+    int byte;
+    int rawpos;
+    int position;
     if(!bl_value_isnumber(index))
     {
-        bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
+        // pop the value, index and bytes out
+        bl_vmdo_popvaluen(vm, 3);
         return bl_vm_throwexception(vm, false, "bytes are numerically indexed");
     }
     else if(!bl_value_isnumber(value) || AS_NUMBER(value) < 0 || AS_NUMBER(value) > 255)
     {
-        bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
+        // pop the value, index and bytes out
+        bl_vmdo_popvaluen(vm, 3);
         return bl_vm_throwexception(vm, false, "invalid byte. bytes are numbers between 0 and 255.");
     }
-    int _position = AS_NUMBER(index);
-    int byte = AS_NUMBER(value);
-    int position = _position < 0 ? bytes->bytes.count + _position : _position;
+    rawpos = AS_NUMBER(index);
+    byte = AS_NUMBER(value);
+    position = rawpos < 0 ? bytes->bytes.count + rawpos : rawpos;
     if(position < bytes->bytes.count && position > -(bytes->bytes.count))
     {
         bytes->bytes.bytes[position] = (unsigned char)byte;
-        bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
+        // pop the value, index and bytes out
+        bl_vmdo_popvaluen(vm, 3);
         // leave the value on the stack for consumption
         // e.g. variable = bytes[index] = 10
-        bl_vm_pushvalue(vm, value);
+        bl_vmdo_pushvalue(vm, value);
         return true;
     }
-    bl_vm_popvaluen(vm, 3);// pop the value, index and bytes out
-    return bl_vm_throwexception(vm, false, "bytes index %d out of range", _position);
+    // pop the value, index and bytes out
+    bl_vmdo_popvaluen(vm, 3);
+    return bl_vm_throwexception(vm, false, "bytes index %d out of range", rawpos);
 }
 
-static inline bool bl_vmdo_concat(VMState* vm)
+static inline bool bl_vmdo_concatvalues(VMState* vm)
 {
-    Value _b = bl_vm_peekvalue(vm, 0);
-    Value _a = bl_vm_peekvalue(vm, 1);
-    if(bl_value_isnil(_a))
+    int length;
+    int numlength;
+    double numa;
+    double numb;
+    char* chars;
+    Value vala;
+    Value valb;
+    ObjString* stra;
+    ObjString* strb;
+    ObjString* result;
+    char numstr[27];// + 1 for null terminator
+    valb = bl_vmdo_peekvalue(vm, 0);
+    vala = bl_vmdo_peekvalue(vm, 1);
+    if(bl_value_isnil(vala))
     {
-        bl_vm_popvaluen(vm, 2);
-        bl_vm_pushvalue(vm, _b);
+        bl_vmdo_popvaluen(vm, 2);
+        bl_vmdo_pushvalue(vm, valb);
     }
-    else if(bl_value_isnil(_b))
+    else if(bl_value_isnil(valb))
     {
-        bl_vm_popvalue(vm);
+        bl_vmdo_popvalue(vm);
     }
-    else if(bl_value_isnumber(_a))
+    else if(bl_value_isnumber(vala))
     {
-        double a = AS_NUMBER(_a);
-        char numstr[27];// + 1 for null terminator
-        int numlength = sprintf(numstr, NUMBER_FORMAT, a);
-        ObjString* b = AS_STRING(_b);
-        int length = numlength + b->length;
-        char* chars = ALLOCATE(char, (size_t)length + 1);
+        numa = AS_NUMBER(vala);
+        numlength = sprintf(numstr, NUMBER_FORMAT, numa);
+        strb = AS_STRING(valb);
+        length = numlength + strb->length;
+        chars = ALLOCATE(char, (size_t)length + 1);
         memcpy(chars, numstr, numlength);
-        memcpy(chars + numlength, b->chars, b->length);
+        memcpy(chars + numlength, strb->chars, strb->length);
         chars[length] = '\0';
-        ObjString* result = bl_string_takestring(vm, chars, length);
-        result->utf8length = numlength + b->utf8length;
-        bl_vm_popvaluen(vm, 2);
-        bl_vm_pushvalue(vm, OBJ_VAL(result));
+        result = bl_string_takestring(vm, chars, length);
+        result->utf8length = numlength + strb->utf8length;
+        bl_vmdo_popvaluen(vm, 2);
+        bl_vmdo_pushvalue(vm, OBJ_VAL(result));
     }
-    else if(bl_value_isnumber(_b))
+    else if(bl_value_isnumber(valb))
     {
-        ObjString* a = AS_STRING(_a);
-        double b = AS_NUMBER(_b);
-        char numstr[27];// + 1 for null terminator
-        int numlength = sprintf(numstr, NUMBER_FORMAT, b);
-        int length = numlength + a->length;
-        char* chars = ALLOCATE(char, (size_t)length + 1);
-        memcpy(chars, a->chars, a->length);
-        memcpy(chars + a->length, numstr, numlength);
+        stra = AS_STRING(vala);
+        numb = AS_NUMBER(valb);
+        numlength = sprintf(numstr, NUMBER_FORMAT, numb);
+        length = numlength + stra->length;
+        chars = ALLOCATE(char, (size_t)length + 1);
+        memcpy(chars, stra->chars, stra->length);
+        memcpy(chars + stra->length, numstr, numlength);
         chars[length] = '\0';
-        ObjString* result = bl_string_takestring(vm, chars, length);
-        result->utf8length = numlength + a->utf8length;
-        bl_vm_popvaluen(vm, 2);
-        bl_vm_pushvalue(vm, OBJ_VAL(result));
+        result = bl_string_takestring(vm, chars, length);
+        result->utf8length = numlength + stra->utf8length;
+        bl_vmdo_popvaluen(vm, 2);
+        bl_vmdo_pushvalue(vm, OBJ_VAL(result));
     }
-    else if(bl_value_isstring(_a) && bl_value_isstring(_b))
+    else if(bl_value_isstring(vala) && bl_value_isstring(valb))
     {
-        ObjString* b = AS_STRING(_b);
-        ObjString* a = AS_STRING(_a);
-        int length = a->length + b->length;
-        char* chars = ALLOCATE(char, length + 1);
-        memcpy(chars, a->chars, a->length);
-        memcpy(chars + a->length, b->chars, b->length);
+        strb = AS_STRING(valb);
+        stra = AS_STRING(vala);
+        length = stra->length + strb->length;
+        chars = ALLOCATE(char, length + 1);
+        memcpy(chars, stra->chars, stra->length);
+        memcpy(chars + stra->length, strb->chars, strb->length);
         chars[length] = '\0';
-        ObjString* result = bl_string_takestring(vm, chars, length);
-        result->utf8length = a->utf8length + b->utf8length;
-        bl_vm_popvaluen(vm, 2);
-        bl_vm_pushvalue(vm, OBJ_VAL(result));
+        result = bl_string_takestring(vm, chars, length);
+        result->utf8length = stra->utf8length + strb->utf8length;
+        bl_vmdo_popvaluen(vm, 2);
+        bl_vmdo_pushvalue(vm, OBJ_VAL(result));
     }
     else
     {
@@ -1079,13 +1148,15 @@ static inline bool bl_vmdo_concat(VMState* vm)
 
 static int bl_util_floordiv(double a, double b)
 {
-    int d = (int)a / (int)b;
+    int d;
+    d = (int)a / (int)b;
     return d - ((d * b == a) & ((a < 0) ^ (b < 0)));
 }
 
 static double bl_util_modulo(double a, double b)
 {
-    double r = fmod(a, b);
+    double r;
+    r = fmod(a, b);
     if(r != 0 && ((r < 0) != (b < 0)))
     {
         r += b;
@@ -1104,10 +1175,15 @@ static inline uint16_t READ_SHORT(CallFrame* frame)
     return (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]);
 }
 
-#define READ_CONSTANT(frame) (frame->closure->fnptr->blob.constants.values[READ_SHORT(frame)])
+static inline Value READ_CONSTANT(CallFrame* frame)
+{
+    return frame->closure->fnptr->blob.constants.values[READ_SHORT(frame)];
+}
 
-#define READ_STRING(frame) (AS_STRING(READ_CONSTANT(frame)))
-
+static inline ObjString* READ_STRING(CallFrame* frame)
+{
+    return AS_STRING(READ_CONSTANT(frame));
+}
 
 static inline int vmutil_numtoint32(Value val)
 {
@@ -1145,35 +1221,29 @@ static inline long bl_vmutil_toint(Value val)
     return AS_NUMBER(val);
 }
 
-static inline bool bl_vmdo_binaryop(VMState* vm, CallFrame* frame, bool asbool, int op, VMBinaryCallbackFn fn)
+static inline PtrResult bl_vmdo_binaryop(VMState* vm, CallFrame* frame, bool asbool, int op, VMBinaryCallbackFn fn)
 {
-    long intleft;
-    long intright;
-    double nval;
-    double innleft;
-    double innright;
-    
-    bool inbleft;
-    bool inbright;
-    Value val;
-    Value invleft;
-    Value invright;
-    Value peekleft;
-    Value peekright;
-    peekleft = bl_vm_peekvalue(vm, 0);
-    peekright = bl_vm_peekvalue(vm, 1);
-    if((!bl_value_isnumber(peekleft) && !bl_value_isbool(peekleft)) || (!bl_value_isnumber(peekright) && !bl_value_isbool(peekright)))
+    long leftint;
+    long rightint;
+    double numres;
+    double leftflt;
+    double rightflt;
+    int leftsigned;
+    unsigned int rightusigned;
+    Value resval;
+    Value leftinval;
+    Value rightinval;
+    rightinval = bl_vmdo_popvalue(vm);
+    leftinval = bl_vmdo_popvalue(vm);
+    if((!bl_value_isnumber(leftinval) && !bl_value_isbool(leftinval)) || (!bl_value_isnumber(rightinval) && !bl_value_isbool(rightinval)))
     {
-        runtime_error("unsupported operand %d for %s and %s", op, bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1)));
-        return false;
+        runtime_error("unsupported operand %d for %s and %s", op, bl_value_typename(leftinval), bl_value_typename(rightinval));
     }
-    invright = bl_vm_popvalue(vm);
-    invleft = bl_vm_popvalue(vm);
     if(fn != NULL)
     {
-        innleft = bl_vmutil_tonum(invleft);
-        innright = bl_vmutil_tonum(invright);
-        nval = fn(innleft, innright);
+        leftflt = bl_vmutil_tonum(leftinval);
+        rightflt = bl_vmutil_tonum(rightinval);
+        numres = fn(leftflt, rightflt);
     }
     else
     {
@@ -1181,83 +1251,79 @@ static inline bool bl_vmdo_binaryop(VMState* vm, CallFrame* frame, bool asbool, 
         {
             case OP_ADD:
                 {
-                    innleft = bl_vmutil_tonum(invleft);
-                    innright = bl_vmutil_tonum(invright);
-                    nval = (innleft + innright);
+                    leftflt = bl_vmutil_tonum(leftinval);
+                    rightflt = bl_vmutil_tonum(rightinval);
+                    numres = (leftflt + rightflt);
                 }
                 break;
             case OP_SUBTRACT:
                 {
-                    innleft = bl_vmutil_tonum(invleft);
-                    innright = bl_vmutil_tonum(invright);
-                    nval = (innleft - innright);
+                    leftflt = bl_vmutil_tonum(leftinval);
+                    rightflt = bl_vmutil_tonum(rightinval);
+                    numres = (leftflt - rightflt);
                 }
                 break;
             case OP_MULTIPLY:
                 {
-                    innleft = bl_vmutil_tonum(invleft);
-                    innright = bl_vmutil_tonum(invright);
-                    nval = (innleft * innright);
+                    leftflt = bl_vmutil_tonum(leftinval);
+                    rightflt = bl_vmutil_tonum(rightinval);
+                    numres = (leftflt * rightflt);
                 }
                 break;
             case OP_DIVIDE:
                 {
-                    innleft = bl_vmutil_tonum(invleft);
-                    innright = bl_vmutil_tonum(invright);
-                    nval = (innleft / innright);
+                    leftflt = bl_vmutil_tonum(leftinval);
+                    rightflt = bl_vmutil_tonum(rightinval);
+                    numres = (leftflt / rightflt);
                 }
                 break;
             case OP_RIGHTSHIFT:
                 {
-                    int uleft;
-                    unsigned int uright;
-                    uleft = vmutil_numtoint32(invleft);
-                    uright = vmutil_numtouint32(invright);
-                    nval = uleft >> (uright & 0x1F);
+                    leftsigned = vmutil_numtoint32(leftinval);
+                    rightusigned = vmutil_numtouint32(rightinval);
+                    numres = leftsigned >> (rightusigned & 0x1F);
                 }
                 break;
             case OP_LEFTSHIFT:
                 {
-                    int uleft;
-                    unsigned int uright;
-                    uleft = vmutil_numtoint32(invleft);
-                    uright = vmutil_numtouint32(invright);
-                    nval = uleft << (uright & 0x1F);
+                    leftsigned = vmutil_numtoint32(leftinval);
+                    rightusigned = vmutil_numtouint32(rightinval);
+                    numres = leftsigned << (rightusigned & 0x1F);
                 }
                 break;
             case OP_BITXOR:
                 {
-                    intleft = bl_vmutil_toint(invleft);
-                    intright = bl_vmutil_toint(invright);
-                    nval = (intleft ^ intright);
+                    leftint = bl_vmutil_toint(leftinval);
+                    rightint = bl_vmutil_toint(rightinval);
+                    numres = (leftint ^ rightint);
                 }
                 break;
             case OP_BITOR:
                 {
-                    intleft = bl_vmutil_toint(invleft);
-                    intright = bl_vmutil_toint(invright);
-                    nval = (intleft | intright);
+                    leftint = bl_vmutil_toint(leftinval);
+                    rightint = bl_vmutil_toint(rightinval);
+                    numres = (leftint | rightint);
                 }
                 break;
             case OP_BITAND:
                 {
-                    intleft = bl_vmutil_toint(invleft);
-                    intright = bl_vmutil_toint(invright);
-                    nval = (intleft & intright);
+                    leftint = bl_vmutil_toint(leftinval);
+                    rightint = bl_vmutil_toint(rightinval);
+                    numres = (leftint & rightint);
                 }
                 break;
             case OP_GREATERTHAN:
                 {
-                    innleft = bl_vmutil_tonum(invleft);
-                    innright = bl_vmutil_tonum(invright);
-                    nval = (innleft > innright);
+                    leftflt = bl_vmutil_tonum(leftinval);
+                    rightflt = bl_vmutil_tonum(rightinval);
+                    numres = (leftflt > rightflt);
                 }
                 break;
             case OP_LESSTHAN:
                 {
-                    innleft = bl_vmutil_tonum(invleft);
-                    innright = bl_vmutil_tonum(invright);
-                    nval = (innleft < innright);
+                    leftflt = bl_vmutil_tonum(leftinval);
+                    rightflt = bl_vmutil_tonum(rightinval);
+                    numres = (leftflt < rightflt);
                 }
                 break;
             default:
@@ -1270,21 +1336,212 @@ static inline bool bl_vmdo_binaryop(VMState* vm, CallFrame* frame, bool asbool, 
     }
     if(asbool)
     {
-        val = BOOL_VAL(nval);
+        resval = BOOL_VAL(numres);
     }
     else
     {
-        val = NUMBER_VAL(nval);
+        resval = NUMBER_VAL(numres);
     }
-    bl_vm_pushvalue(vm, val);
-    return true;
+    bl_vmdo_pushvalue(vm, resval);
+    return PTR_OK;
 }
 
+PtrResult bl_vmdo_rungetproperty(VMState* vm, CallFrame* frame)
+{
+    Value value;
+    Value peeked;
+    Object* peekobj;
+    ObjClass* klass;
+    ObjString* name;
+    klass = NULL;
+    name = READ_STRING(frame);
+    peeked = bl_vmdo_peekvalue(vm, 0);
+    if(bl_value_isobject(peeked))
+    {
+        peekobj = AS_OBJ(peeked);
+        if(peekobj->type == OBJ_MODULE)
+        {
+            ObjModule* module = AS_MODULE(peeked);
+            if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
+            {
+                if(name->length > 0 && name->chars[0] == '_')
+                {
+                    runtime_error("cannot get private module property '%s'", name->chars);
+                    //return PTR_RUNTIME_ERR;
+                }
+                bl_vmdo_popvalue(vm);
+                bl_vmdo_pushvalue(vm, value);
+                return PTR_OK;
+            }
+            runtime_error("%s module does not define '%s'", module->name, name->chars);
+            //return PTR_RUNTIME_ERR;
+        }
+        else if(peekobj->type == OBJ_CLASS)
+        {
+            if(bl_hashtable_get(&AS_CLASS(peeked)->methods, OBJ_VAL(name), &value))
+            {
+                if(bl_vmutil_getmethodtype(value) == TYPE_STATIC)
+                {
+                    if(name->length > 0 && name->chars[0] == '_')
+                    {
+                        runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(peeked)->name->chars);
+                        //return PTR_RUNTIME_ERR;
+                    }
+                    // pop the class...
+                    bl_vmdo_popvalue(vm);
+                    bl_vmdo_pushvalue(vm, value);
+                    return PTR_OK;
+                }
+            }
+            else if(bl_hashtable_get(&AS_CLASS(peeked)->staticproperties, OBJ_VAL(name), &value))
+            {
+                if(name->length > 0 && name->chars[0] == '_')
+                {
+                    runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(peeked)->name->chars);
+                    //return PTR_RUNTIME_ERR;
+                }
+                // pop the class...
+                bl_vmdo_popvalue(vm);
+                bl_vmdo_pushvalue(vm, value);
+                return PTR_OK;
+            }
+            runtime_error("class %s does not have a static property or method named '%s'", AS_CLASS(peeked)->name->chars, name->chars);
+            return PTR_OK;
+        }
+        else if(peekobj->type == OBJ_INSTANCE)
+        {
+            ObjInstance* instance = AS_INSTANCE(peeked);
+            if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
+            {
+                if(name->length > 0 && name->chars[0] == '_')
+                {
+                    runtime_error("cannot call private property '%s' from instance of %s", name->chars, instance->klass->name->chars);
+                    //return PTR_RUNTIME_ERR;
+                }
+                // pop the instance...
+                bl_vmdo_popvalue(vm);
+                bl_vmdo_pushvalue(vm, value);
+                return PTR_OK;
+            }
+            if(name->length > 0 && name->chars[0] == '_')
+            {
+                runtime_error("cannot bind private property '%s' to instance of %s", name->chars, instance->klass->name->chars);
+                //return PTR_RUNTIME_ERR;
+            }
+            if(bl_vmdo_classbindmethod(vm, instance->klass, name))
+            {
+                return PTR_OK;
+            }
+            runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(peeked)->klass->name->chars, name->chars);
+            //return PTR_RUNTIME_ERR;
+        }
+        else if(peekobj->type == OBJ_DICT)
+        {
+            if(bl_hashtable_get(&AS_DICT(peeked)->items, OBJ_VAL(name), &value) || bl_hashtable_get(&vm->classobjdict->methods, OBJ_VAL(name), &value))
+            {
+                bl_vmdo_popvalue(vm);
+                bl_vmdo_pushvalue(vm, value);
+                return PTR_OK;
+            }
+            runtime_error("unknown key or class Dict property '%s'", name->chars);
+            //return PTR_RUNTIME_ERR;
+        }
+        switch(peekobj->type)
+        {
+            case OBJ_STRING:
+                {
+                    klass = vm->classobjstring;
+                }
+                break;
+            case OBJ_ARRAY:
+                {
+                    klass = vm->classobjlist;
+                }
+                break;
+            case OBJ_RANGE:
+                {
+                    klass = vm->classobjrange;
+                }
+                break;
+            case OBJ_BYTES:
+                {
+                    klass = vm->classobjbytes;
+                }
+                break;
+            case OBJ_FILE:
+                {
+                    klass = vm->classobjfile;
+                }
+                break;
+            default:
+                {
+                    runtime_error("object of type %s does not carry properties", bl_value_typename(peeked));
+                    //return PTR_RUNTIME_ERR;
+                }
+                break;
+        }
+
+        if(klass != NULL)
+        {
+            if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
+            {
+                bl_vmdo_popvalue(vm);
+                bl_vmdo_pushvalue(vm, value);
+                return PTR_OK;
+            }
+            else if(bl_hashtable_get(&klass->properties, OBJ_VAL(name), &value))
+            {
+                bl_vmdo_popvalue(vm);
+                if(bl_value_isobject(value) && bl_value_isnativefunction(value))
+                {
+                    //bool bl_vm_callvalue(VMState *vm, Value callee, int argcount);
+                    bl_vmdo_pushvalue(vm, peeked);
+                    bl_vm_callvalue(vm, value, 0);
+                }
+                else
+                {
+                    bl_vmdo_pushvalue(vm, value);
+                }
+                return PTR_OK;
+            }
+        }
+        runtime_error("class %s has no named property '%s'", klass->name->chars, name->chars);
+        //return PTR_RUNTIME_ERR;
+    }
+    else
+    {
+        runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, peeked), bl_value_typename(peeked));
+        //return PTR_RUNTIME_ERR;
+    }
+    return PTR_OK;
+}
+
+
+#define vm_mac_execfunc(name) \
+    { \
+        doresult = name(vm, frame); \
+        if(doresult != PTR_OK) \
+        { \
+            return doresult; \
+        } \
+    }
+
+
+#define vm_mac_execfuncargs(name, ...) \
+    { \
+        doresult = name(vm, frame, __VA_ARGS__); \
+        if(doresult != PTR_OK) \
+        { \
+            return doresult; \
+        } \
+    }
 
 PtrResult bl_vm_run(VMState* vm)
 {
     uint8_t instruction;
+    PtrResult doresult;
     CallFrame* frame;
+    Value* stackslot;
     frame = &vm->frames[vm->framecount - 1];
     for(;;)
     {
@@ -1299,10 +1556,10 @@ PtrResult bl_vm_run(VMState* vm)
         if(vm->shoulddebugstack)
         {
             printf("          ");
-            for(Value* slot = vm->stack; slot < vm->stacktop; slot++)
+            for(stackslot = vm->stack; stackslot < vm->stacktop; stackslot++)
             {
                 printf("[ ");
-                bl_value_printvalue(*slot);
+                bl_value_printvalue(*stackslot);
                 printf(" ]");
             }
             printf("\n");
@@ -1313,802 +1570,659 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_CONSTANT:
                 {
                     Value constant = READ_CONSTANT(frame);
-                    bl_vm_pushvalue(vm, constant);
+                    bl_vmdo_pushvalue(vm, constant);
                 }
                 break;
             case OP_ADD:
                 {
-                    if(bl_value_isstring(bl_vm_peekvalue(vm, 0)) || bl_value_isstring(bl_vm_peekvalue(vm, 1)))
+                    if(bl_value_isstring(bl_vmdo_peekvalue(vm, 0)) || bl_value_isstring(bl_vmdo_peekvalue(vm, 1)))
                     {
-                        if(!bl_vmdo_concat(vm))
+                        if(!bl_vmdo_concatvalues(vm))
                         {
-                            runtime_error("unsupported operand + for %s and %s", bl_value_typename(bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 1)));
+                            runtime_error("unsupported operand + for %s and %s", bl_value_typename(bl_vmdo_peekvalue(vm, 0)), bl_value_typename(bl_vmdo_peekvalue(vm, 1)));
                             break;
                         }
                     }
-                    else if(bl_value_isarray(bl_vm_peekvalue(vm, 0)) && bl_value_isarray(bl_vm_peekvalue(vm, 1)))
+                    else if(bl_value_isarray(bl_vmdo_peekvalue(vm, 0)) && bl_value_isarray(bl_vmdo_peekvalue(vm, 1)))
                     {
-                        Value result = OBJ_VAL(bl_array_addarray(vm, AS_LIST(bl_vm_peekvalue(vm, 1)), AS_LIST(bl_vm_peekvalue(vm, 0))));
-                        bl_vm_popvaluen(vm, 2);
-                        bl_vm_pushvalue(vm, result);
+                        Value result = OBJ_VAL(bl_array_addarray(vm, AS_LIST(bl_vmdo_peekvalue(vm, 1)), AS_LIST(bl_vmdo_peekvalue(vm, 0))));
+                        bl_vmdo_popvaluen(vm, 2);
+                        bl_vmdo_pushvalue(vm, result);
                     }
-                    else if(bl_value_isbytes(bl_vm_peekvalue(vm, 0)) && bl_value_isbytes(bl_vm_peekvalue(vm, 1)))
+                    else if(bl_value_isbytes(bl_vmdo_peekvalue(vm, 0)) && bl_value_isbytes(bl_vmdo_peekvalue(vm, 1)))
                     {
-                        Value result = OBJ_VAL(bl_bytes_addbytes(vm, AS_BYTES(bl_vm_peekvalue(vm, 1)), AS_BYTES(bl_vm_peekvalue(vm, 0))));
-                        bl_vm_popvaluen(vm, 2);
-                        bl_vm_pushvalue(vm, result);
+                        Value result = OBJ_VAL(bl_bytes_addbytes(vm, AS_BYTES(bl_vmdo_peekvalue(vm, 1)), AS_BYTES(bl_vmdo_peekvalue(vm, 0))));
+                        bl_vmdo_popvaluen(vm, 2);
+                        bl_vmdo_pushvalue(vm, result);
                     }
                     else
                     {
-                        bl_vmdo_binaryop(vm, frame, false, OP_ADD, NULL);
+                        vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_ADD, NULL);
                         break;
                     }
                 }
                 break;
             case OP_SUBTRACT:
                 {
-                    bl_vmdo_binaryop(vm, frame, false, OP_SUBTRACT, NULL);
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_SUBTRACT, NULL);
                 }
                 break;
             case OP_MULTIPLY:
-            {
-                if(bl_value_isstring(bl_vm_peekvalue(vm, 1)) && bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
                 {
-                    double number = AS_NUMBER(bl_vm_peekvalue(vm, 0));
-                    ObjString* string = AS_STRING(bl_vm_peekvalue(vm, 1));
-                    Value result = OBJ_VAL(bl_vmdo_stringmultiply(vm, string, number));
-                    bl_vm_popvaluen(vm, 2);
-                    bl_vm_pushvalue(vm, result);
-                    break;
+                    if(bl_value_isstring(bl_vmdo_peekvalue(vm, 1)) && bl_value_isnumber(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        double number = AS_NUMBER(bl_vmdo_peekvalue(vm, 0));
+                        ObjString* string = AS_STRING(bl_vmdo_peekvalue(vm, 1));
+                        Value result = OBJ_VAL(bl_vmdo_stringmultiply(vm, string, number));
+                        bl_vmdo_popvaluen(vm, 2);
+                        bl_vmdo_pushvalue(vm, result);
+                        break;
+                    }
+                    else if(bl_value_isarray(bl_vmdo_peekvalue(vm, 1)) && bl_value_isnumber(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        int number = (int)AS_NUMBER(bl_vmdo_popvalue(vm));
+                        ObjArray* list = AS_LIST(bl_vmdo_peekvalue(vm, 0));
+                        ObjArray* nlist = bl_object_makelist(vm);
+                        bl_vmdo_pushvalue(vm, OBJ_VAL(nlist));
+                        bl_vmdo_listmultiply(vm, list, nlist, number);
+                        bl_vmdo_popvaluen(vm, 2);
+                        bl_vmdo_pushvalue(vm, OBJ_VAL(nlist));
+                        break;
+                    }
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_MULTIPLY, NULL);
                 }
-                else if(bl_value_isarray(bl_vm_peekvalue(vm, 1)) && bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
-                {
-                    int number = (int)AS_NUMBER(bl_vm_popvalue(vm));
-                    ObjArray* list = AS_LIST(bl_vm_peekvalue(vm, 0));
-                    ObjArray* nlist = bl_object_makelist(vm);
-                    bl_vm_pushvalue(vm, OBJ_VAL(nlist));
-                    bl_vmdo_listmultiply(vm, list, nlist, number);
-                    bl_vm_popvaluen(vm, 2);
-                    bl_vm_pushvalue(vm, OBJ_VAL(nlist));
-                    break;
-                }
-                bl_vmdo_binaryop(vm, frame, false, OP_MULTIPLY, NULL);
                 break;
-            }
             case OP_DIVIDE:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_DIVIDE, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_DIVIDE, NULL);
+                }
                 break;
-            }
             case OP_REMINDER:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_REMINDER, bl_util_modulo);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_REMINDER, bl_util_modulo);
+                }
                 break;
-            }
             case OP_POW:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_POW, pow);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_POW, pow);
+                }
                 break;
-            }
             case OP_F_DIVIDE:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_F_DIVIDE, bl_util_floordiv);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_F_DIVIDE, bl_util_floordiv);
+                }
                 break;
-            }
             case OP_NEGATE:
-            {
-                if(!bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
                 {
-                    runtime_error("operator - not defined for object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 0)));
-                    break;
+                    if(!bl_value_isnumber(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        runtime_error("operator - not defined for object of type %s", bl_value_typename(bl_vmdo_peekvalue(vm, 0)));
+                        break;
+                    }
+                    bl_vmdo_pushvalue(vm, NUMBER_VAL(-AS_NUMBER(bl_vmdo_popvalue(vm))));
                 }
-                bl_vm_pushvalue(vm, NUMBER_VAL(-AS_NUMBER(bl_vm_popvalue(vm))));
                 break;
-            }
             case OP_BIT_NOT:
-            {
-                if(!bl_value_isnumber(bl_vm_peekvalue(vm, 0)))
                 {
-                    runtime_error("operator ~ not defined for object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 0)));
-                    break;
+                    if(!bl_value_isnumber(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        runtime_error("operator ~ not defined for object of type %s", bl_value_typename(bl_vmdo_peekvalue(vm, 0)));
+                        break;
+                    }
+                    bl_vmdo_pushvalue(vm, INTEGER_VAL(~((int)AS_NUMBER(bl_vmdo_popvalue(vm)))));
                 }
-                bl_vm_pushvalue(vm, INTEGER_VAL(~((int)AS_NUMBER(bl_vm_popvalue(vm)))));
                 break;
-            }
             case OP_BITAND:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_BITAND, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_BITAND, NULL);
+                }
                 break;
-            }
             case OP_BITOR:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_BITOR, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_BITOR, NULL);
+                }
                 break;
-            }
             case OP_BITXOR:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_BITXOR, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_BITXOR, NULL);
+                }
                 break;
-            }
             case OP_LEFTSHIFT:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_LEFTSHIFT, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_LEFTSHIFT, NULL);
+                }
                 break;
-            }
             case OP_RIGHTSHIFT:
-            {
-                bl_vmdo_binaryop(vm, frame, false, OP_RIGHTSHIFT, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_RIGHTSHIFT, NULL);
+                }
                 break;
-            }
             case OP_ONE:
-            {
-                bl_vm_pushvalue(vm, NUMBER_VAL(1));
+                {
+                    bl_vmdo_pushvalue(vm, NUMBER_VAL(1));
+                }
                 break;
-            }
                 // comparisons
             case OP_EQUAL:
-            {
-                Value b = bl_vm_popvalue(vm);
-                Value a = bl_vm_popvalue(vm);
-                bl_vm_pushvalue(vm, BOOL_VAL(bl_value_valuesequal(a, b)));
+                {
+                    Value b = bl_vmdo_popvalue(vm);
+                    Value a = bl_vmdo_popvalue(vm);
+                    bl_vmdo_pushvalue(vm, BOOL_VAL(bl_value_valuesequal(a, b)));
+                }
                 break;
-            }
             case OP_GREATERTHAN:
-            {
-                bl_vmdo_binaryop(vm, frame, true, OP_GREATERTHAN, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, true, OP_GREATERTHAN, NULL);
+                }
                 break;
-            }
             case OP_LESSTHAN:
-            {
-                bl_vmdo_binaryop(vm, frame, true, OP_LESSTHAN, NULL);
+                {
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, true, OP_LESSTHAN, NULL);
+                }
                 break;
-            }
             case OP_NOT:
-                bl_vm_pushvalue(vm, BOOL_VAL(bl_value_isfalse(bl_vm_popvalue(vm))));
+                {
+                    bl_vmdo_pushvalue(vm, BOOL_VAL(bl_value_isfalse(bl_vmdo_popvalue(vm))));
+                }
                 break;
             case OP_NIL:
-                bl_vm_pushvalue(vm, NIL_VAL);
+                {
+                    bl_vmdo_pushvalue(vm, NIL_VAL);
+                }
                 break;
             case OP_EMPTY:
-                bl_vm_pushvalue(vm, EMPTY_VAL);
+                {
+                    bl_vmdo_pushvalue(vm, EMPTY_VAL);
+                }
                 break;
             case OP_TRUE:
-                bl_vm_pushvalue(vm, BOOL_VAL(true));
+                {
+                    bl_vmdo_pushvalue(vm, BOOL_VAL(true));
+                }
                 break;
             case OP_FALSE:
-                bl_vm_pushvalue(vm, BOOL_VAL(false));
+                {
+                    bl_vmdo_pushvalue(vm, BOOL_VAL(false));
+                }
                 break;
             case OP_JUMP:
-            {
-                uint16_t offset = READ_SHORT(frame);
-                frame->ip += offset;
-                break;
-            }
-            case OP_JUMP_IF_FALSE:
-            {
-                uint16_t offset = READ_SHORT(frame);
-                if(bl_value_isfalse(bl_vm_peekvalue(vm, 0)))
                 {
+                    uint16_t offset = READ_SHORT(frame);
                     frame->ip += offset;
                 }
                 break;
-            }
+            case OP_JUMP_IF_FALSE:
+                {
+                    uint16_t offset = READ_SHORT(frame);
+                    if(bl_value_isfalse(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        frame->ip += offset;
+                    }
+                }
+                break;
             case OP_LOOP:
-            {
-                uint16_t offset = READ_SHORT(frame);
-                frame->ip -= offset;
+                {
+                    uint16_t offset = READ_SHORT(frame);
+                    frame->ip -= offset;
+                }
                 break;
-            }
             case OP_ECHO:
-            {
-                Value val = bl_vm_peekvalue(vm, 0);
-                if(vm->isrepl)
                 {
-                    bl_value_echovalue(val);
+                    Value val = bl_vmdo_peekvalue(vm, 0);
+                    if(vm->isrepl)
+                    {
+                        bl_value_echovalue(val);
+                    }
+                    else
+                    {
+                        bl_value_printvalue(val);
+                    }
+                    if(!bl_value_isempty(val))
+                    {
+                        printf("\n");
+                    }
+                    bl_vmdo_popvalue(vm);
                 }
-                else
-                {
-                    bl_value_printvalue(val);
-                }
-                if(!bl_value_isempty(val))
-                {
-                    printf("\n");
-                }
-                bl_vm_popvalue(vm);
                 break;
-            }
             case OP_STRINGIFY:
-            {
-                if(!bl_value_isstring(bl_vm_peekvalue(vm, 0)) && !bl_value_isnil(bl_vm_peekvalue(vm, 0)))
                 {
-                    char* value = bl_value_tostring(vm, bl_vm_popvalue(vm));
-                    if((int)strlen(value) != 0)
+                    if(!bl_value_isstring(bl_vmdo_peekvalue(vm, 0)) && !bl_value_isnil(bl_vmdo_peekvalue(vm, 0)))
                     {
-                        bl_vm_pushvalue(vm, STRING_TT_VAL(value));
-                    }
-                    else
-                    {
-                        bl_vm_pushvalue(vm, NIL_VAL);
+                        char* value = bl_value_tostring(vm, bl_vmdo_popvalue(vm));
+                        if((int)strlen(value) != 0)
+                        {
+                            bl_vmdo_pushvalue(vm, STRING_TT_VAL(value));
+                        }
+                        else
+                        {
+                            bl_vmdo_pushvalue(vm, NIL_VAL);
+                        }
                     }
                 }
                 break;
-            }
             case OP_DUP:
-            {
-                bl_vm_pushvalue(vm, bl_vm_peekvalue(vm, 0));
+                {
+                    bl_vmdo_pushvalue(vm, bl_vmdo_peekvalue(vm, 0));
+                }
                 break;
-            }
             case OP_POP:
-            {
-                bl_vm_popvalue(vm);
+                {
+                    bl_vmdo_popvalue(vm);
+                }
                 break;
-            }
             case OP_POP_N:
-            {
-                bl_vm_popvaluen(vm, READ_SHORT(frame));
+                {
+                    bl_vmdo_popvaluen(vm, READ_SHORT(frame));
+                }
                 break;
-            }
             case OP_CLOSE_UP_VALUE:
-            {
-                bl_vm_closeupvalues(vm, vm->stacktop - 1);
-                bl_vm_popvalue(vm);
+                {
+                    bl_vm_closeupvalues(vm, vm->stacktop - 1);
+                    bl_vmdo_popvalue(vm);
+                }
                 break;
-            }
             case OP_DEFINE_GLOBAL:
-            {
-                ObjString* name = READ_STRING(frame);
-                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
-                    runtime_error("empty cannot be assigned");
-                    break;
+                    ObjString* name = READ_STRING(frame);
+                    if(bl_value_isempty(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        runtime_error("empty cannot be assigned");
+                        break;
+                    }
+                    bl_hashtable_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(name), bl_vmdo_peekvalue(vm, 0));
+                    bl_vmdo_popvalue(vm);
+                    #if defined(DEBUG_TABLE) && DEBUG_TABLE
+                        bl_hashtable_print(&vm->globals);
+                    #endif
                 }
-                bl_hashtable_set(vm, &frame->closure->fnptr->module->values, OBJ_VAL(name), bl_vm_peekvalue(vm, 0));
-                bl_vm_popvalue(vm);
-#if defined(DEBUG_TABLE) && DEBUG_TABLE
-                bl_hashtable_print(&vm->globals);
-#endif
                 break;
-            }
             case OP_GET_GLOBAL:
-            {
-                ObjString* name = READ_STRING(frame);
-                Value value;
-                if(!bl_hashtable_get(&frame->closure->fnptr->module->values, OBJ_VAL(name), &value))
                 {
-                    if(!bl_hashtable_get(&vm->globals, OBJ_VAL(name), &value))
-                    {
-                        runtime_error("'%s' is undefined in this scope", name->chars);
-                        break;
-                    }
-                }
-                bl_vm_pushvalue(vm, value);
-                break;
-            }
-            case OP_SET_GLOBAL:
-            {
-                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
-                {
-                    runtime_error("empty cannot be assigned");
-                    break;
-                }
-                ObjString* name = READ_STRING(frame);
-                HashTable* table = &frame->closure->fnptr->module->values;
-                if(bl_hashtable_set(vm, table, OBJ_VAL(name), bl_vm_peekvalue(vm, 0)))
-                {
-                    bl_hashtable_delete(table, OBJ_VAL(name));
-                    runtime_error("%s is undefined in this scope", name->chars);
-                    break;
-                }
-                break;
-            }
-            case OP_GET_LOCAL:
-            {
-                uint16_t slot = READ_SHORT(frame);
-                bl_vm_pushvalue(vm, frame->slots[slot]);
-                break;
-            }
-            case OP_SET_LOCAL:
-            {
-                uint16_t slot = READ_SHORT(frame);
-                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
-                {
-                    runtime_error("empty cannot be assigned");
-                    break;
-                }
-                frame->slots[slot] = bl_vm_peekvalue(vm, 0);
-                break;
-            }
-            case OP_GET_PROPERTY:
-            {
-                ObjString* name = READ_STRING(frame);
-                if(bl_value_isobject(bl_vm_peekvalue(vm, 0)))
-                {
+                    ObjString* name = READ_STRING(frame);
                     Value value;
-                    switch(AS_OBJ(bl_vm_peekvalue(vm, 0))->type)
+                    if(!bl_hashtable_get(&frame->closure->fnptr->module->values, OBJ_VAL(name), &value))
                     {
-                        case OBJ_MODULE:
+                        if(!bl_hashtable_get(&vm->globals, OBJ_VAL(name), &value))
                         {
-                            ObjModule* module = AS_MODULE(bl_vm_peekvalue(vm, 0));
-                            if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
-                            {
-                                if(name->length > 0 && name->chars[0] == '_')
-                                {
-                                    runtime_error("cannot get private module property '%s'", name->chars);
-                                    break;
-                                }
-                                bl_vm_popvalue(vm);// pop the list...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("%s module does not define '%s'", module->name, name->chars);
-                            break;
-                        }
-                        case OBJ_CLASS:
-                        {
-                            if(bl_hashtable_get(&AS_CLASS(bl_vm_peekvalue(vm, 0))->methods, OBJ_VAL(name), &value))
-                            {
-                                if(bl_vmutil_getmethodtype(value) == TYPE_STATIC)
-                                {
-                                    if(name->length > 0 && name->chars[0] == '_')
-                                    {
-                                        runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(bl_vm_peekvalue(vm, 0))->name->chars);
-                                        break;
-                                    }
-                                    bl_vm_popvalue(vm);// pop the class...
-                                    bl_vm_pushvalue(vm, value);
-                                    break;
-                                }
-                            }
-                            else if(bl_hashtable_get(&AS_CLASS(bl_vm_peekvalue(vm, 0))->staticproperties, OBJ_VAL(name), &value))
-                            {
-                                if(name->length > 0 && name->chars[0] == '_')
-                                {
-                                    runtime_error("cannot call private property '%s' of class %s", name->chars, AS_CLASS(bl_vm_peekvalue(vm, 0))->name->chars);
-                                    break;
-                                }
-                                bl_vm_popvalue(vm);// pop the class...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("class %s does not have a static property or method named '%s'", AS_CLASS(bl_vm_peekvalue(vm, 0))->name->chars, name->chars);
-                            break;
-                        }
-                        case OBJ_INSTANCE:
-                        {
-                            ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 0));
-                            if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
-                            {
-                                if(name->length > 0 && name->chars[0] == '_')
-                                {
-                                    runtime_error("cannot call private property '%s' from instance of %s", name->chars, instance->klass->name->chars);
-                                    break;
-                                }
-                                bl_vm_popvalue(vm);// pop the instance...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            if(name->length > 0 && name->chars[0] == '_')
-                            {
-                                runtime_error("cannot bind private property '%s' to instance of %s", name->chars, instance->klass->name->chars);
-                                break;
-                            }
-                            if(bl_vmdo_classbindmethod(vm, instance->klass, name))
-                            {
-                                break;
-                            }
-                            runtime_error("instance of class %s does not have a property or method named '%s'",
-                                          AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars, name->chars);
-                            break;
-                        }
-                        case OBJ_STRING:
-                        {
-                            if(bl_hashtable_get(&vm->classobjstring->methods, OBJ_VAL(name), &value))
-                            {
-                                bl_vm_popvalue(vm);// pop the list...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("class String has no named property '%s'", name->chars);
-                            break;
-                        }
-                        case OBJ_ARRAY:
-                        {
-                            if(bl_hashtable_get(&vm->classobjlist->methods, OBJ_VAL(name), &value))
-                            {
-                                bl_vm_popvalue(vm);// pop the list...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("class List has no named property '%s'", name->chars);
-                            break;
-                        }
-                        case OBJ_RANGE:
-                        {
-                            if(bl_hashtable_get(&vm->classobjrange->methods, OBJ_VAL(name), &value))
-                            {
-                                bl_vm_popvalue(vm);// pop the list...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("class Range has no named property '%s'", name->chars);
-                            break;
-                        }
-                        case OBJ_DICT:
-                        {
-                            if(bl_hashtable_get(&AS_DICT(bl_vm_peekvalue(vm, 0))->items, OBJ_VAL(name), &value) || bl_hashtable_get(&vm->classobjdict->methods, OBJ_VAL(name), &value))
-                            {
-                                bl_vm_popvalue(vm);// pop the dictionary...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("unknown key or class Dict property '%s'", name->chars);
-                            break;
-                        }
-                        case OBJ_BYTES:
-                        {
-                            if(bl_hashtable_get(&vm->classobjbytes->methods, OBJ_VAL(name), &value))
-                            {
-                                bl_vm_popvalue(vm);// pop the list...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("class Bytes has no named property '%s'", name->chars);
-                            break;
-                        }
-                        case OBJ_FILE:
-                        {
-                            if(bl_hashtable_get(&vm->classobjfile->methods, OBJ_VAL(name), &value))
-                            {
-                                bl_vm_popvalue(vm);// pop the list...
-                                bl_vm_pushvalue(vm, value);
-                                break;
-                            }
-                            runtime_error("class File has no named property '%s'", name->chars);
-                            break;
-                        }
-                        default:
-                        {
-                            runtime_error("object of type %s does not carry properties", bl_value_typename(bl_vm_peekvalue(vm, 0)));
+                            runtime_error("'%s' is undefined in this scope", name->chars);
                             break;
                         }
                     }
-                }
-                else
-                {
-                    runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 0)));
-                    break;
+                    bl_vmdo_pushvalue(vm, value);
                 }
                 break;
-            }
+            case OP_SET_GLOBAL:
+                {
+                    if(bl_value_isempty(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        runtime_error("empty cannot be assigned");
+                        break;
+                    }
+                    ObjString* name = READ_STRING(frame);
+                    HashTable* table = &frame->closure->fnptr->module->values;
+                    if(bl_hashtable_set(vm, table, OBJ_VAL(name), bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        bl_hashtable_delete(table, OBJ_VAL(name));
+                        runtime_error("%s is undefined in this scope", name->chars);
+                        break;
+                    }
+                }
+                break;
+            case OP_GET_LOCAL:
+                {
+                    uint16_t slot = READ_SHORT(frame);
+                    bl_vmdo_pushvalue(vm, frame->slots[slot]);
+                }
+                break;
+            case OP_SET_LOCAL:
+                {
+                    uint16_t slot = READ_SHORT(frame);
+                    if(bl_value_isempty(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        runtime_error("empty cannot be assigned");
+                        break;
+                    }
+                    frame->slots[slot] = bl_vmdo_peekvalue(vm, 0);
+                }
+                break;
+            case OP_GET_PROPERTY:
+                {
+                    vm_mac_execfunc(bl_vmdo_rungetproperty);
+                }
+                break;
             case OP_GET_SELF_PROPERTY:
-            {
-                ObjString* name = READ_STRING(frame);
-                Value value;
-                if(bl_value_isinstance(bl_vm_peekvalue(vm, 0)))
                 {
-                    ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 0));
-                    if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
+                    ObjString* name = READ_STRING(frame);
+                    Value value;
+                    if(bl_value_isinstance(bl_vmdo_peekvalue(vm, 0)))
                     {
-                        bl_vm_popvalue(vm);// pop the instance...
-                        bl_vm_pushvalue(vm, value);
-                        break;
-                    }
-                    if(bl_vmdo_classbindmethod(vm, instance->klass, name))
-                    {
-                        break;
-                    }
-                    runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass->name->chars,
-                                  name->chars);
-                    break;
-                }
-                else if(bl_value_isclass(bl_vm_peekvalue(vm, 0)))
-                {
-                    ObjClass* klass = AS_CLASS(bl_vm_peekvalue(vm, 0));
-                    if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
-                    {
-                        if(bl_vmutil_getmethodtype(value) == TYPE_STATIC)
+                        ObjInstance* instance = AS_INSTANCE(bl_vmdo_peekvalue(vm, 0));
+                        if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
                         {
-                            bl_vm_popvalue(vm);// pop the class...
-                            bl_vm_pushvalue(vm, value);
+                            bl_vmdo_popvalue(vm);
+                            bl_vmdo_pushvalue(vm, value);
                             break;
                         }
-                    }
-                    else if(bl_hashtable_get(&klass->staticproperties, OBJ_VAL(name), &value))
-                    {
-                        bl_vm_popvalue(vm);// pop the class...
-                        bl_vm_pushvalue(vm, value);
+                        if(bl_vmdo_classbindmethod(vm, instance->klass, name))
+                        {
+                            break;
+                        }
+                        runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vmdo_peekvalue(vm, 0))->klass->name->chars,
+                                      name->chars);
                         break;
                     }
-                    runtime_error("class %s does not have a static property or method named '%s'", klass->name->chars, name->chars);
-                    break;
-                }
-                else if(bl_value_ismodule(bl_vm_peekvalue(vm, 0)))
-                {
-                    ObjModule* module = AS_MODULE(bl_vm_peekvalue(vm, 0));
-                    if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
+                    else if(bl_value_isclass(bl_vmdo_peekvalue(vm, 0)))
                     {
-                        bl_vm_popvalue(vm);// pop the class...
-                        bl_vm_pushvalue(vm, value);
+                        ObjClass* klass = AS_CLASS(bl_vmdo_peekvalue(vm, 0));
+                        if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
+                        {
+                            if(bl_vmutil_getmethodtype(value) == TYPE_STATIC)
+                            {
+                                bl_vmdo_popvalue(vm);
+                                bl_vmdo_pushvalue(vm, value);
+                                break;
+                            }
+                        }
+                        else if(bl_hashtable_get(&klass->staticproperties, OBJ_VAL(name), &value))
+                        {
+                            bl_vmdo_popvalue(vm);
+                            bl_vmdo_pushvalue(vm, value);
+                            break;
+                        }
+                        runtime_error("class %s does not have a static property or method named '%s'", klass->name->chars, name->chars);
                         break;
                     }
-                    runtime_error("module %s does not define '%s'", module->name, name->chars);
-                    break;
+                    else if(bl_value_ismodule(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        ObjModule* module = AS_MODULE(bl_vmdo_peekvalue(vm, 0));
+                        if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
+                        {
+                            bl_vmdo_popvalue(vm);
+                            bl_vmdo_pushvalue(vm, value);
+                            break;
+                        }
+                        runtime_error("module %s does not define '%s'", module->name, name->chars);
+                        break;
+                    }
+                    runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, bl_vmdo_peekvalue(vm, 0)), bl_value_typename(bl_vmdo_peekvalue(vm, 0)));
                 }
-                runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, bl_vm_peekvalue(vm, 0)), bl_value_typename(bl_vm_peekvalue(vm, 0)));
                 break;
-            }
             case OP_SET_PROPERTY:
-            {
-                if(!bl_value_isinstance(bl_vm_peekvalue(vm, 1)) && !bl_value_isdict(bl_vm_peekvalue(vm, 1)))
                 {
-                    runtime_error("object of type %s can not carry properties", bl_value_typename(bl_vm_peekvalue(vm, 1)));
-                    break;
-                }
-                else if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
-                {
-                    runtime_error("empty cannot be assigned");
-                    break;
-                }
-                ObjString* name = READ_STRING(frame);
-                if(bl_value_isinstance(bl_vm_peekvalue(vm, 1)))
-                {
-                    ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 1));
-                    bl_hashtable_set(vm, &instance->properties, OBJ_VAL(name), bl_vm_peekvalue(vm, 0));
-                    Value value = bl_vm_popvalue(vm);
-                    bl_vm_popvalue(vm);// removing the instance object
-                    bl_vm_pushvalue(vm, value);
-                }
-                else
-                {
-                    ObjDict* dict = AS_DICT(bl_vm_peekvalue(vm, 1));
-                    bl_dict_setentry(vm, dict, OBJ_VAL(name), bl_vm_peekvalue(vm, 0));
-                    Value value = bl_vm_popvalue(vm);
-                    bl_vm_popvalue(vm);// removing the dictionary object
-                    bl_vm_pushvalue(vm, value);
-                }
-                break;
-            }
-            case OP_CLOSURE:
-            {
-                ObjFunction* function = AS_FUNCTION(READ_CONSTANT(frame));
-                ObjClosure* closure = bl_object_makeclosure(vm, function);
-                bl_vm_pushvalue(vm, OBJ_VAL(closure));
-                for(int i = 0; i < closure->upvaluecount; i++)
-                {
-                    uint8_t islocal = READ_BYTE(frame);
-                    int index = READ_SHORT(frame);
-                    if(islocal)
+                    if(!bl_value_isinstance(bl_vmdo_peekvalue(vm, 1)) && !bl_value_isdict(bl_vmdo_peekvalue(vm, 1)))
                     {
-                        closure->upvalues[i] = bl_vm_captureupvalue(vm, frame->slots + index);
+                        runtime_error("object of type %s can not carry properties", bl_value_typename(bl_vmdo_peekvalue(vm, 1)));
+                        break;
+                    }
+                    else if(bl_value_isempty(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        runtime_error("empty cannot be assigned");
+                        break;
+                    }
+                    ObjString* name = READ_STRING(frame);
+                    if(bl_value_isinstance(bl_vmdo_peekvalue(vm, 1)))
+                    {
+                        ObjInstance* instance = AS_INSTANCE(bl_vmdo_peekvalue(vm, 1));
+                        bl_hashtable_set(vm, &instance->properties, OBJ_VAL(name), bl_vmdo_peekvalue(vm, 0));
+                        Value value = bl_vmdo_popvalue(vm);
+                        bl_vmdo_popvalue(vm);// removing the instance object
+                        bl_vmdo_pushvalue(vm, value);
                     }
                     else
                     {
-                        closure->upvalues[i] = ((ObjClosure*)frame->closure)->upvalues[index];
+                        ObjDict* dict = AS_DICT(bl_vmdo_peekvalue(vm, 1));
+                        bl_dict_setentry(vm, dict, OBJ_VAL(name), bl_vmdo_peekvalue(vm, 0));
+                        Value value = bl_vmdo_popvalue(vm);
+                        bl_vmdo_popvalue(vm);// removing the dictionary object
+                        bl_vmdo_pushvalue(vm, value);
                     }
                 }
                 break;
-            }
+
+            case OP_CLOSURE:
+                {
+                    ObjFunction* function = AS_FUNCTION(READ_CONSTANT(frame));
+                    ObjClosure* closure = bl_object_makeclosure(vm, function);
+                    bl_vmdo_pushvalue(vm, OBJ_VAL(closure));
+                    for(int i = 0; i < closure->upvaluecount; i++)
+                    {
+                        uint8_t islocal = READ_BYTE(frame);
+                        int index = READ_SHORT(frame);
+                        if(islocal)
+                        {
+                            closure->upvalues[i] = bl_vm_captureupvalue(vm, frame->slots + index);
+                        }
+                        else
+                        {
+                            closure->upvalues[i] = ((ObjClosure*)frame->closure)->upvalues[index];
+                        }
+                    }
+                }
+                break;
+
             case OP_GET_UP_VALUE:
-            {
-                int index = READ_SHORT(frame);
-                bl_vm_pushvalue(vm, *((ObjClosure*)frame->closure)->upvalues[index]->location);
+                {
+                    int index = READ_SHORT(frame);
+                    bl_vmdo_pushvalue(vm, *((ObjClosure*)frame->closure)->upvalues[index]->location);
+                }
                 break;
-            }
             case OP_SET_UP_VALUE:
-            {
-                int index = READ_SHORT(frame);
-                if(bl_value_isempty(bl_vm_peekvalue(vm, 0)))
                 {
-                    runtime_error("empty cannot be assigned");
-                    break;
+                    int index = READ_SHORT(frame);
+                    if(bl_value_isempty(bl_vmdo_peekvalue(vm, 0)))
+                    {
+                        runtime_error("empty cannot be assigned");
+                        break;
+                    }
+                    *((ObjClosure*)frame->closure)->upvalues[index]->location = bl_vmdo_peekvalue(vm, 0);
                 }
-                *((ObjClosure*)frame->closure)->upvalues[index]->location = bl_vm_peekvalue(vm, 0);
                 break;
-            }
             case OP_CALL:
-            {
-                int argcount = READ_BYTE(frame);
-                if(!bl_vmdo_callvalue(vm, bl_vm_peekvalue(vm, argcount), argcount))
                 {
-                    EXIT_VM();
+                    int argcount = READ_BYTE(frame);
+                    if(!bl_vm_callvalue(vm, bl_vmdo_peekvalue(vm, argcount), argcount))
+                    {
+                        EXIT_VM();
+                    }
+                    frame = &vm->frames[vm->framecount - 1];
                 }
-                frame = &vm->frames[vm->framecount - 1];
                 break;
-            }
             case OP_INVOKE:
-            {
-                ObjString* method = READ_STRING(frame);
-                int argcount = READ_BYTE(frame);
-                if(!blade_vm_invokemethod(vm, method, argcount))
                 {
-                    EXIT_VM();
+                    ObjString* method = READ_STRING(frame);
+                    int argcount = READ_BYTE(frame);
+                    if(!bl_vm_invokemethod(vm, method, argcount))
+                    {
+                        EXIT_VM();
+                    }
+                    frame = &vm->frames[vm->framecount - 1];
                 }
-                frame = &vm->frames[vm->framecount - 1];
                 break;
-            }
             case OP_INVOKE_SELF:
-            {
-                ObjString* method = READ_STRING(frame);
-                int argcount = READ_BYTE(frame);
-                if(!bl_instance_invokefromself(vm, method, argcount))
                 {
-                    EXIT_VM();
+                    ObjString* method = READ_STRING(frame);
+                    int argcount = READ_BYTE(frame);
+                    if(!bl_instance_invokefromself(vm, method, argcount))
+                    {
+                        EXIT_VM();
+                    }
+                    frame = &vm->frames[vm->framecount - 1];
                 }
-                frame = &vm->frames[vm->framecount - 1];
                 break;
-            }
             case OP_CLASS:
-            {
-                ObjString* name = READ_STRING(frame);
-                bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makeclass(vm, name, NULL)));
+                {
+                    ObjString* name = READ_STRING(frame);
+                    bl_vmdo_pushvalue(vm, OBJ_VAL(bl_object_makeclass(vm, name, NULL)));
+                }
                 break;
-            }
             case OP_METHOD:
-            {
-                ObjString* name = READ_STRING(frame);
-                bl_vm_classdefmethod(vm, name);
+                {
+                    ObjString* name = READ_STRING(frame);
+                    bl_vm_classdefmethod(vm, name);
+                }
                 break;
-            }
             case OP_CLASS_PROPERTY:
-            {
-                ObjString* name = READ_STRING(frame);
-                int isstatic = READ_BYTE(frame);
-                bl_vm_classdefproperty(vm, name, isstatic == 1);
+                {
+                    ObjString* name = READ_STRING(frame);
+                    int isstatic = READ_BYTE(frame);
+                    bl_vm_classdefproperty(vm, name, isstatic == 1);
+                }
                 break;
-            }
             case OP_INHERIT:
-            {
-                if(!bl_value_isclass(bl_vm_peekvalue(vm, 1)))
                 {
-                    runtime_error("cannot inherit from non-class object");
-                    break;
+                    if(!bl_value_isclass(bl_vmdo_peekvalue(vm, 1)))
+                    {
+                        runtime_error("cannot inherit from non-class object");
+                        break;
+                    }
+                    ObjClass* superclass = AS_CLASS(bl_vmdo_peekvalue(vm, 1));
+                    ObjClass* subclass = AS_CLASS(bl_vmdo_peekvalue(vm, 0));
+                    bl_hashtable_addall(vm, &superclass->properties, &subclass->properties);
+                    bl_hashtable_addall(vm, &superclass->methods, &subclass->methods);
+                    subclass->superclass = superclass;
+                    bl_vmdo_popvalue(vm);
                 }
-                ObjClass* superclass = AS_CLASS(bl_vm_peekvalue(vm, 1));
-                ObjClass* subclass = AS_CLASS(bl_vm_peekvalue(vm, 0));
-                bl_hashtable_addall(vm, &superclass->properties, &subclass->properties);
-                bl_hashtable_addall(vm, &superclass->methods, &subclass->methods);
-                subclass->superclass = superclass;
-                bl_vm_popvalue(vm);// pop the subclass
                 break;
-            }
             case OP_GET_SUPER:
-            {
-                ObjString* name = READ_STRING(frame);
-                ObjClass* klass = AS_CLASS(bl_vm_peekvalue(vm, 0));
-                if(!bl_vmdo_classbindmethod(vm, klass->superclass, name))
                 {
-                    runtime_error("class %s does not define a function %s", klass->name->chars, name->chars);
+                    ObjString* name = READ_STRING(frame);
+                    ObjClass* klass = AS_CLASS(bl_vmdo_peekvalue(vm, 0));
+                    if(!bl_vmdo_classbindmethod(vm, klass->superclass, name))
+                    {
+                        runtime_error("class %s does not define a function %s", klass->name->chars, name->chars);
+                    }
                 }
                 break;
-            }
             case OP_SUPER_INVOKE:
-            {
-                ObjString* method = READ_STRING(frame);
-                int argcount = READ_BYTE(frame);
-                ObjClass* klass = AS_CLASS(bl_vm_popvalue(vm));
-                if(!bl_vmdo_instanceinvokefromclass(vm, klass, method, argcount))
                 {
-                    EXIT_VM();
+                    ObjString* method = READ_STRING(frame);
+                    int argcount = READ_BYTE(frame);
+                    ObjClass* klass = AS_CLASS(bl_vmdo_popvalue(vm));
+                    if(!bl_vm_instanceinvokefromclass(vm, klass, method, argcount))
+                    {
+                        EXIT_VM();
+                    }
+                    frame = &vm->frames[vm->framecount - 1];
                 }
-                frame = &vm->frames[vm->framecount - 1];
                 break;
-            }
             case OP_SUPER_INVOKE_SELF:
-            {
-                int argcount = READ_BYTE(frame);
-                ObjClass* klass = AS_CLASS(bl_vm_popvalue(vm));
-                if(!bl_vmdo_instanceinvokefromclass(vm, klass, klass->name, argcount))
                 {
-                    EXIT_VM();
+                    int argcount = READ_BYTE(frame);
+                    ObjClass* klass = AS_CLASS(bl_vmdo_popvalue(vm));
+                    if(!bl_vm_instanceinvokefromclass(vm, klass, klass->name, argcount))
+                    {
+                        EXIT_VM();
+                    }
+                    frame = &vm->frames[vm->framecount - 1];
                 }
-                frame = &vm->frames[vm->framecount - 1];
                 break;
-            }
+
             case OP_LIST:
-            {
-                int count = READ_SHORT(frame);
-                ObjArray* list = bl_object_makelist(vm);
-                vm->stacktop[-count - 1] = OBJ_VAL(list);
-                for(int i = count - 1; i >= 0; i--)
                 {
-                    bl_array_push(vm, list, bl_vm_peekvalue(vm, i));
+                    int count = READ_SHORT(frame);
+                    ObjArray* list = bl_object_makelist(vm);
+                    vm->stacktop[-count - 1] = OBJ_VAL(list);
+                    for(int i = count - 1; i >= 0; i--)
+                    {
+                        bl_array_push(vm, list, bl_vmdo_peekvalue(vm, i));
+                    }
+                    bl_vmdo_popvaluen(vm, count);
                 }
-                bl_vm_popvaluen(vm, count);
                 break;
-            }
             case OP_RANGE:
-            {
-                Value _upper = bl_vm_peekvalue(vm, 0);
-                Value _lower = bl_vm_peekvalue(vm, 1);
-                if(!bl_value_isnumber(_upper) || !bl_value_isnumber(_lower))
                 {
-                    runtime_error("invalid range boundaries");
-                    break;
+                    Value _upper = bl_vmdo_peekvalue(vm, 0);
+                    Value _lower = bl_vmdo_peekvalue(vm, 1);
+                    if(!bl_value_isnumber(_upper) || !bl_value_isnumber(_lower))
+                    {
+                        runtime_error("invalid range boundaries");
+                        break;
+                    }
+                    double lower = AS_NUMBER(_lower);
+                    double upper = AS_NUMBER(_upper);
+                    bl_vmdo_popvaluen(vm, 2);
+                    bl_vmdo_pushvalue(vm, OBJ_VAL(bl_object_makerange(vm, lower, upper)));
                 }
-                double lower = AS_NUMBER(_lower);
-                double upper = AS_NUMBER(_upper);
-                bl_vm_popvaluen(vm, 2);
-                bl_vm_pushvalue(vm, OBJ_VAL(bl_object_makerange(vm, lower, upper)));
                 break;
-            }
             case OP_DICT:
-            {
-                int count = READ_SHORT(frame) * 2;// 1 for key, 1 for value
-                ObjDict* dict = bl_object_makedict(vm);
-                vm->stacktop[-count - 1] = OBJ_VAL(dict);
-                for(int i = 0; i < count; i += 2)
                 {
-                    Value name = vm->stacktop[-count + i];
-                    if(!bl_value_isstring(name) && !bl_value_isnumber(name) && !bl_value_isbool(name))
+                    int count = READ_SHORT(frame) * 2;// 1 for key, 1 for value
+                    ObjDict* dict = bl_object_makedict(vm);
+                    vm->stacktop[-count - 1] = OBJ_VAL(dict);
+                    for(int i = 0; i < count; i += 2)
                     {
-                        runtime_error("dictionary key must be one of string, number or boolean");
+                        Value name = vm->stacktop[-count + i];
+                        if(!bl_value_isstring(name) && !bl_value_isnumber(name) && !bl_value_isbool(name))
+                        {
+                            runtime_error("dictionary key must be one of string, number or boolean");
+                        }
+                        Value value = vm->stacktop[-count + i + 1];
+                        bl_dict_addentry(vm, dict, name, value);
                     }
-                    Value value = vm->stacktop[-count + i + 1];
-                    bl_dict_addentry(vm, dict, name, value);
+                    bl_vmdo_popvaluen(vm, count);
                 }
-                bl_vm_popvaluen(vm, count);
                 break;
-            }
             case OP_GET_RANGED_INDEX:
-            {
-                uint8_t willassign = READ_BYTE(frame);
-                bool isgotten = true;
-                if(bl_value_isobject(bl_vm_peekvalue(vm, 2)))
                 {
-                    switch(AS_OBJ(bl_vm_peekvalue(vm, 2))->type)
+                    uint8_t willassign = READ_BYTE(frame);
+                    bool isgotten = true;
+                    if(bl_value_isobject(bl_vmdo_peekvalue(vm, 2)))
                     {
-                        case OBJ_STRING:
+                        switch(AS_OBJ(bl_vmdo_peekvalue(vm, 2))->type)
                         {
-                            if(!bl_vmdo_stringgetrangedindex(vm, AS_STRING(bl_vm_peekvalue(vm, 2)), willassign == (uint8_t)1))
+                            case OBJ_STRING:
                             {
-                                EXIT_VM();
+                                if(!bl_vmdo_stringgetrangedindex(vm, AS_STRING(bl_vmdo_peekvalue(vm, 2)), willassign == (uint8_t)1))
+                                {
+                                    EXIT_VM();
+                                }
+                                break;
                             }
-                            break;
-                        }
-                        case OBJ_ARRAY:
-                        {
-                            if(!bl_vmdo_listgetrangedindex(vm, AS_LIST(bl_vm_peekvalue(vm, 2)), willassign == (uint8_t)1))
+                            case OBJ_ARRAY:
                             {
-                                EXIT_VM();
+                                if(!bl_vmdo_listgetrangedindex(vm, AS_LIST(bl_vmdo_peekvalue(vm, 2)), willassign == (uint8_t)1))
+                                {
+                                    EXIT_VM();
+                                }
+                                break;
                             }
-                            break;
-                        }
-                        case OBJ_BYTES:
-                        {
-                            if(!bl_vmdo_bytesgetrangedindex(vm, AS_BYTES(bl_vm_peekvalue(vm, 2)), willassign == (uint8_t)1))
+                            case OBJ_BYTES:
                             {
-                                EXIT_VM();
+                                if(!bl_vmdo_bytesgetrangedindex(vm, AS_BYTES(bl_vmdo_peekvalue(vm, 2)), willassign == (uint8_t)1))
+                                {
+                                    EXIT_VM();
+                                }
+                                break;
                             }
-                            break;
-                        }
-                        default:
-                        {
-                            isgotten = false;
-                            break;
+                            default:
+                            {
+                                isgotten = false;
+                                break;
+                            }
                         }
                     }
-                }
-                else
-                {
-                    isgotten = false;
-                }
-                if(!isgotten)
-                {
-                    runtime_error("cannot range index object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 2)));
+                    else
+                    {
+                        isgotten = false;
+                    }
+                    if(!isgotten)
+                    {
+                        runtime_error("cannot range index object of type %s", bl_value_typename(bl_vmdo_peekvalue(vm, 2)));
+                    }
                 }
                 break;
-            }
+
             case OP_GET_INDEX:
             {
                 uint8_t willassign = READ_BYTE(frame);
                 bool isgotten = true;
-                if(bl_value_isobject(bl_vm_peekvalue(vm, 1)))
+                if(bl_value_isobject(bl_vmdo_peekvalue(vm, 1)))
                 {
-                    switch(AS_OBJ(bl_vm_peekvalue(vm, 1))->type)
+                    switch(AS_OBJ(bl_vmdo_peekvalue(vm, 1))->type)
                     {
                         case OBJ_STRING:
                         {
-                            if(!bl_vmdo_stringgetindex(vm, AS_STRING(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_stringgetindex(vm, AS_STRING(bl_vmdo_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -2116,7 +2230,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_ARRAY:
                         {
-                            if(!bl_vmdo_listgetindex(vm, AS_LIST(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_listgetindex(vm, AS_LIST(bl_vmdo_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -2124,7 +2238,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_DICT:
                         {
-                            if(!bl_vmdo_dictgetindex(vm, AS_DICT(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_dictgetindex(vm, AS_DICT(bl_vmdo_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -2132,7 +2246,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_MODULE:
                         {
-                            if(!bl_vmdo_modulegetindex(vm, AS_MODULE(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_modulegetindex(vm, AS_MODULE(bl_vmdo_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -2140,7 +2254,7 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_BYTES:
                         {
-                            if(!bl_vmdo_bytesgetindex(vm, AS_BYTES(bl_vm_peekvalue(vm, 1)), willassign == (uint8_t)1))
+                            if(!bl_vmdo_bytesgetindex(vm, AS_BYTES(bl_vmdo_peekvalue(vm, 1)), willassign == (uint8_t)1))
                             {
                                 EXIT_VM();
                             }
@@ -2159,27 +2273,27 @@ PtrResult bl_vm_run(VMState* vm)
                 }
                 if(!isgotten)
                 {
-                    runtime_error("cannot index object of type %s", bl_value_typename(bl_vm_peekvalue(vm, 1)));
+                    runtime_error("cannot index object of type %s", bl_value_typename(bl_vmdo_peekvalue(vm, 1)));
                 }
                 break;
             }
             case OP_SET_INDEX:
             {
                 bool isset = true;
-                if(bl_value_isobject(bl_vm_peekvalue(vm, 2)))
+                if(bl_value_isobject(bl_vmdo_peekvalue(vm, 2)))
                 {
-                    Value value = bl_vm_peekvalue(vm, 0);
-                    Value index = bl_vm_peekvalue(vm, 1);
+                    Value value = bl_vmdo_peekvalue(vm, 0);
+                    Value index = bl_vmdo_peekvalue(vm, 1);
                     if(bl_value_isempty(value))
                     {
                         runtime_error("empty cannot be assigned");
                         break;
                     }
-                    switch(AS_OBJ(bl_vm_peekvalue(vm, 2))->type)
+                    switch(AS_OBJ(bl_vmdo_peekvalue(vm, 2))->type)
                     {
                         case OBJ_ARRAY:
                         {
-                            if(!bl_vmdo_listsetindex(vm, AS_LIST(bl_vm_peekvalue(vm, 2)), index, value))
+                            if(!bl_vmdo_listsetindex(vm, AS_LIST(bl_vmdo_peekvalue(vm, 2)), index, value))
                             {
                                 EXIT_VM();
                             }
@@ -2192,17 +2306,17 @@ PtrResult bl_vm_run(VMState* vm)
                         }
                         case OBJ_DICT:
                         {
-                            bl_vmdo_dictsetindex(vm, AS_DICT(bl_vm_peekvalue(vm, 2)), index, value);
+                            bl_vmdo_dictsetindex(vm, AS_DICT(bl_vmdo_peekvalue(vm, 2)), index, value);
                             break;
                         }
                         case OBJ_MODULE:
                         {
-                            bl_vmdo_modulesetindex(vm, AS_MODULE(bl_vm_peekvalue(vm, 2)), index, value);
+                            bl_vmdo_modulesetindex(vm, AS_MODULE(bl_vmdo_peekvalue(vm, 2)), index, value);
                             break;
                         }
                         case OBJ_BYTES:
                         {
-                            if(!bl_vmdo_bytessetindex(vm, AS_BYTES(bl_vm_peekvalue(vm, 2)), index, value))
+                            if(!bl_vmdo_bytessetindex(vm, AS_BYTES(bl_vmdo_peekvalue(vm, 2)), index, value))
                             {
                                 EXIT_VM();
                             }
@@ -2221,22 +2335,22 @@ PtrResult bl_vm_run(VMState* vm)
                 }
                 if(!isset)
                 {
-                    runtime_error("type of %s is not a valid iterable", bl_value_typename(bl_vm_peekvalue(vm, 3)));
+                    runtime_error("type of %s is not a valid iterable", bl_value_typename(bl_vmdo_peekvalue(vm, 3)));
                 }
                 break;
             }
             case OP_RETURN:
             {
-                Value result = bl_vm_popvalue(vm);
+                Value result = bl_vmdo_popvalue(vm);
                 bl_vm_closeupvalues(vm, frame->slots);
                 vm->framecount--;
                 if(vm->framecount == 0)
                 {
-                    bl_vm_popvalue(vm);
+                    bl_vmdo_popvalue(vm);
                     return PTR_OK;
                 }
                 vm->stacktop = frame->slots;
-                bl_vm_pushvalue(vm, result);
+                bl_vmdo_pushvalue(vm, result);
                 frame = &vm->frames[vm->framecount - 1];
                 break;
             }
@@ -2269,7 +2383,7 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_SELECT_IMPORT:
             {
                 ObjString* entryname = READ_STRING(frame);
-                ObjFunction* function = AS_CLOSURE(bl_vm_peekvalue(vm, 0))->fnptr;
+                ObjFunction* function = AS_CLOSURE(bl_vmdo_peekvalue(vm, 0))->fnptr;
                 Value value;
                 if(bl_hashtable_get(&function->module->values, OBJ_VAL(entryname), &value))
                 {
@@ -2283,7 +2397,7 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_SELECT_NATIVE_IMPORT:
             {
-                ObjString* modulename = AS_STRING(bl_vm_peekvalue(vm, 0));
+                ObjString* modulename = AS_STRING(bl_vmdo_peekvalue(vm, 0));
                 ObjString* valuename = READ_STRING(frame);
                 Value mod;
                 if(bl_hashtable_get(&vm->modules, OBJ_VAL(modulename), &mod))
@@ -2307,12 +2421,12 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_IMPORT_ALL:
             {
-                bl_hashtable_addall(vm, &AS_CLOSURE(bl_vm_peekvalue(vm, 0))->fnptr->module->values, &frame->closure->fnptr->module->values);
+                bl_hashtable_addall(vm, &AS_CLOSURE(bl_vmdo_peekvalue(vm, 0))->fnptr->module->values, &frame->closure->fnptr->module->values);
                 break;
             }
             case OP_IMPORT_ALL_NATIVE:
             {
-                ObjString* name = AS_STRING(bl_vm_peekvalue(vm, 0));
+                ObjString* name = AS_STRING(bl_vmdo_peekvalue(vm, 0));
                 Value mod;
                 if(bl_hashtable_get(&vm->modules, OBJ_VAL(name), &mod))
                 {
@@ -2339,8 +2453,8 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_ASSERT:
             {
-                Value message = bl_vm_popvalue(vm);
-                Value expression = bl_vm_popvalue(vm);
+                Value message = bl_vmdo_popvalue(vm);
+                Value expression = bl_vmdo_popvalue(vm);
                 if(bl_value_isfalse(expression))
                 {
                     if(!bl_value_isnil(message))
@@ -2356,13 +2470,13 @@ PtrResult bl_vm_run(VMState* vm)
             }
             case OP_DIE:
             {
-                if(!bl_value_isinstance(bl_vm_peekvalue(vm, 0)) || !bl_class_isinstanceof(AS_INSTANCE(bl_vm_peekvalue(vm, 0))->klass, vm->exceptionclass->name->chars))
+                if(!bl_value_isinstance(bl_vmdo_peekvalue(vm, 0)) || !bl_class_isinstanceof(AS_INSTANCE(bl_vmdo_peekvalue(vm, 0))->klass, vm->exceptionclass->name->chars))
                 {
                     runtime_error("instance of Exception expected");
                     break;
                 }
                 Value stacktrace = bl_vm_getstacktrace(vm);
-                ObjInstance* instance = AS_INSTANCE(bl_vm_peekvalue(vm, 0));
+                ObjInstance* instance = AS_INSTANCE(bl_vmdo_peekvalue(vm, 0));
                 bl_hashtable_set(vm, &instance->properties, STRING_L_VAL("stacktrace", 10), stacktrace);
                 if(bl_vm_propagateexception(vm, false))
                 {
@@ -2410,7 +2524,7 @@ PtrResult bl_vm_run(VMState* vm)
             case OP_SWITCH:
             {
                 ObjSwitch* sw = AS_SWITCH(READ_CONSTANT(frame));
-                Value expr = bl_vm_peekvalue(vm, 0);
+                Value expr = bl_vmdo_peekvalue(vm, 0);
                 Value value;
                 if(bl_hashtable_get(&sw->table, expr, &value))
                 {
@@ -2424,22 +2538,22 @@ PtrResult bl_vm_run(VMState* vm)
                 {
                     frame->ip += sw->exitjump;
                 }
-                bl_vm_popvalue(vm);
+                bl_vmdo_popvalue(vm);
                 break;
             }
             case OP_CHOICE:
             {
-                Value _else = bl_vm_peekvalue(vm, 0);
-                Value _then = bl_vm_peekvalue(vm, 1);
-                Value _condition = bl_vm_peekvalue(vm, 2);
-                bl_vm_popvaluen(vm, 3);
+                Value _else = bl_vmdo_peekvalue(vm, 0);
+                Value _then = bl_vmdo_peekvalue(vm, 1);
+                Value _condition = bl_vmdo_peekvalue(vm, 2);
+                bl_vmdo_popvaluen(vm, 3);
                 if(!bl_value_isfalse(_condition))
                 {
-                    bl_vm_pushvalue(vm, _then);
+                    bl_vmdo_pushvalue(vm, _then);
                 }
                 else
                 {
-                    bl_vm_pushvalue(vm, _else);
+                    bl_vmdo_pushvalue(vm, _else);
                 }
                 break;
             }

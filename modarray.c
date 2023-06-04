@@ -563,33 +563,33 @@ RegModule* bl_modload_array(VMState* vm)
 void bl_state_initarraymethods(VMState* vm)
 {
     // list methods
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "length", objfn_list_length);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "append", objfn_list_append);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "push", objfn_list_append);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "clear", objfn_list_clear);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "clone", objfn_list_clone);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "count", objfn_list_count);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "extend", objfn_list_extend);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "indexof", objfn_list_indexof);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "insert", objfn_list_insert);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "pop", objfn_list_pop);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "shift", objfn_list_shift);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "remove_at", objfn_list_removeat);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "remove", objfn_list_remove);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "reverse", objfn_list_reverse);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "sort", objfn_list_sort);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "contains", objfn_list_contains);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "delete", objfn_list_delete);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "first", objfn_list_first);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "last", objfn_list_last);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "isempty", objfn_list_isempty);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "take", objfn_list_take);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "get", objfn_list_get);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "compact", objfn_list_compact);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "unique", objfn_list_unique);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "zip", objfn_list_zip);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "to_dict", objfn_list_todict);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "@iter", objfn_list_iter);
-    bl_object_defnativemethod(vm, &vm->classobjlist->methods, "@itern", objfn_list_itern);
+    bl_class_defnativefield(vm, vm->classobjlist, "length", objfn_list_length);
+    bl_class_defnativemethod(vm, vm->classobjlist, "append", objfn_list_append);
+    bl_class_defnativemethod(vm, vm->classobjlist, "push", objfn_list_append);
+    bl_class_defnativemethod(vm, vm->classobjlist, "clear", objfn_list_clear);
+    bl_class_defnativemethod(vm, vm->classobjlist, "clone", objfn_list_clone);
+    bl_class_defnativemethod(vm, vm->classobjlist, "count", objfn_list_count);
+    bl_class_defnativemethod(vm, vm->classobjlist, "extend", objfn_list_extend);
+    bl_class_defnativemethod(vm, vm->classobjlist, "indexof", objfn_list_indexof);
+    bl_class_defnativemethod(vm, vm->classobjlist, "insert", objfn_list_insert);
+    bl_class_defnativemethod(vm, vm->classobjlist, "pop", objfn_list_pop);
+    bl_class_defnativemethod(vm, vm->classobjlist, "shift", objfn_list_shift);
+    bl_class_defnativemethod(vm, vm->classobjlist, "remove_at", objfn_list_removeat);
+    bl_class_defnativemethod(vm, vm->classobjlist, "remove", objfn_list_remove);
+    bl_class_defnativemethod(vm, vm->classobjlist, "reverse", objfn_list_reverse);
+    bl_class_defnativemethod(vm, vm->classobjlist, "sort", objfn_list_sort);
+    bl_class_defnativemethod(vm, vm->classobjlist, "contains", objfn_list_contains);
+    bl_class_defnativemethod(vm, vm->classobjlist, "delete", objfn_list_delete);
+    bl_class_defnativemethod(vm, vm->classobjlist, "first", objfn_list_first);
+    bl_class_defnativemethod(vm, vm->classobjlist, "last", objfn_list_last);
+    bl_class_defnativemethod(vm, vm->classobjlist, "isempty", objfn_list_isempty);
+    bl_class_defnativemethod(vm, vm->classobjlist, "take", objfn_list_take);
+    bl_class_defnativemethod(vm, vm->classobjlist, "get", objfn_list_get);
+    bl_class_defnativemethod(vm, vm->classobjlist, "compact", objfn_list_compact);
+    bl_class_defnativemethod(vm, vm->classobjlist, "unique", objfn_list_unique);
+    bl_class_defnativemethod(vm, vm->classobjlist, "zip", objfn_list_zip);
+    bl_class_defnativemethod(vm, vm->classobjlist, "to_dict", objfn_list_todict);
+    bl_class_defnativemethod(vm, vm->classobjlist, "@iter", objfn_list_iter);
+    bl_class_defnativemethod(vm, vm->classobjlist, "@itern", objfn_list_itern);
 }
 

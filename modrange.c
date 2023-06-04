@@ -55,8 +55,8 @@ static bool objfn_range_itern(VMState* vm, int argcount, Value* args)
 void bl_state_initrangemethods(VMState* vm)
 {
     // range
-    bl_object_defnativemethod(vm, &vm->classobjrange->methods, "lower", objfn_range_lower);
-    bl_object_defnativemethod(vm, &vm->classobjrange->methods, "upper", objfn_range_upper);
-    bl_object_defnativemethod(vm, &vm->classobjrange->methods, "@iter", objfn_range_iter);
-    bl_object_defnativemethod(vm, &vm->classobjrange->methods, "@itern", objfn_range_itern);
+    bl_class_defnativemethod(vm, vm->classobjrange, "lower", objfn_range_lower);
+    bl_class_defnativemethod(vm, vm->classobjrange, "upper", objfn_range_upper);
+    bl_class_defnativemethod(vm, vm->classobjrange, "@iter", objfn_range_iter);
+    bl_class_defnativemethod(vm, vm->classobjrange, "@itern", objfn_range_itern);
 }

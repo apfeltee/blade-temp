@@ -981,34 +981,35 @@ static bool objfn_string_itern(VMState* vm, int argcount, Value* args)
 
 void bl_state_initstringmethods(VMState* vm)
 {
+    bl_state_defineglobal(vm, vm->classobjstring->name, OBJ_VAL(vm->classobjstring));
     // string methods
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "length", objfn_string_length);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "upper", objfn_string_upper);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "lower", objfn_string_lower);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "isalpha", objfn_string_isalpha);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "isalnum", objfn_string_isalnum);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "is_number", objfn_string_isnumber);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "islower", objfn_string_islower);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "isupper", objfn_string_isupper);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "isspace", objfn_string_isspace);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "trim", objfn_string_trim);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "ltrim", objfn_string_ltrim);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "rtrim", objfn_string_rtrim);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "join", objfn_string_join);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "split", objfn_string_split);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "indexof", objfn_string_indexof);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "startswith", objfn_string_startswith);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "endswith", objfn_string_endswith);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "count", objfn_string_count);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "to_number", objfn_string_tonumber);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "to_list", objfn_string_tolist);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "tobytes", objfn_string_tobytes);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "lpad", objfn_string_lpad);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "rpad", objfn_string_rpad);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "match", objfn_string_match);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "matches", objfn_string_matches);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "replace", objfn_string_replace);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "ascii", objfn_string_ascii);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "@iter", objfn_string_iter);
-    bl_object_defnativemethod(vm, &vm->classobjstring->methods, "@itern", objfn_string_itern);
+    bl_class_defnativefield(vm, vm->classobjstring, "length", objfn_string_length);
+    bl_class_defnativemethod(vm, vm->classobjstring, "upper", objfn_string_upper);
+    bl_class_defnativemethod(vm, vm->classobjstring, "lower", objfn_string_lower);
+    bl_class_defnativemethod(vm, vm->classobjstring, "isalpha", objfn_string_isalpha);
+    bl_class_defnativemethod(vm, vm->classobjstring, "isalnum", objfn_string_isalnum);
+    bl_class_defnativemethod(vm, vm->classobjstring, "is_number", objfn_string_isnumber);
+    bl_class_defnativemethod(vm, vm->classobjstring, "islower", objfn_string_islower);
+    bl_class_defnativemethod(vm, vm->classobjstring, "isupper", objfn_string_isupper);
+    bl_class_defnativemethod(vm, vm->classobjstring, "isspace", objfn_string_isspace);
+    bl_class_defnativemethod(vm, vm->classobjstring, "trim", objfn_string_trim);
+    bl_class_defnativemethod(vm, vm->classobjstring, "ltrim", objfn_string_ltrim);
+    bl_class_defnativemethod(vm, vm->classobjstring, "rtrim", objfn_string_rtrim);
+    bl_class_defnativemethod(vm, vm->classobjstring, "join", objfn_string_join);
+    bl_class_defnativemethod(vm, vm->classobjstring, "split", objfn_string_split);
+    bl_class_defnativemethod(vm, vm->classobjstring, "indexof", objfn_string_indexof);
+    bl_class_defnativemethod(vm, vm->classobjstring, "startswith", objfn_string_startswith);
+    bl_class_defnativemethod(vm, vm->classobjstring, "endswith", objfn_string_endswith);
+    bl_class_defnativemethod(vm, vm->classobjstring, "count", objfn_string_count);
+    bl_class_defnativemethod(vm, vm->classobjstring, "to_number", objfn_string_tonumber);
+    bl_class_defnativemethod(vm, vm->classobjstring, "to_list", objfn_string_tolist);
+    bl_class_defnativemethod(vm, vm->classobjstring, "tobytes", objfn_string_tobytes);
+    bl_class_defnativemethod(vm, vm->classobjstring, "lpad", objfn_string_lpad);
+    bl_class_defnativemethod(vm, vm->classobjstring, "rpad", objfn_string_rpad);
+    bl_class_defnativemethod(vm, vm->classobjstring, "match", objfn_string_match);
+    bl_class_defnativemethod(vm, vm->classobjstring, "matches", objfn_string_matches);
+    bl_class_defnativemethod(vm, vm->classobjstring, "replace", objfn_string_replace);
+    bl_class_defnativemethod(vm, vm->classobjstring, "ascii", objfn_string_ascii);
+    bl_class_defnativemethod(vm, vm->classobjstring, "@iter", objfn_string_iter);
+    bl_class_defnativemethod(vm, vm->classobjstring, "@itern", objfn_string_itern);
 }

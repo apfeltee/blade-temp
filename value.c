@@ -1610,36 +1610,37 @@ const char* bl_object_gettype(Object* object)
     switch(object->type)
     {
         case OBJ_MODULE:
-            return "module";
+            return "Module";
         case OBJ_BYTES:
-            return "bytes";
+            return "Bytes";
         case OBJ_RANGE:
-            return "range";
+            return "Range";
         case OBJ_FILE:
-            return "file";
+            return "File";
         case OBJ_DICT:
-            return "dictionary";
+            return "Dictionary";
         case OBJ_ARRAY:
-            return "list";
+            return "List";
         case OBJ_CLASS:
-            return "class";
+            return "Class";
         case OBJ_SCRIPTFUNCTION:
         case OBJ_NATIVEFUNCTION:
         case OBJ_CLOSURE:
         case OBJ_BOUNDFUNCTION:
-            return "function";
+            return "Function";
         case OBJ_INSTANCE:
             return ((ObjInstance*)object)->klass->name->chars;
         case OBJ_STRING:
-            return "string";
+            return "String";
             //
         case OBJ_PTR:
-            return "pointer";
+            return "Pointer";
         case OBJ_SWITCH:
-            return "switch";
+            return "Switch";
         default:
-            return "unknown";
+            break;
     }
+    return "unknown";
 }
 
 
@@ -2948,7 +2949,7 @@ bool modfn_reflect_callmethod(VMState* vm, int argcount, Value* args)
         {
             bl_vm_pushvalue(vm, list->items.values[i]);
         }
-        return bl_vmdo_callvalue(vm, OBJ_VAL(bound), list->items.count);
+        return bl_vm_callvalue(vm, OBJ_VAL(bound), list->items.count);
     }
     return bl_value_returnempty(vm, args);
 }

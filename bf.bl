@@ -13,7 +13,7 @@ function bf(src, input)
     var inptr = 0
     var instr    = 0
     var stack = []
-    while(instr < src.length())
+    while(instr < src.length)
     {
         if(instr < 0)
         {
@@ -23,7 +23,7 @@ function bf(src, input)
         if(c == "+")
         {
             memory[memptr] = memory[memptr] + 1
-            if(memptr >= memory.length())
+            if(memptr >= memory.length)
             {
                 println("Heap overrun")
             }
@@ -48,7 +48,7 @@ function bf(src, input)
         else if(c == ">")
         {
             memptr = memptr + 1
-            if(memptr > memory.length())
+            if(memptr > memory.length)
             {
                 println("data pointer out of bounds")
             }
@@ -72,7 +72,7 @@ function bf(src, input)
                 while(cont)
                 {
                     instr = instr + 1
-                    if(instr > src.length())
+                    if(instr > src.length)
                     {
                         println("Missing matching ']'")
                     }
