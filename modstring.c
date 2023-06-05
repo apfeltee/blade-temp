@@ -981,7 +981,6 @@ static bool objfn_string_itern(VMState* vm, int argcount, Value* args)
 
 void bl_state_initstringmethods(VMState* vm)
 {
-    bl_state_defineglobal(vm, vm->classobjstring->name, OBJ_VAL(vm->classobjstring));
     // string methods
     bl_class_defnativefield(vm, vm->classobjstring, "length", objfn_string_length);
     bl_class_defnativemethod(vm, vm->classobjstring, "upper", objfn_string_upper);

@@ -14,9 +14,11 @@ void bl_state_addmodule(VMState* vm, ObjModule* module)
 {
     size_t len;
     const char* cs;
+    ObjString* copied;
     cs = module->file;
     len = strlen(cs);
-    bl_hashtable_set(vm, &vm->modules, OBJ_VAL(bl_string_copystringlen(vm, cs, (int)len)), OBJ_VAL(module));
+    copied = bl_string_copystringlen(vm, cs, (int)len-4);
+    bl_hashtable_set(vm, &vm->modules, OBJ_VAL(copied), OBJ_VAL(module));
     if(vm->framecount == 0)
     {
         bl_hashtable_set(vm, &vm->globals, STRING_VAL(module->name), OBJ_VAL(module));
@@ -24,7 +26,9 @@ void bl_state_addmodule(VMState* vm, ObjModule* module)
     else
     {
         cs = module->name;
-        bl_hashtable_set(vm, &vm->frames[vm->framecount - 1].closure->fnptr->module->values, OBJ_VAL(bl_string_copystringlen(vm, cs, (int)len)), OBJ_VAL(module));
+        len = strlen(cs);
+        copied = bl_string_copystringlen(vm, cs, (int)len);
+        bl_hashtable_set(vm, &vm->frames[vm->framecount - 1].closure->fnptr->module->values, OBJ_VAL(copied), OBJ_VAL(module));
     }
 }
 

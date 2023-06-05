@@ -7,6 +7,7 @@ void bl_state_initbuiltinmethods(VMState *vm);
 void bl_class_defhashtabfield(VMState *vm, ObjClass *klass, HashTable *tbl, ObjString *name, Object *objval);
 void bl_class_defuserhashtabfield(VMState *vm, ObjClass *klass, HashTable *tbl, const char *name, Object *objval);
 void bl_class_defnativemethod(VMState *vm, ObjClass *klass, const char *name, NativeCallbackFunc function);
+void bl_class_defnativefield(VMState *vm, ObjClass *klass, const char *name, NativeCallbackFunc function);
 void bl_class_defstaticnativemethod(VMState *vm, ObjClass *klass, const char *name, NativeCallbackFunc function);
 /* debug.c */
 void bl_blob_disassembleitem(BinaryBlob *blob, const char *name);

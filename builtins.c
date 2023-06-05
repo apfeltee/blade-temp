@@ -934,6 +934,7 @@ void bl_state_initbuiltinfunctions(VMState* vm)
 
 void bl_state_initbuiltinmethods(VMState* vm)
 {
+    bl_state_initobjectmethods(vm);
     bl_state_initstringmethods(vm);
     bl_state_initdictmethods(vm);
     bl_state_initarraymethods(vm);

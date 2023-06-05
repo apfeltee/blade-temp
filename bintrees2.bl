@@ -37,7 +37,7 @@ function clock()
 
 
 var mindepth = 4;
-var maxdepth = 14;
+var maxdepth = mindepth*2;
 var stretchdepth = maxdepth + 1;
 
 var start = clock();

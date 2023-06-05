@@ -38,7 +38,7 @@
 #define PCRE2_CODE_UNIT_WIDTH 8
 //#include <pcre2.h>
 
-#define BLADE_EXTENSION ".b"
+#define BLADE_EXTENSION ".bl"
 #define BLADE_VERSION_STRING "0.0.74-rc1"
 #define BVM_VERSION "0.0.7"
 #define LIBRARY_DIRECTORY "libs"
@@ -1001,6 +1001,7 @@ struct VMState
     ObjClass* classobjfile;
     ObjClass* classobjbytes;
     ObjClass* classobjrange;
+    ObjClass* classobjmath;
     char** stdargs;
     int stdargscount;
     // boolean flags

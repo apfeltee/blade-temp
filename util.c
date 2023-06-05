@@ -467,11 +467,11 @@ char* bl_util_readfile(const char* filename, size_t* dlen)
 char* bl_util_getexepath()
 {
     #if defined(__unix__) || defined(__linux__)
-        char rawpath[PATH_MAX];
+        char rawpath[PATH_MAX] = {0};
         long readlength;
         if((readlength = readlink(PROC_SELF_EXE, rawpath, sizeof(rawpath))) > -1 && readlength < PATH_MAX)
         {
-            return strdup(rawpath);
+            return strndup(rawpath, readlength);
         }
     #endif
     return strdup("");
@@ -496,16 +496,19 @@ char* bl_util_mergepaths(const char* a, const char* b)
     if(b == NULL || lenb == 0)
     {
         free(finalpath);
-        return strdup(a);// just in case a is const char*
+        // just in case a is const char*
+        return strdup(a);
     }
     lena = strlen(a);
+    fprintf(stderr, "mergepaths: a=<%s> b=<%s>\n", a, b);
     if(a == NULL || lena == 0)
     {
         free(finalpath);
-        return strdup(b);// just in case b is const char*
+        // just in case b is const char*
+        return strdup(b);
     }
     finalpath = bl_util_appendstring(finalpath, a);
-    if(!(lenb == 2 && b[0] == '.' && b[1] == 'b'))
+    if(!(lenb == 3 && b[0] == '.' && b[1] == 'b'))
     {
         finalpath = bl_util_appendstring(finalpath, BLADE_PATH_SEPARATOR);
     }

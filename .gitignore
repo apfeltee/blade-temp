@@ -13,6 +13,8 @@ _backup/*
 _tmp
 _tmp/
 _tmp/*
+_obj/*
+_obj
 big
 big/
 big/*

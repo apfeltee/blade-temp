@@ -44,9 +44,36 @@ void bl_class_defstaticnativemethod(VMState* vm, ObjClass* klass, const char* na
     bl_class_defuserhashtabfield(vm, klass, &klass->staticproperties, name, oval);
 }
 
+/*
+* recursively checks klass::methods, and if failing that, klass::super::methods, and so on.
+*/
+bool bl_class_getmethod(VMState* vm, ObjClass* klass, ObjString* name, Value* dest)
+{
+    if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), dest))
+    {
+        return true;
+    }
+    if(klass->superclass != NULL)
+    {
+        return bl_class_getmethod(vm, klass->superclass, name, dest);
+    }
+    return false;
+}
 
-
-
-
+/*
+* same as bl_class_getmethod(), except for properties.
+*/
+bool bl_class_getproperty(VMState* vm, ObjClass* klass, ObjString* name, Value* dest)
+{
+    if(bl_hashtable_get(&klass->properties, OBJ_VAL(name), dest))
+    {
+        return true;
+    }
+    if(klass->superclass != NULL)
+    {
+        return bl_class_getproperty(vm, klass->superclass, name, dest);
+    }
+    return false;
+}
 
 

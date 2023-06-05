@@ -25,15 +25,12 @@ new:
 
 class Tree
 {
-	Tree(value, depth) {
-		
-
-		self.depth = depth;
-		self.value = value;
-
+	Tree(value, depth)
+    {
+        self.depth = depth;
+        self.value = value;
 		if(depth > 0)
         {
-            
             self.left  = Tree(value - 1, depth - 1);
             self.right = Tree(2 * value + 1, depth - 1);
         }
@@ -46,8 +43,6 @@ class Tree
 
 	check()
     {
-        
-        
         if(!self.left)
         {
             return self.value;
@@ -57,7 +52,7 @@ class Tree
 }
 
 var mindepth = 4;
-var maxdepth = 14/1;
+var maxdepth = mindepth*2;
 
 var stretchdepth = maxdepth + 1;
 

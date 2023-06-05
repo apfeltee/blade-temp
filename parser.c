@@ -3167,6 +3167,7 @@ static void bl_parser_parsespecificimport(AstParser* p, char* modulename, int im
 
 static void bl_parser_parseimportstmt(AstParser* p)
 {
+    int modnlen;
     int modconst;
     int partcount;
     int importconstant;
@@ -3223,20 +3224,23 @@ static void bl_parser_parseimportstmt(AstParser* p)
             free(modulename);
         }
         bl_parser_consume(p, TOK_IDENTIFIER, "module name expected");
-        modulename = (char*)calloc(p->previous.length + 1, sizeof(char));
-        memcpy(modulename, p->previous.start, p->previous.length);
-        modulename[p->previous.length] = '\0';
+        modnlen = p->previous.length+0;
+        //modulename = (char*)calloc(modnlen+1, sizeof(char));
+        modulename = (char*)malloc(modnlen+1);
+        memset(modulename, 0, modnlen+1);
+        strncpy(modulename, p->previous.start, modnlen);
+        modulename[modnlen] = '\0';
         // handle native modules
         if(partcount == 0 && modulename[0] == '_' && !isrelative)
         {
-            modconst = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystringlen(p->vm, modulename, (int)strlen(modulename))));
+            modconst = bl_parser_makeconstant(p, OBJ_VAL(bl_string_copystringlen(p->vm, modulename, modnlen)));
             bl_parser_emitbyte_and_short(p, OP_NATIVE_MODULE, modconst);
             bl_parser_parsespecificimport(p, modulename, modconst, false, true);
             return;
         }
         if(modulefile == NULL)
         {
-            modulefile = strdup(modulename);
+            modulefile = strndup(modulename, modnlen);
         }
         else
         {
@@ -3248,6 +3252,9 @@ static void bl_parser_parseimportstmt(AstParser* p)
         }
         partcount++;
     } while(bl_parser_match(p, TOK_DOT) || bl_parser_match(p, TOK_RANGE));
+
+    fprintf(stderr, "modulename=<%.*s>\n", modnlen, modulename);
+
     wasrenamed = false;
     if(bl_parser_match(p, TOK_AS))
     {
@@ -3259,7 +3266,7 @@ static void bl_parser_parseimportstmt(AstParser* p)
             bl_parser_raiseerror(p, "could not allocate memory for module name");
             return;
         }
-        memcpy(modulename, p->previous.start, p->previous.length);
+        strncpy(modulename, p->previous.start, p->previous.length);
         modulename[p->previous.length] = '\0';
         wasrenamed = true;
     }
@@ -3269,7 +3276,7 @@ static void bl_parser_parseimportstmt(AstParser* p)
         // check if there is one in the vm's registry
         // handle native modules
         Value md;
-        ObjString* finalmodulename = bl_string_copystringlen(p->vm, modulename, (int)strlen(modulename));
+        ObjString* finalmodulename = bl_string_copystringlen(p->vm, modulename, modnlen);
         if(bl_hashtable_get(&p->vm->modules, OBJ_VAL(finalmodulename), &md))
         {
             modconst = bl_parser_makeconstant(p, OBJ_VAL(finalmodulename));

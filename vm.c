@@ -65,6 +65,16 @@ void bl_vm_resetstack(VMState* vm)
     vm->openupvalues = NULL;
 }
 
+static inline ObjClass* bl_vmutil_makeclass(VMState* vm, const char* name, ObjClass* parent)
+{
+    ObjString* objstr;
+    ObjClass* oclass;
+    objstr = bl_string_copystring(vm, name);
+    oclass = bl_object_makeclass(vm, objstr, parent);
+    bl_state_defineglobal(vm, oclass->name, OBJ_VAL(oclass));
+    return oclass;
+}
+
 void init_vm(VMState* vm)
 {
     fprintf(stderr, "call to init_vm()\n");
@@ -90,13 +100,14 @@ void init_vm(VMState* vm)
     bl_hashtable_init(&vm->strings);
     bl_hashtable_init(&vm->globals);
     // object methods tables
-    vm->classobjobject = bl_object_makeclass(vm, bl_string_copystring(vm, "Object"), NULL);
-    vm->classobjstring = bl_object_makeclass(vm, bl_string_copystring(vm, "String"), vm->classobjobject);
-    vm->classobjlist = bl_object_makeclass(vm, bl_string_copystring(vm, "array"), vm->classobjobject);
-    vm->classobjdict = bl_object_makeclass(vm, bl_string_copystring(vm, "dict"), vm->classobjobject);
-    vm->classobjfile = bl_object_makeclass(vm, bl_string_copystring(vm, "file"), vm->classobjobject);
-    vm->classobjbytes = bl_object_makeclass(vm, bl_string_copystring(vm, "bytes"), vm->classobjobject);
-    vm->classobjrange = bl_object_makeclass(vm, bl_string_copystring(vm, "range"), vm->classobjobject);
+    vm->classobjobject = bl_vmutil_makeclass(vm, "Object", NULL);
+    vm->classobjstring = bl_vmutil_makeclass(vm, "String", vm->classobjobject);
+    vm->classobjlist = bl_vmutil_makeclass(vm, "Array", vm->classobjobject);
+    vm->classobjdict = bl_vmutil_makeclass(vm, "Dict", vm->classobjobject);
+    vm->classobjfile = bl_vmutil_makeclass(vm, "File", vm->classobjobject);
+    vm->classobjbytes = bl_vmutil_makeclass(vm, "Bytes", vm->classobjobject);
+    vm->classobjrange = bl_vmutil_makeclass(vm, "Range", vm->classobjobject);
+    vm->classobjmath = bl_vmutil_makeclass(vm, "Math", vm->classobjobject);
     bl_state_initbuiltinfunctions(vm);
     bl_state_initbuiltinmethods(vm);
     //vm->allowgc = true;
@@ -538,7 +549,7 @@ static inline bool bl_vm_invokemethod(VMState* vm, ObjString* name, int argcount
     if(!bl_value_isobject(receiver))
     {
         // @TODO: have methods for non objects as well.
-        return bl_vm_throwexception(vm, false, "non-object %s has no method", bl_value_typename(receiver));
+        return bl_vm_throwexception(vm, false, "non-object %s has no methods", bl_value_typename(receiver));
     }
     else
     {
@@ -594,7 +605,8 @@ static inline bool bl_vm_invokemethod(VMState* vm, ObjString* name, int argcount
         }
         if(klass != NULL)
         {
-            if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
+            //if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
+            if(bl_class_getmethod(vm, klass, name, &value))
             {
                 return bl_vmdo_callnativemethod(vm, AS_NATIVE(value), argcount);
             }
@@ -1146,7 +1158,7 @@ static inline bool bl_vmdo_concatvalues(VMState* vm)
     return true;
 }
 
-static int bl_util_floordiv(double a, double b)
+static double bl_util_floordiv(double a, double b)
 {
     int d;
     d = (int)a / (int)b;
@@ -1233,6 +1245,7 @@ static inline PtrResult bl_vmdo_binaryop(VMState* vm, CallFrame* frame, bool asb
     Value resval;
     Value leftinval;
     Value rightinval;
+    (void)frame;
     rightinval = bl_vmdo_popvalue(vm);
     leftinval = bl_vmdo_popvalue(vm);
     if((!bl_value_isnumber(leftinval) && !bl_value_isbool(leftinval)) || (!bl_value_isnumber(rightinval) && !bl_value_isbool(rightinval)))
@@ -1483,13 +1496,20 @@ PtrResult bl_vmdo_rungetproperty(VMState* vm, CallFrame* frame)
 
         if(klass != NULL)
         {
-            if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
+            /*
+            * TODO:
+            * this is where actual property fields become important:
+            *  `bl_class_getproperty(vm, klass, name, &value)`
+            * would be ambiguous as $value could be a function, which could then be called
+            * with incorrect argument count...
+            */
+            if(bl_class_getmethod(vm, klass, name, &value))
             {
                 bl_vmdo_popvalue(vm);
                 bl_vmdo_pushvalue(vm, value);
                 return PTR_OK;
             }
-            else if(bl_hashtable_get(&klass->properties, OBJ_VAL(name), &value))
+            else if(bl_class_getproperty(vm, klass, name, &value))
             {
                 bl_vmdo_popvalue(vm);
                 if(bl_value_isobject(value) && bl_value_isnativefunction(value))
@@ -1516,6 +1536,103 @@ PtrResult bl_vmdo_rungetproperty(VMState* vm, CallFrame* frame)
     return PTR_OK;
 }
 
+PtrResult bl_vmdo_rungetselfproperty(VMState* vm, CallFrame* frame)
+{
+    Value value;
+    Value peeked;
+    ObjString* name;
+    ObjClass* klass;
+    ObjModule* module;
+    ObjInstance* instance;
+    name = READ_STRING(frame);
+    peeked = bl_vmdo_peekvalue(vm, 0);
+    if(bl_value_isinstance(peeked))
+    {
+        instance = AS_INSTANCE(peeked);
+        if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
+        {
+            bl_vmdo_popvalue(vm);
+            bl_vmdo_pushvalue(vm, value);
+            return PTR_OK;
+        }
+        if(bl_vmdo_classbindmethod(vm, instance->klass, name))
+        {
+            return PTR_OK;
+        }
+        runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(peeked)->klass->name->chars,
+                      name->chars);
+    }
+    else if(bl_value_isclass(peeked))
+    {
+        klass = AS_CLASS(peeked);
+        if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
+        {
+            if(bl_vmutil_getmethodtype(value) == TYPE_STATIC)
+            {
+                bl_vmdo_popvalue(vm);
+                bl_vmdo_pushvalue(vm, value);
+                return PTR_OK;
+            }
+        }
+        else if(bl_hashtable_get(&klass->staticproperties, OBJ_VAL(name), &value))
+        {
+            bl_vmdo_popvalue(vm);
+            bl_vmdo_pushvalue(vm, value);
+            return PTR_OK;
+        }
+        runtime_error("class %s does not have a static property or method named '%s'", klass->name->chars, name->chars);
+    }
+    else if(bl_value_ismodule(peeked))
+    {
+        module = AS_MODULE(peeked);
+        if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
+        {
+            bl_vmdo_popvalue(vm);
+            bl_vmdo_pushvalue(vm, value);
+            return PTR_OK;
+        }
+        runtime_error("module %s does not define '%s'", module->name, name->chars);
+    }
+    runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, peeked), bl_value_typename(peeked));
+    return PTR_RUNTIME_ERR;
+}
+
+PtrResult bl_vmdo_runsetproperty(VMState* vm, CallFrame* frame)
+{
+    Value objto;
+    Value key;
+    Value val;
+    objto = bl_vmdo_peekvalue(vm, 1);
+    key = bl_vmdo_peekvalue(vm, 0);
+    if(!bl_value_isinstance(objto) && !bl_value_isdict(objto))
+    {
+        runtime_error("object of type %s can not carry properties", bl_value_typename(objto));
+    }
+    else if(bl_value_isempty(key))
+    {
+        runtime_error("empty cannot be assigned");
+    }
+    ObjString* name = READ_STRING(frame);
+    if(bl_value_isinstance(objto))
+    {
+        ObjInstance* instance = AS_INSTANCE(objto);
+        val = bl_vmdo_peekvalue(vm, 0);
+        bl_hashtable_set(vm, &instance->properties, OBJ_VAL(name), val);
+        Value value = bl_vmdo_popvalue(vm);
+        bl_vmdo_popvalue(vm);// removing the instance object
+        bl_vmdo_pushvalue(vm, value);
+    }
+    else
+    {
+        ObjDict* dict = AS_DICT(objto);
+        val = bl_vmdo_peekvalue(vm, 0);
+        bl_dict_setentry(vm, dict, OBJ_VAL(name), val);
+        Value value = bl_vmdo_popvalue(vm);
+        bl_vmdo_popvalue(vm);// removing the dictionary object
+        bl_vmdo_pushvalue(vm, value);
+    }
+    return PTR_OK;
+}
 
 #define vm_mac_execfunc(name) \
     { \
@@ -1639,17 +1756,17 @@ PtrResult bl_vm_run(VMState* vm)
                 break;
             case OP_REMINDER:
                 {
-                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_REMINDER, bl_util_modulo);
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_REMINDER, (VMBinaryCallbackFn)bl_util_modulo);
                 }
                 break;
             case OP_POW:
                 {
-                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_POW, pow);
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_POW, (VMBinaryCallbackFn)pow);
                 }
                 break;
             case OP_F_DIVIDE:
                 {
-                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_F_DIVIDE, bl_util_floordiv);
+                    vm_mac_execfuncargs(bl_vmdo_binaryop, false, OP_F_DIVIDE, (VMBinaryCallbackFn)bl_util_floordiv);
                 }
                 break;
             case OP_NEGATE:
@@ -1892,93 +2009,14 @@ PtrResult bl_vm_run(VMState* vm)
                 break;
             case OP_GET_SELF_PROPERTY:
                 {
-                    ObjString* name = READ_STRING(frame);
-                    Value value;
-                    if(bl_value_isinstance(bl_vmdo_peekvalue(vm, 0)))
-                    {
-                        ObjInstance* instance = AS_INSTANCE(bl_vmdo_peekvalue(vm, 0));
-                        if(bl_hashtable_get(&instance->properties, OBJ_VAL(name), &value))
-                        {
-                            bl_vmdo_popvalue(vm);
-                            bl_vmdo_pushvalue(vm, value);
-                            break;
-                        }
-                        if(bl_vmdo_classbindmethod(vm, instance->klass, name))
-                        {
-                            break;
-                        }
-                        runtime_error("instance of class %s does not have a property or method named '%s'", AS_INSTANCE(bl_vmdo_peekvalue(vm, 0))->klass->name->chars,
-                                      name->chars);
-                        break;
-                    }
-                    else if(bl_value_isclass(bl_vmdo_peekvalue(vm, 0)))
-                    {
-                        ObjClass* klass = AS_CLASS(bl_vmdo_peekvalue(vm, 0));
-                        if(bl_hashtable_get(&klass->methods, OBJ_VAL(name), &value))
-                        {
-                            if(bl_vmutil_getmethodtype(value) == TYPE_STATIC)
-                            {
-                                bl_vmdo_popvalue(vm);
-                                bl_vmdo_pushvalue(vm, value);
-                                break;
-                            }
-                        }
-                        else if(bl_hashtable_get(&klass->staticproperties, OBJ_VAL(name), &value))
-                        {
-                            bl_vmdo_popvalue(vm);
-                            bl_vmdo_pushvalue(vm, value);
-                            break;
-                        }
-                        runtime_error("class %s does not have a static property or method named '%s'", klass->name->chars, name->chars);
-                        break;
-                    }
-                    else if(bl_value_ismodule(bl_vmdo_peekvalue(vm, 0)))
-                    {
-                        ObjModule* module = AS_MODULE(bl_vmdo_peekvalue(vm, 0));
-                        if(bl_hashtable_get(&module->values, OBJ_VAL(name), &value))
-                        {
-                            bl_vmdo_popvalue(vm);
-                            bl_vmdo_pushvalue(vm, value);
-                            break;
-                        }
-                        runtime_error("module %s does not define '%s'", module->name, name->chars);
-                        break;
-                    }
-                    runtime_error("'%s' of type %s does not have properties", bl_value_tostring(vm, bl_vmdo_peekvalue(vm, 0)), bl_value_typename(bl_vmdo_peekvalue(vm, 0)));
+                    vm_mac_execfunc(bl_vmdo_rungetselfproperty);
                 }
                 break;
             case OP_SET_PROPERTY:
                 {
-                    if(!bl_value_isinstance(bl_vmdo_peekvalue(vm, 1)) && !bl_value_isdict(bl_vmdo_peekvalue(vm, 1)))
-                    {
-                        runtime_error("object of type %s can not carry properties", bl_value_typename(bl_vmdo_peekvalue(vm, 1)));
-                        break;
-                    }
-                    else if(bl_value_isempty(bl_vmdo_peekvalue(vm, 0)))
-                    {
-                        runtime_error("empty cannot be assigned");
-                        break;
-                    }
-                    ObjString* name = READ_STRING(frame);
-                    if(bl_value_isinstance(bl_vmdo_peekvalue(vm, 1)))
-                    {
-                        ObjInstance* instance = AS_INSTANCE(bl_vmdo_peekvalue(vm, 1));
-                        bl_hashtable_set(vm, &instance->properties, OBJ_VAL(name), bl_vmdo_peekvalue(vm, 0));
-                        Value value = bl_vmdo_popvalue(vm);
-                        bl_vmdo_popvalue(vm);// removing the instance object
-                        bl_vmdo_pushvalue(vm, value);
-                    }
-                    else
-                    {
-                        ObjDict* dict = AS_DICT(bl_vmdo_peekvalue(vm, 1));
-                        bl_dict_setentry(vm, dict, OBJ_VAL(name), bl_vmdo_peekvalue(vm, 0));
-                        Value value = bl_vmdo_popvalue(vm);
-                        bl_vmdo_popvalue(vm);// removing the dictionary object
-                        bl_vmdo_pushvalue(vm, value);
-                    }
+                    vm_mac_execfunc(bl_vmdo_runsetproperty);
                 }
                 break;
-
             case OP_CLOSURE:
                 {
                     ObjFunction* function = AS_FUNCTION(READ_CONSTANT(frame));
